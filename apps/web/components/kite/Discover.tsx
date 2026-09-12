@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useState } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -24,6 +25,7 @@ import {
 } from "./MarketUI";
 import { OrbitArt } from "./Brand";
 import { useBaskets } from "./useBaskets";
+import { MarketPulse, MarketHeadlines } from "./MarketPulse";
 
 export function MarketStatus() {
   const { snapshot, loading, error, refresh, storageError } = useKite();
@@ -135,6 +137,7 @@ export function Discover() {
       <MarketStatus />
       <div className="discover-grid">
         <div className="discover-primary">
+          <MarketPulse />
           <section className="discovery-hero">
             <div className="hero-copy">
               <p className="eyebrow">Ideas, brought together</p>
@@ -164,7 +167,7 @@ export function Discover() {
               </Link>
             </div>
             <div className="basket-grid">
-              {baskets.map((b, i) => (
+              {baskets.slice(0, 3).map((b, i) => (
                 <BasketCard key={b.id} basket={b} index={i} />
               ))}
             </div>
@@ -186,6 +189,7 @@ export function Discover() {
               compact
             />
           </section>
+          <MarketHeadlines />
         </div>
         <aside className="right-column">
           <PaperAccountCard />
@@ -275,6 +279,17 @@ export function Markets() {
 }
 export function Baskets() {
   const baskets = useBaskets();
+  const [category, setCategory] = useState("all");
+  const categories = [
+    ...new Set(
+      baskets
+        .map((basket) => basket.source.category)
+        .filter((item): item is NonNullable<typeof item> => Boolean(item)),
+    ),
+  ];
+  const visible = baskets.filter(
+    (basket) => category === "all" || basket.source.category === category,
+  );
   return (
     <>
       <PageIntro
@@ -283,8 +298,26 @@ export function Baskets() {
         description="A collection of companies behind a shared conviction. Explore the composition, then practice an allocation at live prices."
       />
       <MarketStatus />
-      <div className="basket-grid" style={{ marginBottom: 30 }}>
-        {baskets.map((b, i) => (
+      <div
+        className="filter-tabs basket-filters"
+        role="group"
+        aria-label="Basket theme category"
+      >
+        {["all", ...categories].map((item) => (
+          <button
+            key={item}
+            className={category === item ? "active" : ""}
+            aria-pressed={category === item}
+            onClick={() => setCategory(item)}
+          >
+            {item === "all"
+              ? `All themes · ${baskets.length}`
+              : item.charAt(0).toUpperCase() + item.slice(1)}
+          </button>
+        ))}
+      </div>
+      <div className="basket-grid basket-catalog" style={{ marginBottom: 30 }}>
+        {visible.map((b, i) => (
           <BasketCard key={b.id} basket={b} index={i} />
         ))}
       </div>

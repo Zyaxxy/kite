@@ -48,7 +48,7 @@ export function KiteProvider({ children }: { children: ReactNode }) {
     requestRef.current = controller;
     setLoading(true);
     let timedOut = false;
-    const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 30_000);
+    const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 60_000);
     try {
       const response = await apiGet<MarketSnapshot>('/api/markets', controller.signal);
       if (response.network !== 'mainnet-beta' || !Array.isArray(response.assets) || !Array.isArray(response.baskets)) throw new Error('The market service returned an invalid mainnet response.');

@@ -16,6 +16,12 @@ export interface MarketAsset {
   marketCapUsd: number | null;
   updatedAt: string | null;
   priceObservedAt: string | null;
+  /** Source of the tradable token price; underlying share quotes are kept separate. */
+  priceSource?: 'jupiter-tokens-v2' | 'jupiter-price-v3' | 'prestocks-issuer' | null;
+  priceBlockId?: number | null;
+  underlyingPriceUsd?: number | null;
+  underlyingPriceUpdatedAt?: string | null;
+  underlyingMarketCapUsd?: number | null;
   verified: boolean;
   sourceUrl: string;
   underlyingSymbol: string;
@@ -28,9 +34,11 @@ export interface MarketBasket {
   name: string;
   ticker: string;
   description: string;
+  category?: 'technology' | 'consumer' | 'healthcare' | 'finance' | 'industrials' | 'energy' | 'diversified' | 'private';
   assets: Array<{ asset: MarketAsset; weight: number }>;
   available: boolean;
   missingSymbols: string[];
+  unpricedSymbols?: string[];
 }
 
 export interface MarketSnapshot {
@@ -47,6 +55,7 @@ export interface MarketOptions {
   jupiterApiKey?: string;
   jupiterBaseUrl?: string;
   fetcher?: typeof fetch;
+  signal?: AbortSignal;
 }
 
 type Row = Record<string, unknown>;
@@ -61,17 +70,43 @@ function positive(value: unknown): number | null { const result = number(value);
 function string(value: unknown): string { return typeof value === 'string' ? value : ''; }
 function validMint(value: string): boolean { return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value); }
 function logo(value: unknown): string | null { const url = string(value); return url.startsWith('https://') ? url : null; }
+function timestamp(value: unknown): string | null { const valueString = string(value); return valueString && Number.isFinite(Date.parse(valueString)) ? valueString : null; }
+function nonnegative(value: unknown): number | null { const result = number(value); return result !== null && result >= 0 ? result : null; }
+function requestSignal(options: MarketOptions): AbortSignal {
+  const timeout = AbortSignal.timeout(15_000);
+  return options.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
+}
+
+async function waitForRateLimit(delayMs: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) throw new Error('Market request deadline exceeded');
+  await new Promise<void>((resolve, reject) => {
+    const aborted = (): void => { clearTimeout(timer); reject(new Error('Market request deadline exceeded')); };
+    const timer = setTimeout(() => { signal?.removeEventListener('abort', aborted); resolve(); }, delayMs);
+    signal?.addEventListener('abort', aborted, {once:true});
+  });
+}
 
 async function request(url: string, options: MarketOptions): Promise<unknown> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (url.startsWith('https://api.jup.ag/') && options.jupiterApiKey) headers['x-api-key'] = options.jupiterApiKey;
-  const response = await (options.fetcher ?? fetch)(url, { headers, signal: AbortSignal.timeout(15_000) });
+  let response = await (options.fetcher ?? fetch)(url, { headers, signal: requestSignal(options) });
+  // Jupiter shares its short rate-limit window across Tokens and Price requests.
+  // Respect the actual reset; retrying a full catalog after one second loses whole batches.
+  if (response.status === 429) {
+    const retrySeconds = Number(response.headers.get('retry-after'));
+    const resetSeconds = Number(response.headers.get('x-ratelimit-reset'));
+    const resetDelay = Number.isFinite(resetSeconds) && resetSeconds > 0 ? resetSeconds * 1000 - Date.now() + 100 : 0;
+    const requestedDelay = Number.isFinite(retrySeconds) && retrySeconds > 0 ? retrySeconds * 1000 : resetDelay > 0 ? resetDelay : 1_000;
+    const delayMs = Math.min(Math.max(requestedDelay, 100), 15_000);
+    await waitForRateLimit(delayMs, options.signal);
+    response = await (options.fetcher ?? fetch)(url, { headers, signal: requestSignal(options) });
+  }
   if (!response.ok) throw new Error(`Market provider returned HTTP ${response.status}`);
   return response.json() as Promise<unknown>;
 }
 
 function baseAsset(mint: string, symbol: string, name: string, issuer: MarketAsset['issuer'], sourceUrl: string): MarketAsset {
-  return { mint, symbol, name, issuer, sourceUrl, decimals: null, kind: issuer === 'prestocks' ? 'pre-ipo' : 'unknown', logoUrl: null, priceUsd: null, change24hPct: null, volume24hUsd: null, liquidityUsd: null, marketCapUsd: null, updatedAt: null, priceObservedAt: null, verified: true, underlyingSymbol: symbol, tradingHalted: false };
+  return { mint, symbol, name, issuer, sourceUrl, decimals: null, kind: issuer === 'prestocks' ? 'pre-ipo' : 'unknown', logoUrl: null, priceUsd: null, change24hPct: null, volume24hUsd: null, liquidityUsd: null, marketCapUsd: null, updatedAt: null, priceObservedAt: null, priceSource: null, priceBlockId: null, underlyingPriceUsd: null, underlyingPriceUpdatedAt: null, underlyingMarketCapUsd: null, verified: true, underlyingSymbol: symbol, tradingHalted: false };
 }
 
 async function xstockCatalog(options: MarketOptions): Promise<MarketAsset[]> {
@@ -123,7 +158,7 @@ async function loadXstockCatalog(options: MarketOptions): Promise<MarketAsset[]>
 
 async function getPrestockProducts(options: MarketOptions): Promise<Row[]> {
   if (!options.fetcher && prestockProductsCache && prestockProductsCache.expiresAt > Date.now()) return prestockProductsCache.products;
-  const response = await (options.fetcher ?? fetch)('https://prestocks.com/products', { signal: AbortSignal.timeout(15_000) });
+  const response = await (options.fetcher ?? fetch)('https://prestocks.com/products', { signal: requestSignal(options) });
   if (!response.ok) throw new Error('PreStocks product metadata is unavailable');
   const products = parsePrestockProducts(await response.text());
   if (!products.length) throw new Error('PreStocks product metadata could not be verified');
@@ -160,6 +195,7 @@ async function prestockCatalog(options: MarketOptions): Promise<MarketAsset[]> {
     asset.tradingHalted = !product || product.skipPipeline === true || product.hideOnPrestocksApi === true;
     if (asset.tradingHalted) asset.tradingNotice = product ? 'The issuer has paused or withdrawn this product. Check its product page for conversion terms.' : 'Issuer trading status is unavailable. Trading is disabled until it can be verified.';
     asset.priceUsd = positive(value.tokenPrice);
+    asset.priceSource = asset.priceUsd === null ? null : 'prestocks-issuer';
     asset.marketCapUsd = number(value.marketCapUSD);
     asset.priceObservedAt = asset.priceUsd === null ? null : observedAt;
     return [asset];
@@ -194,22 +230,36 @@ function parsePrestockProducts(html: string): Row[] {
 
 /** Baskets are allocation definitions, not fabricated token mints or return histories. */
 export function resolveMarketBaskets(assets: MarketAsset[]): MarketBasket[] {
-  const definitions = [
-    { id: 'sol-mag7', name: 'The Magnificent Seven', ticker: 'SOL-MAG7', description: 'Seven companies shaping the digital economy. Equal allocations to their mainnet xStocks.', symbols: ['AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'META', 'TSLA'], issuer: 'xstocks' },
-    { id: 'sol-ai-infra', name: 'Intelligence Layer', ticker: 'SOL-AI', description: 'Compute, cloud and the infrastructure behind artificial intelligence.', symbols: ['NVDA', 'MSFT', 'GOOGL'], issuer: 'xstocks' },
-    { id: 'sol-pre-stocks', name: 'Private Frontiers', ticker: 'SOL-PRE', description: 'Equal allocations across the currently published PreStocks catalog. Private company exposure carries distinct risks.', symbols: assets.filter(asset => asset.issuer === 'prestocks' && !asset.tradingHalted).map(asset => asset.underlyingSymbol), issuer: 'prestocks' },
+  const definitions: Array<{id:string; name:string; ticker:string; description:string; symbols:string[]; issuer:MarketAsset['issuer']; category:MarketBasket['category']}> = [
+    { id: 'sol-mag7', name: 'The Magnificent Seven', ticker: 'SOL-MAG7', category: 'technology', description: 'Seven companies shaping the digital economy. Equal allocations to their mainnet xStocks.', symbols: ['AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'META', 'TSLA'], issuer: 'xstocks' },
+    { id: 'sol-ai-infra', name: 'Intelligence Layer', ticker: 'SOL-AI', category: 'technology', description: 'Compute and cloud platforms behind artificial intelligence. Equal allocations across five companies.', symbols: ['NVDA', 'MSFT', 'GOOGL', 'AMZN', 'ORCL'], issuer: 'xstocks' },
+    { id: 'sol-chips', name: 'The Silicon Stack', ticker: 'SOL-CHIPS', category: 'technology', description: 'From chip design to fabrication and lithography: five links in the semiconductor supply chain, equally weighted.', symbols: ['NVDA', 'AMD', 'AVGO', 'TSM', 'ASML'], issuer: 'xstocks' },
+    { id: 'sol-cloud', name: 'Work in the Cloud', ticker: 'SOL-CLOUD', category: 'technology', description: 'Enterprise software, databases and business workflows. Equal allocations across Microsoft, Salesforce, Oracle and ServiceNow.', symbols: ['MSFT', 'CRM', 'ORCL', 'NOW'], issuer: 'xstocks' },
+    { id: 'sol-everyday', name: 'Everyday Economy', ticker: 'SOL-LIFE', category: 'consumer', description: 'Devices, shopping, meals and drinks that connect companies to everyday spending. Five equal allocations.', symbols: ['AAPL', 'AMZN', 'MCD', 'SBUX', 'KO'], issuer: 'xstocks' },
+    { id: 'sol-health', name: 'Health, Ahead', ticker: 'SOL-HEALTH', category: 'healthcare', description: 'Medicines, medical products and healthcare services. Equal exposure across five healthcare companies.', symbols: ['LLY', 'JNJ', 'ABBV', 'UNH', 'MRK'], issuer: 'xstocks' },
+    { id: 'sol-finance', name: 'Money in Motion', ticker: 'SOL-FIN', category: 'finance', description: 'Banking, capital markets and payment networks. Four equal allocations to the infrastructure of finance.', symbols: ['JPM', 'GS', 'V', 'MA'], issuer: 'xstocks' },
+    { id: 'sol-defense', name: 'Strategic Systems', ticker: 'SOL-DEF', category: 'industrials', description: 'Aerospace, defense systems and data software. Equal allocations across Lockheed Martin, RTX, Northrop Grumman and Palantir.', symbols: ['LMT', 'RTX', 'NOC', 'PLTR'], issuer: 'xstocks' },
+    { id: 'sol-energy', name: 'Energy Backbone', ticker: 'SOL-ENERGY', category: 'energy', description: 'Three energy producers with equal allocations. A focused energy thesis with exposure to commodity cycles.', symbols: ['XOM', 'CVX', 'COP'], issuer: 'xstocks' },
+    { id: 'sol-industry', name: 'Built to Move', ticker: 'SOL-BUILD', category: 'industrials', description: 'Machinery, agriculture, aerospace and industrial systems. Equal allocations to Caterpillar, Deere, GE Aerospace and Honeywell.', symbols: ['CAT', 'DE', 'GE', 'HON'], issuer: 'xstocks' },
+    { id: 'sol-core', name: 'A Wider Lens', ticker: 'SOL-CORE', category: 'diversified', description: 'Equal allocations to S&P 500, Nasdaq-100 and gold exposure through issuer-listed ETF tokens. Index holdings overlap.', symbols: ['SPY', 'QQQ', 'GLD'], issuer: 'xstocks' },
+    { id: 'sol-pre-stocks', name: 'Private Frontiers', ticker: 'SOL-PRE', category: 'private', description: 'Equal allocations across the currently published PreStocks catalog. Private company exposure carries distinct risks.', symbols: [...new Set(assets.filter(asset => asset.issuer === 'prestocks' && !asset.tradingHalted).map(asset => asset.underlyingSymbol))].sort(), issuer: 'prestocks' },
   ];
   return definitions.map(definition => {
     const found = definition.symbols.map(symbol => assets.find(asset => asset.issuer === definition.issuer && asset.underlyingSymbol.toUpperCase() === symbol.toUpperCase()));
     const missingSymbols = definition.symbols.filter((_, index) => !found[index]);
     const count = definition.symbols.length;
     const members = found.flatMap((asset, index) => asset ? [{ asset, weight: Math.floor(10_000 / count) + (index < 10_000 % count ? 1 : 0) }] : []);
-    return { id: definition.id, name: definition.name, ticker: definition.ticker, description: definition.description, assets: members, missingSymbols, available: count > 0 && missingSymbols.length === 0 && members.every(({asset}) => asset.priceUsd !== null && !asset.tradingHalted) };
+    const unpricedSymbols = members.filter(({asset}) => positive(asset.priceUsd) === null).map(({asset}) => asset.underlyingSymbol);
+    return { id: definition.id, name: definition.name, ticker: definition.ticker, category: definition.category, description: definition.description, assets: members, missingSymbols, unpricedSymbols, available: count > 0 && missingSymbols.length === 0 && unpricedSymbols.length === 0 && members.every(({asset}) => !asset.tradingHalted) };
   });
 }
 
 /** Prices and metadata are requested only for mints obtained from the issuers themselves. */
 export async function getMainnetMarkets(options: MarketOptions = {}): Promise<MarketSnapshot> {
+  // Leave time for precision verification and quote construction after a cold market read.
+  // A provider outage returns a partial snapshot instead of extending every batch's timeout.
+  const deadline = AbortSignal.timeout(30_000);
+  options = { ...options, signal: options.signal ? AbortSignal.any([options.signal, deadline]) : deadline };
   const warnings: string[] = [];
   const sources: string[] = [];
   const catalogs = await Promise.allSettled([xstockCatalog(options), prestockCatalog(options)]);
@@ -240,21 +290,58 @@ export async function getMainnetMarkets(options: MarketOptions = {}): Promise<Ma
         asset.name = string(token.name) || asset.name;
         asset.logoUrl = logo(token.icon) ?? asset.logoUrl;
         const price = positive(token.usdPrice);
-        if (price !== null) { asset.priceUsd = price; asset.priceObservedAt = observedAt; }
+        if (price !== null) { asset.priceUsd = price; asset.priceObservedAt = observedAt; asset.priceSource = 'jupiter-tokens-v2'; asset.priceBlockId = nonnegative(token.priceBlockId); }
         const stats = row(token.stats24h);
         asset.change24hPct = number(stats.priceChange);
-        const buy = number(stats.buyVolume), sell = number(stats.sellVolume);
+        const buy = nonnegative(stats.buyVolume), sell = nonnegative(stats.sellVolume);
         asset.volume24hUsd = buy !== null && sell !== null ? buy + sell : null;
-        asset.liquidityUsd = number(token.liquidity);
-        asset.marketCapUsd = number(token.mcap) ?? asset.marketCapUsd;
-        asset.updatedAt = string(token.updatedAt) || null;
+        asset.liquidityUsd = nonnegative(token.liquidity);
+        asset.marketCapUsd = nonnegative(token.mcap) ?? asset.marketCapUsd;
+        asset.updatedAt = timestamp(token.updatedAt);
       }
       if (!sources.includes('Jupiter Tokens V2')) sources.push('Jupiter Tokens V2');
     } catch { warnings.push('Some Jupiter prices and token metadata are unavailable. Unpriced assets cannot be traded in paper mode.'); }
   };
   for (let index = 0; index < batches.length; index += 3) await Promise.all(batches.slice(index,index+3).map(hydrateBatch));
+  // Price V3 also supplies issuer-backed underlying reference quotes for xStocks
+  // with no recent onchain swap. Never turn those references into token fills.
+  const priceBatches: string[][] = [];
+  for (let index = 0; index < mints.length; index += 50) priceBatches.push(mints.slice(index,index+50));
+  const hydratePrices = async (batch: string[]): Promise<void> => {
+    try {
+      const payload = await request(`${base}/price/v3?ids=${batch.join(',')}`, options);
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('Jupiter price data is unavailable');
+      const prices = row(payload);
+      const observedAt = new Date().toISOString();
+      for (const mint of batch) {
+        const asset = byMint.get(mint);
+        if (!asset) continue;
+        const value = row(prices[mint]);
+        const price = positive(value.usdPrice);
+        const decimals = number(value.decimals);
+        asset.decimals = decimals !== null && Number.isInteger(decimals) && decimals >= 0 && decimals <= 18 ? decimals : asset.decimals;
+        if (price !== null) {
+          asset.priceUsd = price;
+          asset.priceObservedAt = observedAt;
+          asset.priceSource = 'jupiter-price-v3';
+          asset.priceBlockId = nonnegative(value.blockId);
+          asset.change24hPct = number(value.priceChange24h) ?? asset.change24hPct;
+          asset.liquidityUsd = nonnegative(value.liquidity) ?? asset.liquidityUsd;
+        }
+        const stock = row(value.stockData);
+        if (asset.issuer === 'xstocks' && stock.id === 'xstocks') {
+          asset.underlyingPriceUsd = positive(stock.price);
+          asset.underlyingPriceUpdatedAt = timestamp(stock.updatedAt);
+          asset.underlyingMarketCapUsd = nonnegative(stock.mcap);
+        }
+      }
+      if (!sources.includes('Jupiter Price V3')) sources.push('Jupiter Price V3');
+    } catch { warnings.push('Some Jupiter price and underlying reference quotes are unavailable. Available token metadata is retained.'); }
+  };
+  for (let index = 0; index < priceBatches.length; index += 3) await Promise.all(priceBatches.slice(index,index+3).map(hydratePrices));
   const assets = [...byMint.values()].sort((a,b) => (b.volume24hUsd ?? -1) - (a.volume24hUsd ?? -1) || a.symbol.localeCompare(b.symbol));
-  if (assets.some(asset => asset.priceUsd === null)) warnings.push('Some issuer-listed assets do not currently have a market price.');
+  const unpriced = assets.filter(asset => asset.priceUsd === null).length;
+  if (unpriced > 0) warnings.push(`${unpriced} issuer-listed assets have no observed token market price. Underlying reference quotes are shown separately where available and cannot fund paper trades.`);
   if (assets.some(asset => asset.tradingHalted)) warnings.push('Paused, converted, or unverified-status issuer products are listed for reference with trading disabled.');
   return { assets, baskets: resolveMarketBaskets(assets), asOf: new Date().toISOString(), network: 'mainnet-beta', sources, status: assets.length === 0 ? 'unavailable' : warnings.length ? 'partial' : 'live', warnings: [...new Set(warnings)] };
 }

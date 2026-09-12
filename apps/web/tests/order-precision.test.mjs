@@ -20,14 +20,19 @@ const compiled = ts.transpileModule(source, {
 }).outputText;
 const mint = Keypair.generate().publicKey.toBase58();
 const wallet = Keypair.generate().publicKey.toBase58();
+const secondMint = Keypair.generate().publicKey.toBase58();
+const arbitraryMint = Keypair.generate().publicKey.toBase58();
 
 // Only the upstream dependencies are stubbed. The actual route validation runs unchanged.
 function createRoute({
   metadataDecimals = null,
   chainDecimals = 8,
   rpcFails = false,
+  haltedMint = null,
+  unknownToken = false,
+  incompleteCatalog = false,
 } = {}) {
-  const calls = { precision: [], quotes: [] };
+  const calls = { precision: [], quotes: [], discovery: [] };
   const exports = {};
   const dependencies = {
     "next/server": require("next/server"),
@@ -35,22 +40,62 @@ function createRoute({
     "@kite/sdk": sdk,
     "@/lib/server/markets": {
       getServerMarkets: async () => ({
+        status: "live",
+        sources: incompleteCatalog
+          ? []
+          : ["xStocks issuer catalog", "PreStocks issuer catalog"],
         assets: [
           {
             mint,
             symbol: "TESTx",
             verified: true,
-            tradingHalted: false,
+            tradingHalted: haltedMint === mint,
             decimals: metadataDecimals,
+          },
+          {
+            mint: secondMint,
+            symbol: "SECONDx",
+            name: "Second test asset",
+            verified: true,
+            tradingHalted: haltedMint === secondMint,
+            decimals: 6,
           },
         ],
       }),
+    },
+    "@/lib/server/swap-tokens": {
+      searchJupiterSwapTokens: async (query) => {
+        calls.discovery.push(query);
+        return unknownToken
+          ? []
+          : [
+              {
+                mint: arbitraryMint,
+                symbol: "TEST",
+                name: "Test token",
+                decimals: 4,
+                source: "jupiter",
+                verified: false,
+                priceUsd: null,
+                tradingHalted: false,
+              },
+            ];
+      },
     },
     "@/lib/server/mint-precision": {
       getTradeMintDecimals: async (address) => {
         calls.precision.push(address);
         if (rpcFails) throw new Error("RPC unavailable");
-        return chainDecimals;
+        return address === sdk.MAINNET_USDC_MINT ||
+          address === sdk.MAINNET_USDT_MINT
+          ? 6
+          : address === sdk.MAINNET_SOL_MINT
+            ? 9
+            : address === arbitraryMint
+              ? 4
+              : address === secondMint
+                ? 2
+                : chainDecimals;
       },
     },
     "@/lib/server/trade-authorization": {
@@ -95,6 +140,19 @@ function createRoute({
           body: JSON.stringify({ mint, taker: wallet, side, amount }),
         }),
       ),
+    swap: (inputMint, outputMint, amount = "1.25") =>
+      exports.POST(
+        new Request("http://localhost/api/trade/order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            inputMint,
+            outputMint,
+            amount,
+            taker: wallet,
+          }),
+        }),
+      ),
   };
 }
 
@@ -104,12 +162,94 @@ test("buy and sell quotes recover when market metadata has no decimals", async (
     const response = await route.order(side, "1.25");
     assert.equal(response.status, 200);
     const order = await response.json();
-    assert.deepEqual(route.calls.precision, [mint]);
+    assert.deepEqual(
+      route.calls.precision,
+      side === "buy"
+        ? [sdk.MAINNET_USDC_MINT, mint]
+        : [mint, sdk.MAINNET_USDC_MINT],
+    );
     assert.equal(order.inputDecimals, side === "buy" ? 6 : 8);
     assert.equal(order.outputDecimals, side === "buy" ? 8 : 6);
     assert.equal(order.inAmount, side === "buy" ? "1250000" : "125000000");
     assert.equal(route.calls.quotes.length, 1);
   }
+});
+
+test("direct stock-to-stock swaps resolve both mint precisions", async () => {
+  const route = createRoute();
+  const response = await route.swap(mint, secondMint, "0.00000001");
+  assert.equal(response.status, 200);
+  const order = await response.json();
+  assert.equal(order.side, "swap");
+  assert.equal(order.inputDecimals, 8);
+  assert.equal(order.outputDecimals, 2);
+  assert.equal(order.inAmount, "1");
+  assert.equal(order.inputMint, mint);
+  assert.equal(order.outputMint, secondMint);
+  assert.deepEqual(route.calls.precision, [mint, secondMint]);
+});
+
+test("SOL, USDT and indexed arbitrary tokens can fund an issuer asset", async () => {
+  for (const input of [
+    sdk.MAINNET_SOL_MINT,
+    sdk.MAINNET_USDT_MINT,
+    arbitraryMint,
+  ]) {
+    const route = createRoute();
+    const response = await route.swap(input, mint);
+    assert.equal(response.status, 200);
+    const order = await response.json();
+    assert.equal(order.inputMint, input);
+    assert.equal(
+      order.inAmount,
+      input === sdk.MAINNET_SOL_MINT
+        ? "1250000000"
+        : input === sdk.MAINNET_USDT_MINT
+          ? "1250000"
+          : "12500",
+    );
+    assert.deepEqual(
+      route.calls.discovery,
+      input === arbitraryMint ? [arbitraryMint] : [],
+    );
+  }
+});
+
+test("arbitrary token output uses server-discovered identity and chain precision", async () => {
+  const route = createRoute();
+  const response = await route.swap(mint, arbitraryMint);
+  assert.equal(response.status, 200);
+  const order = await response.json();
+  assert.equal(order.outputSymbol, "TEST");
+  assert.equal(order.outputDecimals, 4);
+});
+
+test("same-mint, unknown token and halted assets cannot request routes", async () => {
+  const same = createRoute();
+  assert.equal((await same.swap(mint, mint)).status, 400);
+  assert.equal(same.calls.quotes.length, 0);
+  const unknown = createRoute({ unknownToken: true });
+  assert.equal((await unknown.swap(arbitraryMint, mint)).status, 422);
+  assert.equal(unknown.calls.precision.length, 0);
+  for (const haltedMint of [mint, secondMint]) {
+    const halted = createRoute({ haltedMint });
+    assert.equal((await halted.swap(mint, secondMint)).status, 422);
+    assert.equal(halted.calls.quotes.length, 0);
+  }
+});
+
+test("an incomplete issuer catalog cannot bypass issuer halt checks through token search", async () => {
+  const route = createRoute({ incompleteCatalog: true });
+  assert.equal(
+    (await route.swap(arbitraryMint, sdk.MAINNET_USDC_MINT)).status,
+    503,
+  );
+  assert.equal(route.calls.discovery.length, 0);
+  assert.equal(route.calls.quotes.length, 0);
+  assert.equal(
+    (await route.swap(sdk.MAINNET_SOL_MINT, sdk.MAINNET_USDC_MINT)).status,
+    200,
+  );
 });
 
 test("mint precision overrides stale metadata and rejects amounts beyond the actual precision", async () => {

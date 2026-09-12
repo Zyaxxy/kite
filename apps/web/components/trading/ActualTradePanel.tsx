@@ -3,17 +3,32 @@
 import { useEffect, useRef, useState } from "react";
 import {
   fromTokenAmount,
-  toTokenAmount,
+  BASE_SWAP_TOKENS,
+  MAINNET_USDC_MINT,
   canApproveTrade,
   classifyTradeExecution,
   UNKNOWN_TRADE_MESSAGE,
   type TradableAsset,
   type MainnetTradeOrder,
   type MainnetTradeResult,
-  type TradeSide,
+  type SwapToken,
 } from "@kite/sdk";
 import { WalletButton } from "./WalletButton";
 import { useTradingAuth } from "./TradingAuth";
+import { SwapTokenSelector } from "./SwapTokenSelector";
+import styles from "./swap-tokens.module.css";
+
+const USDC = BASE_SWAP_TOKENS.find(
+  (token) => token.mint === MAINNET_USDC_MINT,
+)!;
+const issuerToken = (asset: TradableAsset): SwapToken => ({
+  ...asset,
+  source: "issuer",
+  verified: true,
+  logoUrl: null,
+  priceUsd: null,
+  tradingHalted: false,
+});
 
 const PENDING_EXECUTION_KEY = "kite:pending-mainnet-execution";
 interface PendingExecution {
@@ -39,7 +54,10 @@ export function ActualTradePanel({
   className?: string;
 }) {
   const auth = useTradingAuth();
-  const [side, setSide] = useState<TradeSide>("buy");
+  const [inputToken, setInputToken] = useState<SwapToken>(USDC);
+  const [outputToken, setOutputToken] = useState<SwapToken>(() =>
+    issuerToken(asset),
+  );
   const [amount, setAmount] = useState("");
   const [order, setOrder] = useState<MainnetTradeOrder | null>(null);
   const [busy, setBusy] = useState<"quote" | "sign" | "execute" | null>(null);
@@ -52,6 +70,11 @@ export function ActualTradePanel({
   const activeWallet = useRef(auth.walletAddress);
   activeWallet.current = auth.walletAddress;
 
+  useEffect(() => {
+    setInputToken(USDC);
+    setOutputToken(issuerToken(asset));
+    setAmount("");
+  }, [asset.mint]);
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(PENDING_EXECUTION_KEY);
@@ -74,7 +97,7 @@ export function ActualTradePanel({
     setOrder(null);
     setError(null);
     setResult(null);
-  }, [asset.mint, amount, side, auth.walletAddress]);
+  }, [inputToken.mint, outputToken.mint, amount, auth.walletAddress]);
   useEffect(() => {
     if (!order) return;
     const timer = window.setInterval(() => setNow(Date.now()), 1_000);
@@ -90,10 +113,8 @@ export function ActualTradePanel({
     try {
       if (!auth.walletAddress)
         throw new Error("Sign in or connect your Solana wallet first.");
-      // USDC precision is fixed; the server verifies sell precision from the mint.
-      // A missing or stale market metadata field must not block that lookup.
-      if (side === "buy") toTokenAmount(amount, 6);
-      else if (
+      // Mainnet mint accounts, not possibly stale search metadata, establish precision.
+      if (
         !/^(0|[1-9]\d*)(\.\d+)?$/.test(amount.trim()) ||
         !/[1-9]/.test(amount)
       )
@@ -104,9 +125,9 @@ export function ActualTradePanel({
         headers: { "Content-Type": "application/json" },
         signal: AbortSignal.timeout(60_000),
         body: JSON.stringify({
-          mint: asset.mint,
+          inputMint: inputToken.mint,
+          outputMint: outputToken.mint,
           amount,
-          side,
           taker: auth.walletAddress,
         }),
       });
@@ -189,8 +210,8 @@ export function ActualTradePanel({
       <div className="notice">
         <strong>Actual trading</strong>
         <p>
-          Uses your wallet’s real USDC and token balances on Solana mainnet.
-          Every trade requires your approval.
+          Swap your wallet’s tokens and market assets on Solana mainnet. Every
+          trade requires your approval.
         </p>
       </div>
       {!auth.walletAddress && (
@@ -220,25 +241,69 @@ export function ActualTradePanel({
       <div className="segmented" role="group" aria-label="Trade direction">
         <button
           type="button"
-          className={side === "buy" ? "active" : ""}
-          onClick={() => setSide("buy")}
+          className={outputToken.mint === asset.mint ? "active" : ""}
+          onClick={() => {
+            setInputToken(USDC);
+            setOutputToken(issuerToken(asset));
+            setAmount("");
+          }}
           disabled={Boolean(busy) || Boolean(pendingExecution)}
         >
-          Buy
+          Buy {asset.symbol}
         </button>
         <button
           type="button"
-          className={side === "sell" ? "active" : ""}
-          onClick={() => setSide("sell")}
+          className={inputToken.mint === asset.mint ? "active" : ""}
+          onClick={() => {
+            setInputToken(issuerToken(asset));
+            setOutputToken(USDC);
+            setAmount("");
+          }}
           disabled={Boolean(busy) || Boolean(pendingExecution)}
         >
-          Sell
+          Sell {asset.symbol}
         </button>
       </div>
+      <SwapTokenSelector
+        label="You pay"
+        token={inputToken}
+        otherMint={outputToken.mint}
+        disabled={Boolean(busy) || Boolean(pendingExecution)}
+        onChange={setInputToken}
+      />
+      <button
+        type="button"
+        className={styles.reverse}
+        disabled={Boolean(busy) || Boolean(pendingExecution)}
+        onClick={() => {
+          setInputToken(outputToken);
+          setOutputToken(inputToken);
+          setAmount("");
+        }}
+        aria-label="Reverse swap tokens"
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          aria-hidden="true"
+        >
+          <path d="M8 3v16m-4-4 4 4 4-4M16 21V5m-4 4 4-4 4 4" />
+        </svg>
+        Reverse
+      </button>
+      <SwapTokenSelector
+        label="You receive"
+        token={outputToken}
+        otherMint={inputToken.mint}
+        disabled={Boolean(busy) || Boolean(pendingExecution)}
+        onChange={setOutputToken}
+      />
       <label className="form-field">
-        {side === "buy"
-          ? "USDC to spend"
-          : `${asset.symbol} raw token units to sell`}
+        {inputToken.symbol} token units to spend
         <input
           inputMode="decimal"
           type="text"
@@ -266,16 +331,14 @@ export function ActualTradePanel({
         <div className="trade-summary">
           <dl>
             <div>
-              <dt>You pay{order.side === "sell" ? " (raw units)" : ""}</dt>
+              <dt>You pay</dt>
               <dd>
                 {fromTokenAmount(order.inAmount, order.inputDecimals)}{" "}
                 {order.inputSymbol}
               </dd>
             </div>
             <div>
-              <dt>
-                Estimated received{order.side === "buy" ? " (raw units)" : ""}
-              </dt>
+              <dt>Estimated received</dt>
               <dd>
                 {fromTokenAmount(order.outAmount, order.outputDecimals)}{" "}
                 {order.outputSymbol}
@@ -283,9 +346,7 @@ export function ActualTradePanel({
             </div>
             {order.otherAmountThreshold && (
               <div>
-                <dt>
-                  Minimum received{order.side === "buy" ? " (raw units)" : ""}
-                </dt>
+                <dt>Minimum received</dt>
                 <dd>
                   {fromTokenAmount(
                     order.otherAmountThreshold,

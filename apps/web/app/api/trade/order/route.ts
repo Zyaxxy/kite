@@ -2,12 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { PublicKey } from "@solana/web3.js";
 import {
   MAINNET_USDC_MINT,
+  BASE_SWAP_TOKENS,
+  hasCompleteIssuerCatalogs,
   toTokenAmount,
   type MainnetTradeOrder,
+  type SwapToken,
+  type TradeSide,
 } from "@kite/sdk";
 import { getServerMarkets } from "@/lib/server/markets";
 import { authorizeTrade } from "@/lib/server/trade-authorization";
 import { getTradeMintDecimals } from "@/lib/server/mint-precision";
+import { searchJupiterSwapTokens } from "@/lib/server/swap-tokens";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,43 +31,114 @@ export async function POST(request: NextRequest) {
     const body: unknown = await request.json();
     if (!body || typeof body !== "object")
       throw new Error("Invalid trade request.");
-    const { mint, amount, taker, side } = body as Record<string, unknown>;
+    const values = body as Record<string, unknown>;
+    const { mint, amount, taker } = values;
     if (
-      typeof mint !== "string" ||
       typeof amount !== "string" ||
       amount.length > 40 ||
-      typeof taker !== "string" ||
-      (side !== "buy" && side !== "sell")
+      typeof taker !== "string"
     )
       throw new Error(
-        "A token, amount, wallet and trade direction are required.",
+        "An input token, output token, amount and signing wallet are required.",
       );
+    // Existing buy/sell clients remain valid. New clients can choose either side freely.
+    const legacy =
+      values.inputMint === undefined && values.outputMint === undefined;
+    let inputMint: string;
+    let outputMint: string;
+    let side: TradeSide = "swap";
+    if (legacy) {
+      if (
+        typeof mint !== "string" ||
+        (values.side !== "buy" && values.side !== "sell")
+      )
+        throw new Error("A token and buy or sell direction are required.");
+      side = values.side;
+      inputMint = side === "buy" ? MAINNET_USDC_MINT : mint;
+      outputMint = side === "buy" ? mint : MAINNET_USDC_MINT;
+    } else {
+      if (
+        typeof values.inputMint !== "string" ||
+        typeof values.outputMint !== "string"
+      )
+        throw new Error("Choose both an input and output token.");
+      inputMint = values.inputMint;
+      outputMint = values.outputMint;
+    }
+    inputMint = new PublicKey(inputMint).toBase58();
+    outputMint = new PublicKey(outputMint).toBase58();
+    if (inputMint === outputMint)
+      throw new Error("Choose two different tokens to swap.");
     if (!PublicKey.isOnCurve(new PublicKey(taker).toBytes()))
       throw new Error("A valid signing wallet is required.");
     const markets = await getServerMarkets();
-    const asset = markets.assets.find(
-      (item) => item.mint === mint && item.verified,
+    const mints = [inputMint, outputMint];
+    const issuerAssets = mints.map((address) =>
+      markets.assets.find((asset) => asset.mint === address),
     );
-    if (!asset)
-      return NextResponse.json(
-        {
-          error:
-            "This mint is not present in the available verified issuer catalogs.",
-        },
-        { status: 422 },
-      );
-    if (asset.tradingHalted)
+    if (issuerAssets.some((asset) => asset?.tradingHalted))
       return NextResponse.json(
         { error: "The issuer has halted trading for this asset." },
         { status: 422 },
       );
-    let decimals: number;
+    if (
+      !hasCompleteIssuerCatalogs(markets) &&
+      mints.some(
+        (address) => !BASE_SWAP_TOKENS.some((token) => token.mint === address),
+      )
+    )
+      return NextResponse.json(
+        {
+          error:
+            "Issuer trading status is temporarily unavailable. Try again once the catalogs recover.",
+        },
+        { status: 503 },
+      );
+    const known = mints.map((address, index): SwapToken | undefined => {
+      const issuer = issuerAssets[index];
+      return issuer && issuer.verified
+        ? { ...issuer, source: "issuer" }
+        : BASE_SWAP_TOKENS.find((token) => token.mint === address);
+    });
+    const missingMints = mints.filter((_, index) => !known[index]);
+    if (missingMints.length) {
+      let discovered: SwapToken[];
+      try {
+        discovered = await searchJupiterSwapTokens(missingMints.join(","));
+      } catch {
+        return NextResponse.json(
+          {
+            error:
+              "Token metadata is temporarily unavailable. Please retry the search.",
+          },
+          { status: 503 },
+        );
+      }
+      for (let index = 0; index < known.length; index++)
+        known[index] ??= discovered.find(
+          (token) => token.mint === mints[index],
+        );
+    }
+    const [inputToken, outputToken] = known;
+    if (!inputToken || !outputToken)
+      return NextResponse.json(
+        {
+          error:
+            "This token could not be found in the mainnet token index. Check its mint address.",
+        },
+        { status: 422 },
+      );
+    let inputDecimals: number;
+    let outputDecimals: number;
     try {
-      decimals = await getTradeMintDecimals(mint);
+      [inputDecimals, outputDecimals] = await Promise.all(
+        mints.map(getTradeMintDecimals),
+      );
     } catch {
       // Provider URLs can contain credentials, so do not log upstream error objects.
       console.warn("[api/trade/order] mainnet_mint_precision_unavailable", {
-        mint,
+        inputMint,
+        outputMint,
       });
       return NextResponse.json(
         {
@@ -72,10 +148,6 @@ export async function POST(request: NextRequest) {
         { status: 503 },
       );
     }
-    const inputMint = side === "buy" ? MAINNET_USDC_MINT : mint;
-    const outputMint = side === "buy" ? mint : MAINNET_USDC_MINT;
-    const inputDecimals = side === "buy" ? 6 : decimals;
-    const outputDecimals = side === "buy" ? decimals : 6;
     const rawAmount = toTokenAmount(amount, inputDecimals);
     const params = new URLSearchParams({
       inputMint,
@@ -121,8 +193,11 @@ export async function POST(request: NextRequest) {
       typeof data.slippageBps !== "number" ||
       !Number.isFinite(data.slippageBps) ||
       data.slippageBps < 0 ||
+      data.slippageBps > 10_000 ||
       typeof data.feeBps !== "number" ||
-      !Number.isFinite(data.feeBps)
+      !Number.isFinite(data.feeBps) ||
+      data.feeBps < 0 ||
+      data.feeBps > 10_000
     )
       throw new Error(
         "The route did not return its slippage and fee information.",
@@ -161,8 +236,8 @@ export async function POST(request: NextRequest) {
         process.env.KITE_TRADE_SECRET || apiKey,
       ),
       taker,
-      inputSymbol: side === "buy" ? "USDC" : asset.symbol,
-      outputSymbol: side === "buy" ? asset.symbol : "USDC",
+      inputSymbol: inputToken.symbol,
+      outputSymbol: outputToken.symbol,
       inputDecimals,
       outputDecimals,
       side,

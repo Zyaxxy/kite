@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Keypair, SystemProgram, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
 import { authorizeTrade, verifyTradeAuthorization } from '../lib/server/trade-authorization.ts';
-import { toTokenAmount, fromTokenAmount, canApproveTrade, classifyTradeExecution, hasCompleteIssuerCatalogs } from '../../../packages/sdk/src/trading.ts';
+import { toTokenAmount, fromTokenAmount, canApproveTrade, classifyTradeExecution, hasCompleteIssuerCatalogs } from '../../../packages/sdk/dist/trading.js';
 
 test('amount conversion preserves exact token units and rejects invalid precision', () => {
   assert.equal(toTokenAmount('9007199254.740993', 6), '9007199254740993');
