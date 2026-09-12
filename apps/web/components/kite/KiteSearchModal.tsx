@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { KITE_STOCKS, KITE_BASKETS } from '../../lib/kite-data';
-import { Search, X, Layers, ArrowUpRight } from 'lucide-react';
+import { CURATED_BASKETS } from '@kite/sdk';
+import { Search, X, Layers, ArrowUpRight, Cpu } from 'lucide-react';
 
 interface KiteSearchModalProps {
   isOpen: boolean;
@@ -11,13 +11,36 @@ interface KiteSearchModalProps {
   onSelectBasket: (basketId: string) => void;
 }
 
-export function KiteSearchModal({ isOpen, onClose, onSelectStock, onSelectBasket }: KiteSearchModalProps) {
+const SEARCHABLE_STOCKS = [
+  { symbol: 'NVDA', name: 'Nvidia Corporation', category: 'AI & Foundry' },
+  { symbol: 'AAPL', name: 'Apple Inc.', category: 'Mega-Cap Tech' },
+  { symbol: 'MSFT', name: 'Microsoft Corporation', category: 'Mega-Cap Tech' },
+  { symbol: 'TSLA', name: 'Tesla Inc.', category: 'Automotive & AI' },
+  { symbol: 'AMZN', name: 'Amazon.com Inc.', category: 'E-Commerce & Cloud' },
+  { symbol: 'GOOGL', name: 'Alphabet Inc.', category: 'Hyperscaler' },
+  { symbol: 'META', name: 'Meta Platforms Inc.', category: 'Social & AI' },
+  { symbol: 'TSM', name: 'Taiwan Semiconductor Mfg.', category: 'AI & Foundry' },
+  { symbol: 'ASML', name: 'ASML Holding N.V.', category: 'Lithography' },
+  { symbol: 'AVGO', name: 'Broadcom Inc.', category: 'Custom Silicon' },
+  { symbol: 'SPY', name: 'SPDR S&P 500 ETF Trust', category: 'Index ETFs' },
+  { symbol: 'QQQ', name: 'Invesco QQQ Trust', category: 'Index ETFs' },
+  { symbol: 'OPENAI', name: 'OpenAI Pre-Stock', category: 'Pre-IPO Giants' },
+  { symbol: 'SPACEX', name: 'SpaceX Pre-Stock', category: 'Pre-IPO Giants' },
+  { symbol: 'STRIPE', name: 'Stripe Pre-Stock', category: 'Pre-IPO Giants' },
+];
+
+export function KiteSearchModal({
+  isOpen,
+  onClose,
+  onSelectStock,
+  onSelectBasket,
+}: KiteSearchModalProps) {
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.key === 'k' && (e.metaKey || e.ctrlKey))) {
+      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         if (isOpen) onClose();
       } else if (e.key === 'Escape' && isOpen) {
@@ -39,11 +62,11 @@ export function KiteSearchModal({ isOpen, onClose, onSelectStock, onSelectBasket
 
   const q = query.toLowerCase().trim();
 
-  const filteredBaskets = KITE_BASKETS.filter(
+  const filteredBaskets = CURATED_BASKETS.filter(
     (b) => b.name.toLowerCase().includes(q) || b.ticker.toLowerCase().includes(q)
   );
 
-  const filteredStocks = KITE_STOCKS.filter(
+  const filteredStocks = SEARCHABLE_STOCKS.filter(
     (s) => s.name.toLowerCase().includes(q) || s.symbol.toLowerCase().includes(q)
   );
 
@@ -51,29 +74,29 @@ export function KiteSearchModal({ isOpen, onClose, onSelectStock, onSelectBasket
 
   return (
     <div
-      className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex justify-center items-start pt-[12vh] px-4 animate-in fade-in"
+      className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex justify-center items-start pt-[12vh] px-4 animate-fadeIn"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-xl bg-raised border border-line rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[75vh]"
+        className="w-full max-w-xl bg-surface-card border border-border-interactive rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[75vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Input Bar */}
-        <div className="p-4 border-b border-line flex items-center gap-3 bg-bg/50">
-          <Search className="w-5 h-5 text-muted shrink-0" />
+        <div className="p-4 border-b border-border-subtle flex items-center gap-3 bg-surface-base/80">
+          <Search className="w-4 h-4 text-text-muted shrink-0" />
           <input
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="flex-1 bg-transparent outline-none text-ink placeholder:text-muted text-sm"
-            placeholder="Search tokenized equities, thematic baskets..."
+            className="flex-1 bg-transparent outline-none text-text-primary placeholder:text-text-muted text-xs font-sans"
+            placeholder="Search NVDA, AAPL, Thematic Baskets (MAG7, AI-TITAN)..."
           />
           {query ? (
-            <button onClick={() => setQuery('')} className="text-muted hover:text-ink p-1">
-              <X className="w-4 h-4" />
+            <button onClick={() => setQuery('')} className="text-text-muted hover:text-white p-1">
+              <X className="w-3.5 h-3.5" />
             </button>
           ) : (
-            <kbd className="hidden sm:inline-block px-2 py-0.5 text-[10px] text-muted bg-bg rounded border border-line font-mono">
+            <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] text-text-muted bg-surface-overlay rounded border border-white/5 font-mono">
               ESC
             </kbd>
           )}
@@ -82,14 +105,14 @@ export function KiteSearchModal({ isOpen, onClose, onSelectStock, onSelectBasket
         {/* Results List */}
         <div className="overflow-y-auto p-3 space-y-4">
           {!hasResults && query && (
-            <div className="py-8 text-center text-muted text-xs">
-              No results found for &ldquo;{query}&rdquo;
+            <div className="py-10 text-center text-text-muted text-xs font-mono">
+              No tokenized assets found for &ldquo;{query}&rdquo;
             </div>
           )}
 
           {filteredBaskets.length > 0 && (
             <div>
-              <div className="px-2 py-1 text-[11px] font-semibold text-muted uppercase tracking-wider mb-1">
+              <div className="px-2 py-1 text-[10px] font-mono font-semibold text-text-muted uppercase tracking-wider mb-1">
                 Thematic Baskets
               </div>
               <div className="space-y-1">
@@ -100,20 +123,20 @@ export function KiteSearchModal({ isOpen, onClose, onSelectStock, onSelectBasket
                       onSelectBasket(b.id);
                       onClose();
                     }}
-                    className="p-2.5 rounded-lg hover:bg-white/[0.04] cursor-pointer transition-colors flex items-center justify-between group"
+                    className="p-2.5 rounded-xl hover:bg-surface-card-elevated border border-transparent hover:border-border-subtle flex items-center justify-between cursor-pointer transition-colors group"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded bg-bg border border-line flex items-center justify-center font-mono text-xs font-bold text-ink">
-                        {b.ticker.slice(0, 3)}
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-surface-overlay border border-border-subtle flex items-center justify-center text-bull-green">
+                        <Layers className="w-4 h-4" />
                       </div>
                       <div>
-                        <span className="font-bold text-xs text-ink group-hover:text-accent transition-colors block">
+                        <div className="font-display font-bold text-xs text-text-primary group-hover:text-bull-green transition-colors">
                           {b.name}
-                        </span>
-                        <span className="text-[11px] text-muted font-mono">{b.ticker} · {b.assets.length} Assets</span>
+                        </div>
+                        <span className="text-[10px] font-mono text-bull-green">{b.ticker}</span>
                       </div>
                     </div>
-                    <ArrowUpRight className="w-4 h-4 text-muted group-hover:text-ink transition-colors" />
+                    <ArrowUpRight className="w-4 h-4 text-text-muted group-hover:text-bull-green transition-colors" />
                   </div>
                 ))}
               </div>
@@ -122,8 +145,8 @@ export function KiteSearchModal({ isOpen, onClose, onSelectStock, onSelectBasket
 
           {filteredStocks.length > 0 && (
             <div>
-              <div className="px-2 py-1 text-[11px] font-semibold text-muted uppercase tracking-wider mb-1">
-                Tokenized US Stocks
+              <div className="px-2 py-1 text-[10px] font-mono font-semibold text-text-muted uppercase tracking-wider mb-1">
+                Tokenized US Equities
               </div>
               <div className="space-y-1">
                 {filteredStocks.map((s) => (
@@ -133,25 +156,22 @@ export function KiteSearchModal({ isOpen, onClose, onSelectStock, onSelectBasket
                       onSelectStock(s.symbol);
                       onClose();
                     }}
-                    className="p-2.5 rounded-lg hover:bg-white/[0.04] cursor-pointer transition-colors flex items-center justify-between group"
+                    className="p-2.5 rounded-xl hover:bg-surface-card-elevated border border-transparent hover:border-border-subtle flex items-center justify-between cursor-pointer transition-colors group"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded bg-bg border border-line flex items-center justify-center font-mono text-xs font-bold text-ink">
-                        {s.symbol.slice(0, 3)}
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-surface-overlay border border-border-subtle flex items-center justify-center text-bull-green font-mono font-bold text-xs">
+                        {s.symbol.slice(0, 2)}
                       </div>
                       <div>
-                        <span className="font-bold text-xs text-ink group-hover:text-accent transition-colors block">
+                        <div className="font-display font-bold text-xs text-text-primary group-hover:text-bull-green transition-colors">
                           {s.name}
+                        </div>
+                        <span className="text-[10px] font-mono text-text-muted">
+                          {s.symbol} • {s.category}
                         </span>
-                        <span className="text-[11px] text-muted font-mono">{s.symbol} · {s.category}</span>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-mono text-xs font-bold text-ink">${s.price.toFixed(2)}</div>
-                      <div className={`font-mono text-[10px] ${s.change24h >= 0 ? 'text-up' : 'text-down'}`}>
-                        {s.change24h >= 0 ? '+' : ''}{s.change24h.toFixed(2)}%
-                      </div>
-                    </div>
+                    <ArrowUpRight className="w-4 h-4 text-text-muted group-hover:text-bull-green transition-colors" />
                   </div>
                 ))}
               </div>

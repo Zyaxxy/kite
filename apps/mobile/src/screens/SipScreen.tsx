@@ -1,32 +1,57 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
 
+const SIP_TARGETS = [
+  { symbol: 'dAI-TITAN', name: 'AI Infrastructure Titans' },
+  { symbol: 'MAG7', name: 'Magnificent 7 Tech' },
+  { symbol: 'dNVDA', name: 'Nvidia Corp.' },
+  { symbol: 'dAAPL', name: 'Apple Inc.' },
+];
+
 export function SipScreen({ onBack }: { onBack: () => void }) {
+  const [selectedSymbol, setSelectedSymbol] = useState('dAI-TITAN');
   const [frequency, setFrequency] = useState('weekly');
-  const [amount, setAmount] = useState('25');
+  const [amount, setAmount] = useState('100');
 
   const handleActivate = () => {
     Alert.alert(
-      'Automated SIP Activated',
-      `Your $${amount} USDC ${frequency} DCA into MAG7 has been scheduled onchain.`
+      'Automated DCA Activated',
+      `Scheduled a ${frequency} non-custodial recurring investment of $${amount} USDC into ${selectedSymbol} via Solana streaming contracts.`
     );
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <TouchableOpacity style={styles.backBtn} onPress={onBack}>
-        <Text style={styles.backBtnText}>← Back to Watchlist</Text>
+        <Text style={styles.backBtnText}>Back to Watchlist</Text>
       </TouchableOpacity>
 
       <Text style={styles.title}>Automated Mobile SIP</Text>
       <Text style={styles.subtitle}>
-        Non-custodial recurring investment powered by Jupiter DCA on Solana.
+        Non-custodial recurring accumulation powered by Solana streaming execution.
       </Text>
 
+      {/* Target Asset Picker */}
       <View style={styles.formCard}>
-        <Text style={styles.label}>Frequency</Text>
+        <Text style={styles.label}>Target Asset or Basket</Text>
+        <View style={styles.targetGrid}>
+          {SIP_TARGETS.map((t) => (
+            <TouchableOpacity
+              key={t.symbol}
+              style={[styles.targetChip, selectedSymbol === t.symbol && styles.targetChipActive]}
+              onPress={() => setSelectedSymbol(t.symbol)}
+            >
+              <Text style={[styles.targetText, selectedSymbol === t.symbol && styles.targetTextActive]}>
+                {t.symbol}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Recurrence Frequency */}
+        <Text style={styles.label}>DCA Frequency</Text>
         <View style={styles.tabRow}>
-          {['daily', 'weekly', 'monthly'].map((f) => (
+          {['daily', 'weekly', 'bi-weekly', 'monthly'].map((f) => (
             <TouchableOpacity
               key={f}
               style={[styles.tab, frequency === f && styles.tabActive]}
@@ -39,18 +64,33 @@ export function SipScreen({ onBack }: { onBack: () => void }) {
           ))}
         </View>
 
+        {/* Amount Input */}
         <Text style={styles.label}>USDC Amount per Cycle</Text>
-        <TextInput
-          style={styles.input}
-          keyboardType="numeric"
-          value={amount}
-          onChangeText={setAmount}
-          placeholder="25.00"
-          placeholderTextColor="#64748B"
-        />
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputPrefix}>$</Text>
+          <TextInput
+            style={styles.input}
+            keyboardType="numeric"
+            value={amount}
+            onChangeText={setAmount}
+            placeholder="100.00"
+            placeholderTextColor="#64748B"
+          />
+          <Text style={styles.inputSuffix}>USDC</Text>
+        </View>
 
-        <TouchableOpacity style={styles.submitBtn} onPress={handleActivate}>
-          <Text style={styles.submitBtnText}>Activate Recurring Plan</Text>
+        {/* Projection Box */}
+        <View style={styles.projectionBox}>
+          <Text style={styles.projTitle}>Estimated 1Y Investment</Text>
+          <Text style={styles.projVal}>
+            ${(Number(amount || 0) * (frequency === 'weekly' ? 52 : frequency === 'daily' ? 365 : 12)).toLocaleString()} USDC
+          </Text>
+          <Text style={styles.projNote}>Zero management fees • Non-custodial</Text>
+        </View>
+
+        {/* Primary CTA */}
+        <TouchableOpacity style={styles.submitBtn} onPress={handleActivate} activeOpacity={0.85}>
+          <Text style={styles.submitBtnText}>Activate {frequency} SIP Plan</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -58,49 +98,87 @@ export function SipScreen({ onBack }: { onBack: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0B0E14', padding: 16 },
-  backBtn: { marginBottom: 12 },
-  backBtnText: { color: '#60A5FA', fontSize: 13, fontWeight: '600' },
-  title: { color: '#FFFFFF', fontSize: 24, fontWeight: 'bold', marginBottom: 4 },
-  subtitle: { color: '#94A3B8', fontSize: 13, marginBottom: 20 },
+  container: { flex: 1, backgroundColor: '#0D0F12' },
+  content: { padding: 16, paddingBottom: 40 },
+  backBtn: { marginBottom: 14 },
+  backBtnText: { color: '#00D09C', fontSize: 12, fontFamily: 'monospace', fontWeight: 'bold' },
+  title: { color: '#F8FAFC', fontSize: 24, fontWeight: 'bold', marginBottom: 4 },
+  subtitle: { color: '#94A3B8', fontSize: 13, marginBottom: 20, lineHeight: 18 },
   formCard: {
-    backgroundColor: '#151922',
-    borderRadius: 14,
-    padding: 16,
-    borderColor: '#222834',
+    backgroundColor: '#12151A',
+    borderRadius: 16,
+    padding: 18,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: 1,
+    gap: 14,
   },
-  label: { color: '#CBD5E1', fontSize: 13, fontWeight: '600', marginBottom: 8 },
-  tabRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  label: { color: '#94A3B8', fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: -6 },
+  targetGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  targetChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#181C24',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  targetChipActive: {
+    borderColor: '#00D09C',
+    backgroundColor: 'rgba(0, 208, 156, 0.12)',
+  },
+  targetText: { color: '#94A3B8', fontSize: 12, fontFamily: 'monospace', fontWeight: '600' },
+  targetTextActive: { color: '#00D09C', fontWeight: 'bold' },
+  tabRow: { flexDirection: 'row', gap: 6 },
   tab: {
     flex: 1,
-    paddingVertical: 10,
-    backgroundColor: '#0B0E14',
+    paddingVertical: 8,
+    backgroundColor: '#181C24',
     borderRadius: 8,
     alignItems: 'center',
-    borderColor: '#222834',
     borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
   },
-  tabActive: { borderColor: '#3B82F6', backgroundColor: '#1E293B' },
-  tabText: { color: '#94A3B8', fontSize: 13, textTransform: 'capitalize' },
-  tabTextActive: { color: '#60A5FA', fontWeight: 'bold' },
-  input: {
-    backgroundColor: '#0B0E14',
-    borderRadius: 8,
+  tabActive: {
+    borderColor: '#00D09C',
+    backgroundColor: 'rgba(0, 208, 156, 0.12)',
+  },
+  tabText: { color: '#94A3B8', fontSize: 11, textTransform: 'capitalize', fontFamily: 'monospace' },
+  tabTextActive: { color: '#00D09C', fontWeight: 'bold' },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#181C24',
+    borderRadius: 10,
     paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  inputPrefix: { color: '#64748B', fontSize: 16, fontFamily: 'monospace', marginRight: 4 },
+  input: {
+    flex: 1,
     paddingVertical: 10,
-    color: '#FFFFFF',
+    color: '#F8FAFC',
     fontSize: 16,
     fontFamily: 'monospace',
-    borderColor: '#222834',
-    borderWidth: 1,
-    marginBottom: 20,
+    fontWeight: 'bold',
   },
-  submitBtn: {
-    backgroundColor: '#2563EB',
+  inputSuffix: { color: '#00D09C', fontSize: 11, fontFamily: 'monospace', fontWeight: 'bold' },
+  projectionBox: {
+    backgroundColor: '#0D0F12',
     borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
   },
-  submitBtnText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 14 },
+  projTitle: { color: '#64748B', fontSize: 10, fontFamily: 'monospace', textTransform: 'uppercase' },
+  projVal: { color: '#F8FAFC', fontSize: 16, fontWeight: 'bold', fontFamily: 'monospace', marginVertical: 2 },
+  projNote: { color: '#00D09C', fontSize: 10, fontFamily: 'monospace' },
+  submitBtn: {
+    backgroundColor: '#00D09C',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  submitBtnText: { color: '#0D0F12', fontWeight: 'bold', fontSize: 14 },
 });

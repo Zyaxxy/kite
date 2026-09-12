@@ -1,8 +1,9 @@
 'use client';
 
 import React from 'react';
-import { KiteApp } from '../components/kite/KiteApp';
+import { LandingPage } from '../components/landing/LandingPage';
 
 export default function RootPage() {
-  return <KiteApp initialTab="markets" />;
+  return <LandingPage />;
 }
+
