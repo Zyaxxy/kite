@@ -11,6 +11,7 @@ import {
 import {
   createPaperAccount,
   executePaperOrder,
+  executePaperSwap,
   valuePaperAccount,
   executePaperBasket,
   createPaperPlan,
@@ -42,6 +43,11 @@ interface KiteState {
   watchlist: string[];
   toggleWatch: (mint: string) => void;
   trade: (asset: MarketAsset, side: "buy" | "sell", amountUsd: number) => void;
+  swap: (
+    inputAsset: MarketAsset,
+    outputAsset: MarketAsset,
+    inputQuantity: number,
+  ) => void;
   tradeBasket: (basket: MarketBasket, amountUsd: number) => void;
   createPlan: (
     input: Pick<
@@ -116,7 +122,7 @@ export function KiteProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await fetch("/api/markets", {
         cache: "no-store",
-        signal: AbortSignal.timeout(30000),
+        signal: AbortSignal.timeout(60000),
       });
       if (!res.ok)
         throw new Error("Market feeds are unavailable. Please try again.");
@@ -175,6 +181,28 @@ export function KiteProvider({ children }: { children: React.ReactNode }) {
       const next = executePaperOrder(paperRef.current, asset, side, amountUsd);
       persist(next);
       setToast(`Paper ${side} recorded for ${asset.symbol}.`);
+    },
+    [hydrated, accountReadFailed, persist],
+  );
+  const swap = useCallback(
+    (
+      inputAsset: MarketAsset,
+      outputAsset: MarketAsset,
+      inputQuantity: number,
+    ) => {
+      if (!hydrated || accountReadFailed)
+        throw new Error("Your paper account is unavailable. Check settings.");
+      persist(
+        executePaperSwap(
+          paperRef.current,
+          inputAsset,
+          outputAsset,
+          inputQuantity,
+        ),
+      );
+      setToast(
+        `Paper swap recorded: ${inputAsset.symbol} to ${outputAsset.symbol}.`,
+      );
     },
     [hydrated, accountReadFailed, persist],
   );
@@ -251,6 +279,7 @@ export function KiteProvider({ children }: { children: React.ReactNode }) {
     watchlist,
     toggleWatch,
     trade,
+    swap,
     tradeBasket,
     createPlan,
     togglePlan,

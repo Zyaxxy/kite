@@ -99,7 +99,10 @@ function readXmlText(value: string): string {
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const symbol = searchParams.get("symbol")?.trim() || "NVDA";
+  const marketScope = searchParams.get("scope") === "market";
+  const symbol = marketScope
+    ? "MARKET"
+    : searchParams.get("symbol")?.trim() || "NVDA";
   // Issuer wrappers use lowercase x; preserve company names such as XAI and SPACEX.
   const cleanSymbol = symbol
     .replace(/^pre/i, "")
@@ -120,9 +123,9 @@ export async function GET(request: NextRequest) {
     STRIPE: "Stripe valuation fintech payments",
   };
 
-  const searchQuery =
-    queryMap[cleanSymbol] ||
-    `${cleanSymbol} stock OR Solana tokenized equities`;
+  const searchQuery = marketScope
+    ? "(US stock market OR tokenized stocks OR xStocks) when:7d"
+    : queryMap[cleanSymbol] || `${cleanSymbol} stock`;
 
   try {
     const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(searchQuery)}&hl=en-US&gl=US&ceid=US:en`;

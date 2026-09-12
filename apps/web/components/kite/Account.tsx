@@ -293,7 +293,7 @@ export function Activity() {
                 <td className="num hide-mobile">{o.quantity.toFixed(6)}</td>
                 <td className="num">{money(o.totalUsd)}</td>
                 <td className="num">
-                  <span className="badge lime">PAPER FILL</span>
+                  <span className="badge lime">{o.swapId ? "PAPER SWAP" : "PAPER FILL"}</span>
                 </td>
               </tr>
             ))}

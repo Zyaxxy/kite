@@ -18,19 +18,21 @@ No private wallet key is required. The retired `/api/faucet` and `/api/buy-baske
 
 ## Review, approve, execute
 
-`POST /api/trade/order` accepts `{ mint, amount, taker, side }`, where `amount` is a decimal string and `side` is `buy` or `sell`. Buy input is mainnet USDC; sell input is the selected asset. Both directions use the current issuer catalog as a mint allowlist, check issuer halt status, verify decimals directly from the mainnet mint account, reject invalid/nonpositive amounts, and validate the provider's returned token pair and input amount.
+`POST /api/trade/order` accepts `{ inputMint, outputMint, amount, taker }`, where `amount` is a decimal string in the input token's units. Either side can be SOL, USDC, USDT, an issuer-listed market asset, or a token indexed by Jupiter. This enables stock-to-stock swaps without a separate USDC trade. Existing `{ mint, amount, taker, side }` clients remain supported: `buy` pays USDC and `sell` receives USDC.
+
+`GET /api/tokens?query=...` searches by name, symbol or mint address and combines real Jupiter Tokens V2 results with issuer assets. The selectors show mint addresses and distinguish issuer assets, verified tokens and unverified tokens. A Jupiter index entry does not imply issuer verification or guarantee a routable pool. No discovery prices are seeded. The order server independently resolves token identities, checks issuer halt status on both sides, verifies both mint accounts directly on mainnet, rejects invalid/nonpositive amounts, and checks that Jupiter's returned token pair and input amount match the request. Non-base-token swaps require both issuer catalogs to be available so a provider outage cannot bypass a stock's halt status. Canonical SOL/USDC/USDT pairs can still route during an issuer outage.
 
 An HTTP 200 market snapshot can contain partial metadata. Missing Jupiter token decimals do not block order preparation: the server reads the initialized SPL Token or Token-2022 mint, verifies its owner and account layout, and uses its actual precision for conversion. Successful precision reads are cached briefly; failures are not cached. If the RPC cannot verify the mint, quoting stays disabled with an explicit RPC error rather than guessing decimals.
 
 The server requests `https://api.jup.ag/swap/v2/order` with its API key. A valid route returns the unsigned transaction, exact token amounts, fees, slippage, route and a short quote expiry. A server-authenticated authorization binds the order ID, wallet, transaction message digest and expiry. The UI shows this review before offering wallet approval. Missing routes, insufficient balances and unavailable metadata are errors rather than simulated fills.
 
-The approval button invokes Privy's Solana signing UI or the connected Wallet Adapter's `signTransaction`. Privy is explicitly configured to display its wallet confirmation. The wallet signs on the user's device; the server cannot sign for the user. The client clears a quote whenever its amount, asset, direction or wallet changes.
+The approval button invokes Privy's Solana signing UI or the connected Wallet Adapter's `signTransaction`. Privy is explicitly configured to display its wallet confirmation. The wallet signs on the user's device; the server cannot sign for the user. The client clears a quote whenever its amount, input mint, output mint or wallet changes.
 
 `POST /api/trade/execute` accepts the signed transaction and the authorization. It verifies the HMAC, expiry, unchanged transaction message and an Ed25519 signature from the quoted wallet before passing the signed transaction to Jupiter `/execute`. Jupiter returns confirmation and the signature; confirmed trades link to Solscan. Transport errors, timeouts and malformed confirmation responses after submission return `status: Unknown`, never a definite failure. The client locks new quotes until the user acknowledges checking their wallet activity, with a direct Solscan link. An attempt identifier is kept in session storage so reloads and navigation in the same tab retain the check; signed transactions are never stored or retried.
 
 ## Amounts, balances and corporate actions
 
-Transaction quantities are exact raw token units divided by the mint's decimals; decimal input is converted with integer arithmetic. Actual trade fields and quote summaries explicitly label raw units. They must not be interpreted as underlying share counts.
+Transaction quantities are exact raw token units divided by the mint's decimals; decimal input is converted with integer arithmetic. Actual trade inputs and review notes identify token units. They must not be interpreted as underlying share counts. Jupiter's native SOL mint identifier routes native SOL with wrapping and unwrapping handled by the assembled swap transaction.
 
 The portfolio reads standard SPL and Token-2022 accounts, sums balances, and displays the RPC's `uiAmountString` separately from raw transaction units. Both issuer catalogs must be available before a complete portfolio is returned; an individual issuer outage returns HTTP 503 instead of silently hiding its holdings or showing an empty balance. This preserves Token-2022 scaled balances after dividends or stock splits. Jupiter Tokens V2 does not establish its scaled-versus-raw price basis in its public schema, so the actual portfolio deliberately leaves xStocks fiat valuation unavailable instead of multiplying incompatible quantities and prices. Non-scaled holdings with verified prices may contribute a clearly labeled subtotal; a total is unavailable when any holding is unpriced. Cost basis and realized profit are unavailable from balances alone.
 
@@ -38,7 +40,7 @@ Actual recurring investments and atomic basket execution are not connected. The 
 
 ## Verification
 
-Run `node --experimental-strip-types --test apps/web/tests/trading.test.mjs` on Node 24. These tests create ephemeral local transactions without sending them. They cover exact decimal conversion, precision and range rejection, required signatures, altered-message rejection, invalid authorization keys, quote expiry and wallet identity changes. Build the SDK before checking web types: `pnpm build:sdk`, then `pnpm --filter @kite/web exec tsc --noEmit`.
+Build the SDK with `pnpm build:sdk`, then run `node --experimental-strip-types --test packages/sdk/test/*.test.cjs apps/web/tests/*.test.mjs` on Node 24. These tests create ephemeral local transactions without sending them. They cover exact decimal conversion, precision and range rejection, arbitrary token pairs, issuer halt precedence, required signatures, altered-message rejection, invalid authorization keys, quote expiry and wallet identity changes. Check web types with `pnpm --filter @kite/web exec tsc --noEmit`.
 
 Actual transactions were not submitted during development verification. A configured Privy app, Jupiter key and funded user wallet are needed to verify the final sign-and-execute interaction in the deployment.
 
@@ -46,5 +48,6 @@ Actual transactions were not submitted during development verification. A config
 
 - [Privy Solana setup and signing](https://docs.privy.io/recipes/solana/getting-started-with-privy-and-solana)
 - [Jupiter Swap V2 order and execute](https://developers.jup.ag/docs/swap/order-and-execute)
+- [Jupiter Tokens V2 search](https://developers.jup.ag/docs/tokens/token-information)
 - [Solana scaled UI amount integration](https://solana.com/docs/tokens/extensions/scaled-ui-amount/integration-guide)
 - [xStocks multipliers and corporate actions](https://docs.xstocks.fi/developers/multipliers)

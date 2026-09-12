@@ -211,7 +211,14 @@ export function AssetTable({
                           : "Tokenized"}
                     </span>
                   </td>
-                  <td className="num">{money(a.priceUsd)}</td>
+                  <td className="num">
+                    {money(a.priceUsd)}
+                    {a.priceUsd == null && a.underlyingPriceUsd != null && (
+                      <small className="token-reference">
+                        {money(a.underlyingPriceUsd)} underlying reference
+                      </small>
+                    )}
+                  </td>
                   <td className="num">
                     <Change value={a.change24hPct} />
                   </td>
@@ -294,6 +301,9 @@ export function BasketCard({
         <OrbitArt variant={index % 3} />
       </div>
       <div className="basket-card-body">
+        {basket.source.category && (
+          <span className="eyebrow">{basket.source.category}</span>
+        )}
         <h3>{basket.name}</h3>
         <p>{basket.description}</p>
         <div className="mini-assets">
@@ -308,7 +318,9 @@ export function BasketCard({
             {basket.assets.length ? `${basket.assets.length} assets · ` : ""}
             {basket.available
               ? "Available to practice"
-              : "Awaiting market data"}
+              : basket.source.missingSymbols.length
+                ? "Some components unavailable"
+                : "Some token prices unavailable"}
           </span>
           <ArrowRight size={14} />
         </div>

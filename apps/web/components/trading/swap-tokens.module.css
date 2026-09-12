@@ -1,0 +1,128 @@
+.selector {
+  min-width: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.label {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.trigger {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface, #fff);
+  color: inherit;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  text-align: left;
+  cursor: pointer;
+}
+.trigger:disabled,
+.result:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.trigger:focus-visible,
+.result:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.monogram {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--accent);
+  display: grid;
+  place-items: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent-ink);
+}
+.identity {
+  display: grid;
+  gap: 0.16rem;
+  flex: 1;
+  min-width: 0;
+}
+.identity strong {
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+.identity small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.address {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+  font-size: 0.66rem;
+  color: var(--muted);
+}
+.address a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.picker {
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  display: grid;
+  gap: 0.75rem;
+  background: var(--surface, #fff);
+}
+.results {
+  display: grid;
+  gap: 0.25rem;
+  max-height: 17rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.result {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 0.35rem;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.result:hover:not(:disabled) {
+  background: var(--raised);
+}
+.badge {
+  font-size: 0.58rem;
+  letter-spacing: 0.02em;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.25rem 0.4rem;
+  color: var(--muted);
+}
+.reverse {
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.reverse:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

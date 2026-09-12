@@ -25,9 +25,12 @@ import { MarketStatus } from "./Discover";
 import { OrbitArt } from "./Brand";
 import { ActualTradePanel } from "../trading/ActualTradePanel";
 import { useBaskets } from "./useBaskets";
+import { StockResearchPanel } from "./StockResearch";
+import { PaperSwap } from "./PaperSwap";
 
 export function PaperTrade({ asset }: { asset: MarketAsset }) {
-  const { paper, trade, hydrated, accountReadFailed } = useKite();
+  const { paper, trade, swap, snapshot, hydrated, accountReadFailed } =
+    useKite();
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [amount, setAmount] = useState("100");
   const [review, setReview] = useState(false);
@@ -201,6 +204,13 @@ export function PaperTrade({ asset }: { asset: MarketAsset }) {
         slippage are simulated, and no real tokens move. Paper units are for the
         demo; actual xStocks may use scaled token units.
       </p>
+      <PaperSwap
+        asset={asset}
+        assets={snapshot?.assets ?? []}
+        account={paper}
+        onSwap={swap}
+        disabled={!hydrated || accountReadFailed}
+      />
     </>
   );
 }
@@ -288,6 +298,15 @@ export function StockDetail({ symbol }: { symbol: string }) {
                 <Change value={asset.change24hPct} />
                 <span className="muted">past 24 hours</span>
               </div>
+              {asset.underlyingPriceUsd != null && (
+                <p className="quote-reference">
+                  Underlying share reference: {money(asset.underlyingPriceUsd)}
+                  {asset.underlyingPriceUpdatedAt
+                    ? ` · ${new Date(asset.underlyingPriceUpdatedAt).toLocaleString()}`
+                    : ""}
+                  . Token units and prices may differ.
+                </p>
+              )}
             </div>
             <p className="quote-note">
               {asset.priceObservedAt
@@ -318,6 +337,7 @@ export function StockDetail({ symbol }: { symbol: string }) {
               </dd>
             </div>
           </dl>
+          <StockResearchPanel key={asset.mint} asset={asset} />
           <div className="panel panel-pad">
             <h3>Know what you own</h3>
             <p
@@ -506,6 +526,20 @@ export function BasketDetail({ id }: { id: string }) {
               Composition is curated by Kite. No historical basket return or
               yield is implied.
             </p>
+            {basket.source.missingSymbols.length > 0 && (
+              <p className="fineprint">
+                Not currently in the issuer catalog:{" "}
+                {basket.source.missingSymbols.join(", ")}. The target allocation
+                is preserved until every component is available.
+              </p>
+            )}
+            {!!basket.source.unpricedSymbols?.length && (
+              <p className="fineprint">
+                Awaiting token-market prices for{" "}
+                {basket.source.unpricedSymbols.join(", ")}. Underlying share
+                references cannot be used for paper fills.
+              </p>
+            )}
           </section>
         </div>
         <aside>
