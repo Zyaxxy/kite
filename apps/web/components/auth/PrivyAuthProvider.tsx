@@ -21,13 +21,17 @@ function SessionBridge({ children }: { children: ReactNode }) {
   const session = useMemo<PrivySession>(
     () => ({
       configured: true,
-      ready: ready && walletsReady,
+      // Login depends on authentication initialization, not wallet discovery.
+      ready,
       authenticated,
-      walletAddress: authenticated && wallet ? wallet.address : null,
+      walletAddress:
+        ready && authenticated && walletsReady && wallet
+          ? wallet.address
+          : null,
       login,
       logout,
       signTransaction:
-        authenticated && wallet
+        ready && authenticated && walletsReady && wallet
           ? async (transaction) => {
               const result = await signTransaction({
                 transaction,
