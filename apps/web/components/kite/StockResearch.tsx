@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import type { MarketAsset, StockResearch } from "@kite/sdk";
 import { Change, Empty } from "./MarketUI";
+import { researchClient } from "./research-client";
 
 type ResearchTab =
   "Overview" | "Technicals" | "Fundamentals" | "News" | "Events";
@@ -20,7 +21,6 @@ const tabs: ResearchTab[] = [
   "News",
   "Events",
 ];
-const cache = new Map<string, { data: StockResearch; expiresAt: number }>();
 const number = (value: number | null | undefined, digits = 2) =>
   value == null || !Number.isFinite(value)
     ? "Unavailable"
@@ -56,47 +56,44 @@ function useResearch(mint: string) {
     data: StockResearch | null;
     loading: boolean;
     error: string | null;
-  }>({ mint, data: null, loading: true, error: null });
+  }>(() => ({
+    mint,
+    data: researchClient.peek(mint),
+    loading: true,
+    error: null,
+  }));
   useEffect(() => {
-    const saved = cache.get(mint);
-    if (saved && saved.expiresAt > Date.now() && attempt === 0) {
-      setState({ mint, data: saved.data, loading: false, error: null });
-      return;
-    }
+    const saved = researchClient.peek(mint);
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60_000);
     let active = true;
-    setState({ mint, data: saved?.data ?? null, loading: true, error: null });
-    void fetch(`/api/research?mint=${encodeURIComponent(mint)}`, {
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok)
-          throw new Error(
-            "Company research is temporarily unavailable. Please retry.",
-          );
-        const data = (await response.json()) as StockResearch;
-        if (data.mint !== mint)
-          throw new Error("The research response did not match this asset.");
-        if (data.status !== "unavailable") {
-          if (cache.size >= 50) cache.delete(cache.keys().next().value!);
-          cache.set(mint, { data, expiresAt: Date.now() + 300_000 });
+    setState({ mint, data: saved, loading: true, error: null });
+    let timer: ReturnType<typeof setTimeout>;
+    const load = async (force: boolean) => {
+      try {
+        const data = await researchClient.load(mint, controller.signal, force);
+        if (active) {
+          setState({
+            mint,
+            data,
+            loading: Boolean(data.refreshing),
+            error: null,
+          });
+          if (data.refreshing) timer = setTimeout(() => void load(true), 2_000);
         }
-        if (active) setState({ mint, data, loading: false, error: null });
-      })
-      .catch(() => {
+      } catch {
         if (active)
           setState({
             mint,
-            data: saved?.data ?? null,
+            data: researchClient.peek(mint) ?? saved,
             loading: false,
             error: "Company research is temporarily unavailable. Please retry.",
           });
-      })
-      .finally(() => clearTimeout(timeout));
+      }
+    };
+    void load(attempt > 0);
     return () => {
       active = false;
-      clearTimeout(timeout);
+      clearTimeout(timer);
       controller.abort();
     };
   }, [mint, attempt]);
@@ -662,6 +659,11 @@ export function StockResearchPanel({ asset }: { asset: MarketAsset }) {
             <p>Loading reported financials, price history, and news.</p>
           </div>
         ) : null}
+        {loading && data && (
+          <p className="fineprint" role="status">
+            Refreshing company research. Previous observations remain visible.
+          </p>
+        )}
         {error && (
           <div className="notice error" role="alert">
             {error}

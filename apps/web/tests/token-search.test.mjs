@@ -31,12 +31,20 @@ const issuerAsset = {
 
 function createRoute({ discoveryFails = false } = {}) {
   const calls = [];
+  const marketCalls = { catalog: 0, prices: 0 };
   const exports = {};
   const dependencies = {
     "next/server": require("next/server"),
     "@kite/sdk": sdk,
     "@/lib/server/markets": {
-      getServerMarkets: async () => ({ assets: [issuerAsset] }),
+      getServerMarketCatalog: async () => {
+        marketCalls.catalog++;
+        return { assets: [issuerAsset] };
+      },
+      getServerMarkets: async () => {
+        marketCalls.prices++;
+        throw new Error("Token identity must not wait for prices");
+      },
     },
     "@/lib/server/swap-tokens": {
       searchJupiterSwapTokens: async (query) => {
@@ -58,6 +66,7 @@ function createRoute({ discoveryFails = false } = {}) {
   runInNewContext(compiled, { exports, require: (name) => dependencies[name] });
   return {
     calls,
+    marketCalls,
     search: (query) =>
       exports.GET({
         nextUrl: new URL(
@@ -66,6 +75,13 @@ function createRoute({ discoveryFails = false } = {}) {
       }),
   };
 }
+
+test("token identity search reads only the issuer catalog, without starting global pricing", async () => {
+  const route = createRoute();
+  assert.equal((await route.search(issuerAsset.symbol)).status, 200);
+  assert.equal(route.marketCalls.catalog, 1);
+  assert.equal(route.marketCalls.prices, 0);
+});
 
 test("issuer identity and halt state override token-index aliases for the same mint", async () => {
   const route = createRoute();

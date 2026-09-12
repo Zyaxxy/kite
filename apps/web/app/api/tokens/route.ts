@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { BASE_SWAP_TOKENS, type SwapToken } from "@kite/sdk";
-import { getServerMarkets } from "@/lib/server/markets";
+import { getServerMarketCatalog } from "@/lib/server/markets";
 import { searchJupiterSwapTokens } from "@/lib/server/swap-tokens";
 
 export const runtime = "nodejs";
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
       { status: 400 },
     );
   const [markets, discovery] = await Promise.allSettled([
-    getServerMarkets(),
+    getServerMarketCatalog(),
     searchJupiterSwapTokens(
       query || BASE_SWAP_TOKENS.map((token) => token.mint).join(","),
     ),

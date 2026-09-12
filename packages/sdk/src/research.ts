@@ -76,12 +76,18 @@ export interface StockResearch {
   news: ResearchNews[];
   sources: Array<{ name: string; url: string }>;
   warnings: string[];
+  /** Cached observations are visible while a newer snapshot is being fetched. */
+  refreshing?: boolean;
 }
 
 export interface ResearchOptions {
   fetcher?: typeof fetch;
   now?: () => number;
+  /** Keep a stale-data refresh alive after a serverless response is sent. */
+  waitUntil?: (task: Promise<unknown>) => void;
 }
+
+type RequestOptions = ResearchOptions & { signal?: AbortSignal };
 
 type ResearchAsset = Pick<
   MarketAsset,
@@ -119,7 +125,7 @@ const dateFromSeconds = (value: unknown): string | null => {
 
 async function request(
   url: string,
-  options: ResearchOptions,
+  options: RequestOptions,
   format: "json" | "text" = "json",
 ): Promise<unknown> {
   const response = await (options.fetcher ?? fetch)(url, {
@@ -130,7 +136,7 @@ async function request(
           : "application/rss+xml, application/xml",
       "User-Agent": "Kite Research (https://github.com/Zyaxxy/kite)",
     },
-    signal: AbortSignal.timeout(8_000),
+    signal: options.signal ?? AbortSignal.timeout(8_000),
   });
   if (!response.ok)
     throw new Error(`Research provider returned HTTP ${response.status}`);
@@ -485,42 +491,43 @@ function normalizeCompanyName(name: string): string {
 
 async function companyDescription(
   name: string,
-  options: ResearchOptions,
+  options: RequestOptions,
 ): Promise<{ description: string; sourceUrl: string } | null> {
-  const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(name)}&srlimit=3&format=json&utf8=1`;
-  const search = row(await request(searchUrl, options));
-  const targetName = normalizeCompanyName(name);
-  // Exact normalized names only: never attach an unrelated search result's company facts.
-  const match = list(row(search.query).search)
-    .map(row)
-    .find(
-      (item) =>
-        targetName.length >= 3 &&
-        normalizeCompanyName(text(item.title)) === targetName,
-    );
-  if (!match || !Number.isSafeInteger(match.pageid)) return null;
-  const extract = row(
-    await request(
-      `https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=1&explaintext=1&pageids=${match.pageid}&format=json`,
-      options,
-    ),
+  return cachedResource(
+    `description:${name.toLowerCase()}`,
+    options,
+    (value) => (value ? 24 * 60 * 60_000 : 5 * 60_000),
+    async () => {
+      // MediaWiki generators return search matches and their extracts in one round trip.
+      const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(name)}&gsrlimit=3&prop=extracts%7Cpageprops&exintro=1&explaintext=1&exlimit=3&format=json&utf8=1`;
+      const search = row(await request(searchUrl, options));
+      const targetName = normalizeCompanyName(name);
+      // Exact normalized names only: never attach an unrelated search result's company facts.
+      const match = Object.values(row(row(search.query).pages))
+        .map(row)
+        .find(
+          (item) =>
+            targetName.length >= 3 &&
+            !Object.hasOwn(row(item.pageprops), "disambiguation") &&
+            normalizeCompanyName(text(item.title)) === targetName,
+        );
+      if (!match || !Number.isSafeInteger(match.pageid)) return null;
+      const description = text(match.extract)
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .slice(0, 2)
+        .join("\n\n");
+      if (!description) return null;
+      return {
+        description:
+          description.length > 1_200
+            ? `${description.slice(0, 1_197).replace(/\s+\S*$/, "")}…`
+            : description,
+        sourceUrl: `https://en.wikipedia.org/wiki/${encodeURIComponent(text(match.title).replace(/ /g, "_"))}`,
+      };
+    },
   );
-  const page = row(Object.values(row(row(extract.query).pages))[0]);
-  if (page.pageid !== match.pageid) return null;
-  const description = text(page.extract)
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("\n\n");
-  if (!description) return null;
-  return {
-    description:
-      description.length > 1_200
-        ? `${description.slice(0, 1_197).replace(/\s+\S*$/, "")}…`
-        : description,
-    sourceUrl: `https://en.wikipedia.org/wiki/${encodeURIComponent(text(match.title).replace(/ /g, "_"))}`,
-  };
 }
 
 function xmlText(value: string): string {
@@ -536,7 +543,7 @@ function xmlText(value: string): string {
 
 async function privateNews(
   name: string,
-  options: ResearchOptions,
+  options: RequestOptions,
 ): Promise<ResearchNews[]> {
   const query = `"${name.replace(/["<>]/g, "")}" company`;
   const xml = text(
@@ -578,7 +585,42 @@ async function privateNews(
     });
 }
 
-const cache = new Map<string, { value: StockResearch; expiresAt: number }>();
+const resources = new Map<string, { value: unknown; expiresAt: number }>();
+const resourcePending = new Map<string, Promise<unknown>>();
+
+/** Slow-changing facts have their own bounded caches; failures are never cached. */
+async function cachedResource<T>(
+  key: string,
+  options: ResearchOptions,
+  ttl: (value: T) => number,
+  load: () => Promise<T>,
+): Promise<T> {
+  if (options.fetcher || options.now) return load();
+  const cached = resources.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.value as T;
+  const active = resourcePending.get(key);
+  if (active) return active as Promise<T>;
+  const operation = load();
+  resourcePending.set(key, operation);
+  try {
+    const value = await operation;
+    if (resources.size >= 256 && !resources.has(key))
+      resources.delete(resources.keys().next().value as string);
+    resources.set(key, { value, expiresAt: Date.now() + ttl(value) });
+    return value;
+  } finally {
+    resourcePending.delete(key);
+  }
+}
+
+const cache = new Map<
+  string,
+  {
+    value: StockResearch;
+    expiresAt: number;
+    staleUntil: number;
+  }
+>();
 const pending = new Map<string, Promise<StockResearch>>();
 
 /** Public upstream endpoints are best-effort. Missing facts remain absent, never estimated. */
@@ -594,32 +636,77 @@ export async function getStockResearch(
   if (!options.fetcher && !options.now) {
     if (cached && cached.expiresAt > Date.now()) return cached.value;
     const inFlight = pending.get(key);
-    if (inFlight) return inFlight;
+    if (inFlight) {
+      if (cached && cached.staleUntil > Date.now()) {
+        options.waitUntil?.(inFlight.catch(() => undefined));
+        return { ...cached.value, refreshing: true };
+      }
+      return inFlight;
+    }
   }
-  const operation = loadStockResearch(asset, symbol, options);
-  if (!options.fetcher && !options.now) pending.set(key, operation);
-  try {
-    const value = await operation;
-    if (!options.fetcher && !options.now) {
+  if (options.fetcher || options.now)
+    return loadStockResearch(asset, symbol, options);
+  const operation = (async () => {
+    try {
+      const value = await loadStockResearch(asset, symbol, options);
       if (cache.size >= 128 && !cache.has(key))
         cache.delete(cache.keys().next().value as string);
+      // A provider outage must not erase recently observed research or relabel it fresh.
+      if (
+        value.status === "unavailable" &&
+        cached &&
+        cached.staleUntil > Date.now()
+      ) {
+        const retained = {
+          ...cached.value,
+          status: "partial" as const,
+          refreshing: false,
+          warnings: [
+            ...new Set([
+              ...cached.value.warnings,
+              "The research provider is temporarily unavailable. Showing the last observed research; check its date before use.",
+            ]),
+          ],
+        };
+        cache.set(key, {
+          ...cached,
+          value: retained,
+          expiresAt: Math.min(Date.now() + 30_000, cached.staleUntil),
+        });
+        return retained;
+      }
       cache.set(key, {
         value,
         expiresAt:
-          Date.now() + (value.status === "unavailable" ? 30_000 : 5 * 60_000),
+          Date.now() + (value.status === "available" ? 5 * 60_000 : 30_000),
+        staleUntil:
+          Date.now() + (value.status === "unavailable" ? 30_000 : 15 * 60_000),
       });
+      return value;
+    } finally {
+      pending.delete(key);
     }
-    return value;
-  } finally {
-    if (!options.fetcher && !options.now) pending.delete(key);
+  })();
+  pending.set(key, operation);
+  if (cached && cached.staleUntil > Date.now()) {
+    // Attach a rejection handler even when a host does not provide waitUntil.
+    const refresh = operation.catch(() => undefined);
+    options.waitUntil?.(refresh);
+    return { ...cached.value, refreshing: true };
   }
+  return operation;
 }
 
 async function loadStockResearch(
   asset: ResearchAsset,
   symbol: string,
-  options: ResearchOptions,
+  baseOptions: ResearchOptions,
 ): Promise<StockResearch> {
+  // All providers share one deadline; optional descriptions cannot add another 8s waterfall.
+  const options: RequestOptions = {
+    ...baseOptions,
+    signal: AbortSignal.timeout(8_000),
+  };
   const now = (options.now ?? Date.now)();
   const asOf = new Date(now).toISOString();
   const output: StockResearch = {
@@ -635,6 +722,7 @@ async function loadStockResearch(
     news: [],
     sources: [],
     warnings: [],
+    refreshing: false,
   };
   if (asset.kind === "pre-ipo" || asset.issuer === "prestocks") {
     const [news, description] = await Promise.allSettled([
@@ -685,21 +773,62 @@ async function loadStockResearch(
   const historyUrl = `${sourceUrl}history/`;
   const fundamentalsUrl = `${sourceUrl}financials/`;
   const periods = `period1=${Math.floor(now / 1000 - 4 * 366 * 86400)}&period2=${Math.floor(now / 1000)}`;
+  const chartRequest = request(
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?range=1y&interval=1d&events=div%2Csplits`,
+    options,
+  );
+  const searchRequest = request(
+    `https://query1.finance.yahoo.com/v1/finance/search?q=${encoded}&quotesCount=5&newsCount=10`,
+    options,
+  );
+  let descriptionName = "";
+  let descriptionRequest: ReturnType<typeof companyDescription> | undefined;
+  const startDescription = (name: string): void => {
+    if (!name || descriptionRequest) return;
+    descriptionName = name;
+    descriptionRequest = companyDescription(name, options).catch(() => null);
+  };
+  // Start optional enrichment as soon as either provider confirms the exact symbol.
+  // A slow financial statement response does not hold the description request back.
+  void chartRequest.then(
+    (payload) => {
+      const match = list(row(row(payload).chart).result)
+        .map(row)
+        .find((item) => row(item.meta).symbol === providerSymbol);
+      const metadata = row(match?.meta);
+      startDescription(text(metadata.longName) || text(metadata.shortName));
+    },
+    () => undefined,
+  );
+  void searchRequest.then(
+    (payload) => {
+      const match = list(row(payload).quotes)
+        .map(row)
+        .find((item) => item.symbol === providerSymbol);
+      startDescription(text(match?.longname) || text(match?.shortname));
+    },
+    () => undefined,
+  );
   const [chartResult, searchResult, financialResult] = await Promise.allSettled(
     [
-      request(
-        `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?range=1y&interval=1d&events=div%2Csplits`,
-        options,
-      ),
-      request(
-        `https://query1.finance.yahoo.com/v1/finance/search?q=${encoded}&quotesCount=5&newsCount=10`,
-        options,
-      ),
+      chartRequest,
+      searchRequest,
       asset.kind === "etf"
-        ? Promise.resolve(null)
-        : request(
-            `https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/${encoded}?type=${FUNDAMENTAL_TYPES.map((value) => value.key).join(",")}&${periods}`,
+        ? Promise.resolve([] as ResearchFundamental[])
+        : cachedResource(
+            `financials:${providerSymbol}`,
             options,
+            (facts) => (facts.length ? 60 * 60_000 : 30_000),
+            async () =>
+              parseFundamentals(
+                await request(
+                  `https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/${encoded}?type=${FUNDAMENTAL_TYPES.map((value) => value.key).join(",")}&${periods}`,
+                  options,
+                ),
+                providerSymbol,
+                fundamentalsUrl,
+                now,
+              ),
           ),
     ],
   );
@@ -741,12 +870,7 @@ async function loadStockResearch(
   const equityConfirmed =
     meta.instrumentType === "EQUITY" || quote?.quoteType === "EQUITY";
   if (financialResult.status === "fulfilled" && equityConfirmed)
-    output.fundamentals = parseFundamentals(
-      financialResult.value,
-      providerSymbol,
-      fundamentalsUrl,
-      now,
-    );
+    output.fundamentals = financialResult.value;
   if (
     output.profile ||
     output.bars.length ||
@@ -768,21 +892,18 @@ async function loadStockResearch(
         ? "Company financial statements do not apply to this fund."
         : "Reported company financial statements are unavailable from the public provider.",
     );
-  if (output.profile) {
-    try {
-      const description = await companyDescription(
-        output.profile.name,
-        options,
-      );
-      if (description) {
-        output.profile.description = description.description;
-        output.sources.push({
-          name: "Wikipedia (CC BY-SA)",
-          url: description.sourceUrl,
-        });
-      }
-    } catch {
-      /* The company classification remains useful without an encyclopedia summary. */
+  if (
+    output.profile &&
+    normalizeCompanyName(descriptionName) ===
+      normalizeCompanyName(output.profile.name)
+  ) {
+    const description = await descriptionRequest;
+    if (description) {
+      output.profile.description = description.description;
+      output.sources.push({
+        name: "Wikipedia (CC BY-SA)",
+        url: description.sourceUrl,
+      });
     }
   }
   output.status = output.sources.length

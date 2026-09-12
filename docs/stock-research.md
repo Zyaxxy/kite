@@ -1,6 +1,6 @@
 # Company research and market discovery
 
-The web stock detail and native asset screen use `GET /api/research?mint=<issuer mint>`. The server resolves the asset from the live mainnet issuer catalog before looking up its underlying company. A caller cannot supply a different company name or arbitrary upstream URL. Shared types, source parsing, indicator calculations, and a bounded five-minute cache live in `packages/sdk/src/research.ts`.
+The web stock detail and native asset screen use `GET /api/research?mint=<issuer mint>`. The server resolves the asset from the independently cached mainnet issuer catalog before looking up its underlying company; it never waits for the global market-price refresh. A caller cannot supply a different company name or arbitrary upstream URL. Shared types, source parsing, indicator calculations, and bounded observation caches live in `packages/sdk/src/research.ts`.
 
 ## Sources and meaning
 
@@ -27,3 +27,12 @@ The dashboard's market sentiment is explicitly observed breadth: counts of advan
 - Browser checks cover live dashboard rankings, all five research tabs, annual/quarterly financials, token search and reversal (including SOL and Bonk), basket category filters, and a 390-pixel mobile viewport.
 - A browser-only paper purchase and NVDAx-to-AAPLx paper swap recorded the two linked swap entries with unchanged paper cash. These are explicitly labeled simulated records.
 - Read-only Jupiter quote probes returned routes for SOL-to-NVDAx and NVDAx-to-AAPLx. No wallet transaction was signed or executed.
+
+
+## Loading and cache behavior
+
+Chart, search and financial requests begin in parallel. One Wikipedia query combines search and extracts, and begins as soon as a provider verifies the company identity. All providers share an eight-second deadline. Reported financials are reused for one hour and exact-name company descriptions for 24 hours; missing results retry promptly.
+
+Complete research is fresh for five minutes; partial or unavailable responses retry after 30 seconds. Previously observed research can be shown for up to 15 minutes while one refresh runs through Next.js `after`. `refreshing` tells clients when to check again, and becomes false during failure cooldowns. `asOf` is never extended by a cache read or outage.
+
+Web and mobile use the same `createResearchClient` transport cache, including identity validation, independent cancellation, coalesced requests, bounded retention, and observation-age-based freshness. Research starts on stock navigation without waiting for token-price hydration. Previous financials remain visible while a sequential two-second follow-up checks background completion. See [performance measurements](data-performance.md).

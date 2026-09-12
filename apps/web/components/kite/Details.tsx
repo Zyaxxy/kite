@@ -27,6 +27,7 @@ import { ActualTradePanel } from "../trading/ActualTradePanel";
 import { useBaskets } from "./useBaskets";
 import { StockResearchPanel } from "./StockResearch";
 import { PaperSwap } from "./PaperSwap";
+import { researchClient } from "./research-client";
 
 export function PaperTrade({ asset }: { asset: MarketAsset }) {
   const { paper, trade, swap, snapshot, hydrated, accountReadFailed } =
@@ -215,6 +216,13 @@ export function PaperTrade({ asset }: { asset: MarketAsset }) {
   );
 }
 export function StockDetail({ symbol }: { symbol: string }) {
+  useEffect(() => {
+    if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(symbol)) return;
+    const controller = new AbortController();
+    // Begin the underlying lookup on navigation, independently of price hydration.
+    void researchClient.load(symbol, controller.signal).catch(() => undefined);
+    return () => controller.abort();
+  }, [symbol]);
   const { snapshot, mode, setMode, watchlist, toggleWatch } = useKite();
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("mode") === "actual")
