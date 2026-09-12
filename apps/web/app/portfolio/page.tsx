@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import { GrowwApp } from '../../components/groww/GrowwApp';
+import { KiteApp } from '../../components/kite/KiteApp';
 
 export default function PortfolioPage() {
-  return <GrowwApp initialTab="holdings" />;
+  return <KiteApp initialTab="portfolio" />;
 }

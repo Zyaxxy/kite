@@ -2,11 +2,12 @@
 
 import React from 'react';
 import { useParams } from 'next/navigation';
-import { GrowwApp } from '../../../components/groww/GrowwApp';
+import { KiteApp } from '../../../components/kite/KiteApp';
 
 export default function StockSymbolPage() {
   const params = useParams();
-  const symbol = (params?.symbol as string) || 'NVDA';
+  const rawSymbol = (params?.symbol as string) || 'xNVDA';
+  const isBasket = rawSymbol.toLowerCase().startsWith('sol-') || rawSymbol === 'MAG7' || rawSymbol === 'AI-LEADERS' || rawSymbol === 'PRE-TECH';
 
-  return <GrowwApp initialCategory="stocks" initialSymbol={symbol} />;
+  return <KiteApp initialSymbol={rawSymbol} initialIsBasket={isBasket} />;
 }

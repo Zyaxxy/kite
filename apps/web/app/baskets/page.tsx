@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import { GrowwApp } from '../../components/groww/GrowwApp';
+import { KiteApp } from '../../components/kite/KiteApp';
 
 export default function BasketsPage() {
-  return <GrowwApp initialCategory="baskets" initialTab="explore" />;
+  return <KiteApp initialTab="baskets" />;
 }
