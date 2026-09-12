@@ -1,8 +1,4 @@
-'use client';
-
-import React from 'react';
-import { LandingPage } from '../../components/landing/LandingPage';
-
-export default function LandingRoute() {
-  return <LandingPage />;
+import { KiteApp } from "../../components/kite/KiteApp";
+export default function Page() {
+  return <KiteApp page="landing" />;
 }
