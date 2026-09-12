@@ -5,17 +5,17 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-kite_vault = "K1teVau1t1111111111111111111111111111111111"
+kite_vault = "WUrZqhZgSHZ8R8F6zV4CD3LQUXUWffpkZQf6zBCCmEa"
 
 [programs.devnet]
-kite_vault = "K1teVau1t1111111111111111111111111111111111"
+kite_vault = "WUrZqhZgSHZ8R8F6zV4CD3LQUXUWffpkZQf6zBCCmEa"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
 cluster = "devnet"
-wallet = "~/.config/solana/id.json"
+wallet = "/home/utkarsh/.config/solana/id.json"
 
 [scripts]
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"

@@ -6,7 +6,6 @@ import {
   clusterApiUrl,
   SystemProgram,
 } from '@solana/web3.js';
-import { Buffer } from 'buffer';
 import {
   getAssociatedTokenAddress,
   createAssociatedTokenAccountInstruction,
@@ -17,7 +16,7 @@ import { DEVNET_MINTS } from './constants/devnet-mints';
 import { CURATED_BASKETS } from './baskets';
 import { ThematicBasket, SipSchedule } from './types';
 
-export const KITE_PROGRAM_ID = new PublicKey('K1teVau1t1111111111111111111111111111111111');
+export const KITE_PROGRAM_ID = new PublicKey('WUrZqhZgSHZ8R8F6zV4CD3LQUXUWffpkZQf6zBCCmEa');
 
 export class KiteClient {
   connection: Connection;

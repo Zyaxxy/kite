@@ -3,6 +3,6 @@
 import React from 'react';
 import { GrowwApp } from '../../components/groww/GrowwApp';
 
-export default function SIPPage() {
-  return <GrowwApp initialCategory="baskets" initialTab="sip" />;
+export default function PortfolioPage() {
+  return <GrowwApp initialTab="holdings" />;
 }

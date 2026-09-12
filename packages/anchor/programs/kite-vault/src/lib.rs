@@ -6,7 +6,7 @@ pub mod instructions;
 
 use instructions::*;
 
-declare_id!("K1teVau1t1111111111111111111111111111111111");
+declare_id!("WUrZqhZgSHZ8R8F6zV4CD3LQUXUWffpkZQf6zBCCmEa");
 
 #[program]
 pub mod kite_vault {

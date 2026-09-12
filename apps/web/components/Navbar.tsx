@@ -11,6 +11,7 @@ const navItems = [
   { name: 'Markets', href: '/' },
   { name: 'Baskets', href: '/baskets' },
   { name: 'SIPs', href: '/sip' },
+  { name: 'Portfolio', href: '/portfolio' },
 ];
 
 export function Navbar() {
