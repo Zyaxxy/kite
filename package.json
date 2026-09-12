@@ -1,0 +1,20 @@
+{
+  "name": "kite-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.31.0",
+  "scripts": {
+    "dev:web": "pnpm --filter @kite/web dev",
+    "dev:mobile": "pnpm --filter @kite/mobile start",
+    "build:web": "pnpm --filter @kite/web build",
+    "build:sdk": "pnpm --filter @kite/sdk build",
+    "build:anchor": "cd packages/anchor && anchor build",
+    "test:anchor": "cd packages/anchor && anchor test",
+    "build": "turbo run build",
+    "lint": "turbo run lint"
+  },
+  "devDependencies": {
+    "turbo": "^2.4.4",
+    "typescript": "^5.7.3"
+  }
+}

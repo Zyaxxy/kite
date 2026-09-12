@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Kite",
+    "slug": "kite-solana-stocks",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#0B0E14"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kite.solana"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0B0E14"
+      },
+      "package": "com.kite.solana"
+    }
+  }
+}

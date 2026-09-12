@@ -1,0 +1,79 @@
+{
+  "title": "Choose the visual world",
+  "question": "The roll assigned Standing Instruction. Keep it, take the blotter pick, or take the category standard. This roll ran degraded: no catalog challengers.",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "Standing Instruction",
+      "kicker": "THE ROLL",
+      "lineage": "CAMS / Zerodha SIP mandate and NACH debit forms",
+      "thesis": "Every buy is a filled-in debit instruction: scheme, amount, frequency, wallet as signatory.",
+      "palette": ["#F4F6F8", "#1A2330", "#C43C28", "#E8D6D0"],
+      "materials": ["ruled fields", "carbon-copy selection", "stamp status", "tabular allotment"],
+      "viewport": "No hero. A full-width instruction sheet: left, live names as a scheme schedule; right, a debit ticket already filled with MAG7 and 100 USDC.",
+      "risk": "Can look like a government PDF if the rules go thick and the type goes timid.",
+      "raised": [
+        {
+          "from": "index-factsheet",
+          "raise": "Basket weights read as an allotment table, not chips."
+        },
+        {
+          "from": "broker-blotter",
+          "raise": "The debit ticket stays docked while the schedule scrolls."
+        }
+      ],
+      "wireframe": {
+        "cols": 12,
+        "rows": 10,
+        "regions": [
+          { "label": "wordmark + wallet", "x": 0, "y": 0, "w": 12, "h": 1 },
+          { "label": "scheme schedule", "x": 0, "y": 1, "w": 8, "h": 9, "accent": true },
+          { "label": "debit instruction", "x": 8, "y": 1, "w": 4, "h": 9 }
+        ]
+      }
+    },
+    {
+      "id": "model-pick",
+      "label": "Broker Blotter",
+      "kicker": "UIZZE’S PICK",
+      "lineage": "Interactive Brokers order ticket beside a watchlist",
+      "thesis": "Markets as a blotter: rows you scan, a ticket you fill, never a card grid.",
+      "palette": ["#14181C", "#F2F0EA", "#2F6F4E", "#C9A227"],
+      "materials": ["hairline rows", "sticky ticket", "tabular prices"],
+      "viewport": "Dense name list with last/chg/sentiment; a persistent buy ticket for the selected basket on the right.",
+      "risk": "Also the direction most brokerage redesigns land on — familiar, maybe too familiar.",
+      "wireframe": {
+        "cols": 12,
+        "rows": 10,
+        "regions": [
+          { "label": "top bar", "x": 0, "y": 0, "w": 12, "h": 1 },
+          { "label": "watchlist", "x": 0, "y": 1, "w": 8, "h": 9, "accent": true },
+          { "label": "order ticket", "x": 8, "y": 1, "w": 4, "h": 9 }
+        ]
+      }
+    }
+  ],
+  "reroll": { "registers": ["safer", "bolder"] },
+  "buildPath": { "value": "code", "toggle": false },
+  "canon": true,
+  "canonCard": {
+    "label": "Dark crypto dashboard",
+    "thesis": "Navy glass, blue glow, identical stock cards — the category default, executed well.",
+    "palette": ["#0B0E14", "#151922", "#3B82F6"],
+    "materials": ["glass nav", "metric cards", "glow buttons"],
+    "viewport": "Gradient hero, four stock cards, Connect Wallet.",
+    "risk": "Indistinguishable from every other Solana dApp by design.",
+    "wireframe": {
+      "cols": 12,
+      "rows": 10,
+      "regions": [
+        { "label": "hero", "x": 0, "y": 0, "w": 12, "h": 4 },
+        { "label": "card", "x": 0, "y": 5, "w": 3, "h": 5 },
+        { "label": "card", "x": 3, "y": 5, "w": 3, "h": 5 },
+        { "label": "card", "x": 6, "y": 5, "w": 3, "h": 5 },
+        { "label": "card", "x": 9, "y": 5, "w": 3, "h": 5 }
+      ]
+    }
+  },
+  "steer": true
+}
