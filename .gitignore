@@ -8,3 +8,7 @@ target
 .env
 .env.local
 .turbo
+.cursor
+.vscode
+.uizze
+.impeccable

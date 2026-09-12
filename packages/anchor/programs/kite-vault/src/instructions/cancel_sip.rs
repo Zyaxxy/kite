@@ -16,7 +16,7 @@ pub struct CancelSip<'info> {
     pub owner: Signer<'info>,
 }
 
-pub fn cancel_sip_handler(ctx: Context<CancelSip>) -> Result<()> {
+pub fn cancel_sip_handler(_ctx: Context<CancelSip>) -> Result<()> {
     msg!("Kite SIP position cancelled and closed");
     Ok(())
 }

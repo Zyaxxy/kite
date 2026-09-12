@@ -13,6 +13,8 @@
     "@pythnetwork/pyth-solana-receiver": "^0.7.0"
   },
   "devDependencies": {
+    "@types/node": "^20.14.0",
+    "buffer": "^6.0.3",
     "typescript": "^5.7.3"
   }
 }
