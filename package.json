@@ -11,10 +11,13 @@
     "build:anchor": "cd packages/anchor && anchor build",
     "test:anchor": "cd packages/anchor && anchor test",
     "build": "turbo run build",
-    "lint": "turbo run lint"
+    "lint": "turbo run lint",
+    "typecheck": "pnpm build:sdk && pnpm --filter @kite/web exec next typegen && pnpm --filter @kite/web exec tsc --noEmit && pnpm --filter @kite/mobile exec tsc --noEmit",
+    "test:sdk": "pnpm build:sdk && node --test packages/sdk/test/*.test.cjs"
   },
   "devDependencies": {
     "turbo": "^2.4.4",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "prettier": "^3.6.2"
   }
 }

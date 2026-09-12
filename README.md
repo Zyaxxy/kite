@@ -1,107 +1,61 @@
-# Kite — Non-Custodial Neo-Brokerage on Solana
----
+# Kite
 
-## Overview
+A self-custody interface for tokenized equities on Solana, with a paper-trading demo and optional wallet-approved mainnet trading.
 
-**Kite** is a multi-platform (Web & Mobile) neo-brokerage bringing **1-click thematic stock baskets**, **automated non-custodial Systematic Investment Plans (SIPs / DCA)**, and **real-time market sentiment intelligence** to Solana's tokenized equities.
+## Applications
 
-In traditional finance, 85% of the global population is locked out of US equities due to geographic restrictions, Social Security Number requirements, and 3-to-5 day ACH clearing delays. On Solana, tokenized stocks already trade 24/7. **Kite makes owning and using them 10x better than Robinhood.**
+- `apps/web`: Next.js 15.5 — landing, discovery, full markets, thematic baskets, asset details, portfolio, watchlist, activity, recurring paper plans and account settings.
+- `apps/mobile`: Expo / React Native — the same forest-and-lime visual system, shared market data and paper trading. Actual trading opens the configured web app for Privy / wallet approval.
+- `packages/sdk`: typed issuer discovery, quotes, allocations, paper ledger, recurring paper plans and mainnet trade types.
+- `packages/anchor`: preserved legacy devnet experiment. It is not used by either frontend or the mainnet trading flow.
 
----
+The previous static brokerage UI, fabricated market insights, fake holdings and devnet minting endpoints have been retired. The full live issuer catalogs are queried; a missing price is shown as unavailable. No charts, sentiment or news are manufactured.
 
-## Key Features
+## Run locally
 
-1.  **1-Click Thematic Stock Baskets**
-   - Mint curated index baskets in a single atomic Solana transaction with USDC.
-   - Flagship baskets:
-     - **`MAG7` (Magnificent 7 Tech):** Equal-weighted Apple, Microsoft, Nvidia, Amazon, Alphabet, Meta, and Tesla.
-     - **`AI-LEADERS` (AI Infrastructure):** Concentrated exposure to Nvidia, Microsoft, and Alphabet.
-     - **`PRE-TECH` (Pre-IPO Giants):** Tokenized secondary pre-market shares of OpenAI, SpaceX, and Stripe.
+Use Node 22 or 24 LTS and pnpm 10+.
 
-2.  **Non-Custodial Recurring SIPs (DCA)**
-   - Set up automated dollar-cost averaging (e.g. *$25 USDC every Monday into MAG7 or NVDA*).
-   - Onchain `SipPosition` program accounts manage intervals and execution permissionlessly.
-
-3. **Real-Time Stock Intelligence & Sentiment**
-   - Live Pyth equity price feeds for sub-second valuation updates.
-   - Algorithmic bull/bear sentiment scores (-1.0 to +1.0) derived from market catalysts, options flow, and onchain volatility.
-
-4. **Mobile-First Experience**
-   - React Native + Expo mobile dApp equipped with the **Solana Mobile Wallet Adapter (MWA)** for seamless non-custodial signing on Android, iOS, and Solana Saga / Seeker.
-
-5.  **1-Click Devnet Faucet for Judges & Testers**
-   - One-click navbar faucet button that instantly mints $1,000 Devnet USDC, 5 xNVDA, and transfers 0.1 SOL for gas to any connected Phantom or Solflare wallet.
-
----
-
-## Deployed Solana Devnet Addresses
-
-| Asset | Ticker | Decimals | Solana Devnet Mint Address | Explorer |
-| :--- | :---: | :---: | :--- | :--- |
-| **Devnet USDC** | `USDC` | 6 | `FXzF7tP42CgEHsKxphXXJFTi7rBmAxWJFUUBApMHWJnx` | [View on Solscan](https://explorer.solana.com/address/FXzF7tP42CgEHsKxphXXJFTi7rBmAxWJFUUBApMHWJnx?cluster=devnet) |
-| **Nvidia Corp.** | `xNVDA` | 6 | `BjM1yGWGA4rTvF3wWb8UsdqDsVfSfLxt96QWssi9PUZJ` | [View on Solscan](https://explorer.solana.com/address/BjM1yGWGA4rTvF3wWb8UsdqDsVfSfLxt96QWssi9PUZJ?cluster=devnet) |
-| **Apple Inc.** | `xAAPL` | 6 | `2CP8apFcaZoqHQPLwsyyirwEwdjkix4wHkM47krdA9Nj` | [View on Solscan](https://explorer.solana.com/address/2CP8apFcaZoqHQPLwsyyirwEwdjkix4wHkM47krdA9Nj?cluster=devnet) |
-| **Microsoft Corp.** | `xMSFT` | 6 | `DjNqiC3AtAzVPfpXnHvdP3vK6cXVkFBjf41ui7XEcWig` | [View on Solscan](https://explorer.solana.com/address/DjNqiC3AtAzVPfpXnHvdP3vK6cXVkFBjf41ui7XEcWig?cluster=devnet) |
-| **Tesla Inc.** | `xTSLA` | 6 | `8uQ64zKYmXnEUL47namukKMELspe5D8ifhbyf1cGejmJ` | [View on Solscan](https://explorer.solana.com/address/8uQ64zKYmXnEUL47namukKMELspe5D8ifhbyf1cGejmJ?cluster=devnet) |
-| **Amazon.com Inc.** | `xAMZN` | 6 | `AoPDHS1YqD7uUrBGQTDmfFj2Z17U3osU9vbBYNEdAfGB` | [View on Solscan](https://explorer.solana.com/address/AoPDHS1YqD7uUrBGQTDmfFj2Z17U3osU9vbBYNEdAfGB?cluster=devnet) |
-| **Alphabet Inc.** | `xGOOGL` | 6 | `raePRBVRtcwd4kj33NDCSHre82wSHrDyv2Sgcm8v4GC` | [View on Solscan](https://explorer.solana.com/address/raePRBVRtcwd4kj33NDCSHre82wSHrDyv2Sgcm8v4GC?cluster=devnet) |
-| **Meta Platforms** | `xMETA` | 6 | `DtLy28aPGUuWHtx1xAMY9GuViQN39VqQPXg48sD5u4FP` | [View on Solscan](https://explorer.solana.com/address/DtLy28aPGUuWHtx1xAMY9GuViQN39VqQPXg48sD5u4FP?cluster=devnet) |
-| **OpenAI Pre-Stock** | `preOPENAI` | 6 | `ANWLjddHcF8qs5N34VxQLRTLAKaLKBKy4x4zXttrtpqF` | [View on Solscan](https://explorer.solana.com/address/ANWLjddHcF8qs5N34VxQLRTLAKaLKBKy4x4zXttrtpqF?cluster=devnet) |
-| **SpaceX Pre-Stock** | `preSPACEX` | 6 | `BcHWdywyL3APuSkdGXTNY1rw8aqXDURZbH4Wv6PHoStE` | [View on Solscan](https://explorer.solana.com/address/BcHWdywyL3APuSkdGXTNY1rw8aqXDURZbH4Wv6PHoStE?cluster=devnet) |
-| **Stripe Pre-Stock** | `preSTRIPE` | 6 | `25y9TFRReWN822h9buyGUTMBAarty2uzDbWwGhN4esqb` | [View on Solscan](https://explorer.solana.com/address/25y9TFRReWN822h9buyGUTMBAarty2uzDbWwGhN4esqb?cluster=devnet) |
-
----
-
-## Monorepo Architecture
-
-```
-kite/
-  ├── apps/
-  │   ├── web/                     # Next.js 15 App Router dApp (Solana Wallet Adapter, Tailwind CSS)
-  │   └── mobile/                  # React Native Expo app (Solana Mobile Wallet Adapter)
-  ├── packages/
-  │   ├── anchor/                  # Anchor framework program (`kite-vault`)
-  │   └── sdk/                     # Shared TypeScript SDK (@kite/sdk)
-  ├── pnpm-workspace.yaml          # pnpm monorepo workspace configuration
-  └── turbo.json                   # Build pipeline
-```
-
----
-
-## Quickstart Guide
-
-### Prerequisites
-- Node.js >= 20
-- pnpm >= 9
-- Solana CLI & Anchor CLI
-
-### 1. Install Dependencies
-```bash
+```sh
 pnpm install
-```
-
-### 2. Run Web dApp Locally
-```bash
+pnpm build:sdk
 pnpm dev:web
 ```
-Open `http://localhost:3000` in your browser.
 
-### 3. Run Mobile App (Expo)
-```bash
-pnpm dev:mobile
+Open `http://localhost:3000`. To run mobile, configure `apps/mobile/.env` from its `.env.example`, then run `pnpm dev:mobile`. A physical device must use your computer's LAN address or an HTTPS deployment for `EXPO_PUBLIC_API_BASE_URL`; its own localhost cannot reach your computer.
+
+## Configuration
+
+Copy `apps/web/.env.example` to `apps/web/.env.local`. Market discovery can work with the public issuer APIs and Jupiter's available public endpoint. Configure `JUPITER_API_KEY` for the supported authenticated Jupiter service and actual swap routes. Configure Privy and the mainnet RPC for actual trading. Secrets remain on the web server; only public app IDs and public RPC configuration belong in `NEXT_PUBLIC_*` / `EXPO_PUBLIC_*` variables.
+
+See [mainnet data](docs/mainnet-data.md), [trading setup](docs/mainnet-trading.md), and [mobile setup](apps/mobile/README.md) for endpoints, environment variables and limitations.
+
+## Demo flow
+
+1. Open Kite and explore the issuer-listed mainnet assets or a curated basket.
+2. Stay in **Paper trading**. Each device starts with $10,000 of clearly labeled virtual USD and no holdings or orders.
+3. Review and confirm a paper buy. The shared SDK records an order, adjusts virtual cash and creates a holding at a freshly observed reference price.
+4. Inspect portfolio and activity, save a watchlist, or set a recurring paper plan.
+5. Paper plans run due installments only while the app is open and fresh prices are available. Missed intervals are not backfilled. They are not unattended mainnet mandates.
+6. Switch to **Actual trading**, sign in with Privy or connect a Solana wallet, request a Jupiter quote and approve it in the wallet. No actual transaction is sent without the user signing.
+
+Paper orders simulate reference-price execution only; they exclude fees, slippage and corporate-action/scaled-token effects. Their results are not an execution forecast. Web and mobile paper histories are device-local and do not sync. Some PreStocks and xStocks products may be paused or reference-only; the issuer status disables new trades.
+
+## Mainnet architecture
+
+There is no Kite vault in the active product. Thematic baskets are allocations across individual issuer tokens. Paper basket orders validate every component before committing the next ledger state. Actual basket components are reviewed as separate wallet-approved swaps. Actual recurring DCA is explicitly unavailable until a supported mainnet execution service is integrated.
+
+`GET /api/markets` discovers and prices tokens. `GET /api/portfolio` reads wallet balances. `POST /api/trade/order` obtains a validated unsigned Jupiter transaction. `POST /api/trade/execute` requires the exact quoted transaction and a valid wallet signature. The old `/api/faucet` and `/api/buy-basket` return HTTP 410.
+
+## Checks
+
+```sh
+pnpm build:sdk
+node --test packages/sdk/test/*.test.cjs
+pnpm build:web
 ```
 
-### 4. Build Anchor Program
-```bash
-pnpm build:anchor
-```
+Additional transaction validation tests are in `apps/web/tests`. Native export checks and setup are described in the mobile README.
 
----
+## Design reference
 
-## Testing Flow for Judges
-
-1. Open `http://localhost:3000` and connect your **Phantom** or **Solflare** wallet (switch network to **Devnet** in wallet settings).
-2. Click the green **"Devnet Faucet"** button in the navbar.
-3. Verify that you instantly receive **$1,000 Devnet USDC**, **5 xNVDA tokens**, and **0.1 SOL for gas**.
-4. Go to **Baskets**, select `MAG7` or `AI-LEADERS`, and click **Buy Basket**.
-5. Go to **SIPs**, set up a weekly recurring plan, and inspect your active onchain order.
+The requested “Unified UI Design System - Kite project ss” / Stitch source was not included in this checkout. The implemented forest, lime, geometric Kite identity is a provisional shared system; exact Stitch matching requires its link or export. Design tokens live in `apps/web/app/globals.css` and `apps/mobile/src/theme.ts`.

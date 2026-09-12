@@ -12,3 +12,6 @@ target
 .vscode
 .uizze
 .impeccable
+.pnpm-store/
+*.tsbuildinfo
+.expo/

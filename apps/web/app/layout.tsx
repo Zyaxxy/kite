@@ -1,19 +1,20 @@
-import type { Metadata } from 'next';
-import { Providers } from './providers';
-import './globals.css';
-
+import type { Metadata } from "next";
+import { Providers } from "./providers";
+import "./globals.css";
 export const metadata: Metadata = {
-  title: 'Kite — Non-Custodial Neo-Brokerage on Solana',
-  description: '1-Click Thematic Stock Baskets, Automated Recurring SIPs, and Stock Intelligence on Solana.',
+  title: "Kite — Your ideas. Onchain.",
+  description:
+    "Explore tokenized equities and thematic baskets on Solana. Practice with live market prices, then trade from your own wallet.",
 };
-
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <html lang="en">
-      <body className="min-h-screen bg-[#121212] text-slate-100 font-sans antialiased">
-        <Providers>
-          {children}
-        </Providers>
+    <html lang="en" data-scroll-behavior="smooth">
+      <body>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

@@ -1,62 +1,21 @@
-# Product
+# Kite product contract
 
-<!-- uizze:product-schema 1 -->
+Kite helps people discover tokenized equity themes, practice allocations, and trade from their own Solana wallets.
 
-## Platform
+## Current modes
 
-web
+- Paper: $10,000 starting virtual USD, no seeded holdings or history; reference-price buys and sells, basket allocations, watchlist, activity and recurring paper plans stored locally.
+- Actual: mainnet portfolio reads and Jupiter swaps approved by a user wallet, with optional Privy sign-in. Assets are held directly by the wallet.
+- Mobile actual trading: user-initiated handoff to the configured web Privy / wallet flow.
 
-## Register
+## Data
 
-product
+Issuer-confirmed Solana mint catalogs from xStocks and PreStocks; Jupiter market metadata and price observations. Discover the full catalog. Unknown data remains unavailable. Paused and reference-only products stay visible with trading blocked. No fabricated charts, financial statements, news, sentiment, returns, fills or customer metrics.
 
-## Users
+## Baskets and recurring plans
 
-Solana wallet holders (Phantom, Solflare) who want US tokenized equities without a custodian. They arrive with USDC, a connected wallet, and a job: put money to work in a thematic basket or a recurring SIP, then leave. They are not day-trading from this surface.
+Baskets are curated allocations into individual assets, not Kite-issued basket tokens. The legacy Anchor vault does not participate in mainnet. Mainnet basket swaps require individual reviews. Paper recurring plans run while the application is open; unattended actual DCA is not implemented and must not be implied.
 
-## Product Purpose
+## Design
 
-Kite is a non-custodial neo-brokerage on Solana. It lets people mint 1-click thematic stock baskets (MAG7, AI-SEMI) as SPL tokens and run automated USDC SIPs / DCA via Jupiter, with Pyth-priced sentiment on the underlying names. Success is a signed mint or an active SIP in one sitting, with keys never leaving the wallet.
-
-## Positioning
-
-Atomic multi-leg Jupiter swap + basket mint from the user's own wallet — not a brokerage account, not a custodial SIP, not a list of individual stock tickets.
-
-## Operating Context
-
-Devnet wallet session. Routes: Markets (`/`), Thematic Baskets (`/baskets`), Recurring SIPs (`/sip`), stock detail (`/stock/[symbol]`). Mint and SIP submits are currently simulated client-side; prices and headlines come from `@kite/sdk` mock Pyth insights. Hackathon demo under Solana Foundation Tokenized Stocks.
-
-## Capabilities and Constraints
-
-- Connect Phantom/Solflare; auto-connect.
-- Scan tokenized US names with price, 24h change, sentiment, one headline.
-- Select a curated basket, enter USDC, simulate atomic mint into the wallet.
-- Create a daily/weekly/monthly USDC SIP against a basket or single name.
-- Stock detail: sentiment gauge + catalyst headlines.
-- Do not invent live fills, AUM, customers, fees beyond the zero-management-fee copy already in the app, or onchain proofs that are not implemented.
-
-## Brand Commitments
-
-Name: Kite. Voice: direct, specific, non-custodial. Binding product words: thematic baskets, SIP / DCA, Pyth, Jupiter, USDC, MAG7, AI-SEMI. User confirmed this is a product (operate) surface, not a marketing landing.
-
-Standing visual preference (user-chosen): category-standard dark brokerage executed at [Groww](https://groww.in) craft — list-first markets, scheme holdings you can read, SIP as a 3-field mandate, no dashboard theater.
-
-## Evidence on Hand
-
-`packages/sdk` mock insights (NVDA, AAPL, TSLA, MSFT) and two curated baskets with real weightings. No real customer quotes, press, or screenshots of live mainnet fills. Do not fabricate those.
-
-## Product Principles
-
-- Show the atomic basket, not a generic “invest in the future” hero.
-- Custody is a property of the UI: wallet, USDC, and destination token stay visible.
-- One primary action per screen; scanning and executing never compete equally.
-- Data is the proof; adjectives are not.
-- Empty, disconnected, and in-flight states are first-class, not afterthoughts.
-
-## Accessibility & Inclusion
-
-No product-specific mandate was set. Default to WCAG 2.2 AA on text contrast, focus rings, and form labels; honor `prefers-reduced-motion`.
-
-## Anti-references
-
-Generic dark-blue Solana dashboards; gradient indigo/purple heroes; identical metric cards with icon + heading; glass sticky nav with a letter-mark tile; emoji as basket identity; “Powered by X ✨” pills; hero-metric SaaS templates.
+Use the shared forest / lime Kite system with geometric symbols and no emoji. Provide consistent web and mobile navigation, forms, reviews, error states and empty states. This provisional system awaits the user’s named Stitch reference for exact matching; do not reuse the superseded Groww direction.

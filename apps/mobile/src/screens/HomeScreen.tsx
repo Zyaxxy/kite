@@ -1,91 +1,45 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { MOCK_MARKET_INSIGHTS } from '@kite/sdk';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { valuePaperAccount, type MarketAsset } from '@kite/sdk';
+import { AssetRow, MarketStatus } from '../components/Market';
+import { Button, EmptyState, OrbitArt, SectionTitle } from '../components/Primitives';
+import type { Screen } from '../components/Navigation';
+import { useKite } from '../state/KiteProvider';
+import { colors, money, percentage, ui } from '../theme';
 
-export function HomeScreen({ onNavigate }: { onNavigate: (screen: string) => void }) {
-  const stocks = Object.values(MOCK_MARKET_INSIGHTS);
-
-  return (
-    <ScrollView style={styles.container}>
-      <View style={styles.hero}>
-        <Text style={styles.heroBadge}>⚡ Solana Tokenized Equities</Text>
-        <Text style={styles.heroTitle}>Kite Neo-Brokerage</Text>
-        <Text style={styles.heroSubtitle}>
-          Invest in US Stocks & Thematic Baskets directly from your mobile wallet.
-        </Text>
-
-        <View style={styles.ctaRow}>
-          <TouchableOpacity style={styles.primaryBtn} onPress={() => onNavigate('baskets')}>
-            <Text style={styles.primaryBtnText}>Thematic Baskets</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryBtn} onPress={() => onNavigate('sip')}>
-            <Text style={styles.secondaryBtnText}>Automated SIP</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <Text style={styles.sectionTitle}>Market Watchlist</Text>
-      {stocks.map((stock) => (
-        <View key={stock.symbol} style={styles.stockCard}>
-          <View style={styles.stockHeader}>
-            <Text style={styles.stockSymbol}>{stock.symbol}</Text>
-            <Text style={[styles.stockChange, { color: stock.change24h >= 0 ? '#10B981' : '#EF4444' }]}>
-              {stock.change24h >= 0 ? `+${stock.change24h}%` : `${stock.change24h}%`}
-            </Text>
-          </View>
-          <View style={styles.stockBody}>
-            <Text style={styles.stockPrice}>${stock.price.toFixed(2)}</Text>
-            <Text style={styles.sentimentLabel}>{stock.sentimentLabel}</Text>
-          </View>
-        </View>
-      ))}
-    </ScrollView>
-  );
+export function HomeScreen({ onNavigate, onAsset }: { onNavigate: (screen: Screen) => void; onAsset: (asset: MarketAsset) => void }) {
+  const { account, market, loading, ready, refresh, watchlist } = useKite();
+  const valuation = valuePaperAccount(account, market?.assets ?? []);
+  const watched = market?.assets.filter(asset => watchlist.includes(asset.mint)) ?? [];
+  return <ScrollView style={ui.screen} contentContainerStyle={ui.content} refreshControl={<RefreshControl refreshing={loading} onRefresh={() => { void refresh(); }} tintColor={colors.accent} />}>
+    <View style={ui.stack}><Text style={ui.eyebrow}>A NEW WAY TO OWN WHAT'S NEXT</Text><Text style={ui.title}>Big ideas.{ '\n' }Smaller starting points.</Text><Text style={ui.body}>Explore tokenized companies and build your own point of view.</Text></View>
+    <View style={styles.balanceCard}>
+      <View style={ui.between}><Text style={[ui.eyebrow, { color: colors.accentInk }]}>YOUR PAPER PORTFOLIO</Text><Text style={styles.virtualLabel}>VIRTUAL USD</Text></View>
+      <Text style={[ui.money, { color: colors.accentInk }]}>{ready ? money(valuation.totalUsd) : 'Loading…'}</Text>
+      <Text style={styles.balanceNote}>{account.orders.length ? `${money(valuation.profitLossUsd)} · ${percentage(valuation.profitLossPct)} all time` : `${money(account.startingCashUsd)} in virtual funds. Your first move is yours.`}</Text>
+      <View style={styles.balanceDivider} />
+      <View style={ui.between}><Text style={styles.balanceNote}>Buying power</Text><Text style={styles.balanceAmount}>{money(account.cashUsd)}</Text></View>
+      <Button secondary label="Explore investments" onPress={() => onNavigate('explore')} />
+    </View>
+    <View style={ui.card}>
+      <View style={ui.between}><View style={{ flex: 1, gap: 10 }}><Text style={ui.eyebrow}>CURATED CONVICTION</Text><Text style={ui.heading}>One idea.{ '\n' }A whole basket.</Text></View><OrbitArt small /></View>
+      <Text style={ui.body}>From the intelligence layer to private frontiers. Discover thematic allocations built from live mainnet assets.</Text>
+      <Button secondary label="Discover baskets" onPress={() => onNavigate('baskets')} />
+    </View>
+    <MarketStatus />
+    <View style={ui.stack}><SectionTitle title="On your radar" action="Watchlist" onAction={() => onNavigate('watchlist')} />
+      {watched.length ? <View>{watched.slice(0, 4).map(asset => <AssetRow key={asset.mint} asset={asset} onPress={() => onAsset(asset)} />)}</View> : <EmptyState title="Keep your next idea close." description="Save assets to your watchlist as you explore. Your picks will appear here." action="Find an asset" onAction={() => onNavigate('explore')} />}
+    </View>
+    {market?.assets.length ? <View style={ui.stack}><SectionTitle title="Across the market" action="View all" onAction={() => onNavigate('explore')} />
+      {market.assets.slice(0, 4).map(asset => <AssetRow key={asset.mint} asset={asset} onPress={() => onAsset(asset)} />)}
+    </View> : null}
+  </ScrollView>;
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0B0E14', padding: 16 },
-  hero: {
-    backgroundColor: '#151922',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-    borderColor: '#222834',
-    borderWidth: 1,
-  },
-  heroBadge: { color: '#60A5FA', fontSize: 12, fontWeight: 'bold', marginBottom: 8 },
-  heroTitle: { color: '#FFFFFF', fontSize: 24, fontWeight: 'bold', marginBottom: 6 },
-  heroSubtitle: { color: '#94A3B8', fontSize: 13, lineHeight: 18, marginBottom: 16 },
-  ctaRow: { flexDirection: 'row', gap: 10 },
-  primaryBtn: {
-    backgroundColor: '#2563EB',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-  },
-  primaryBtnText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 13 },
-  secondaryBtn: {
-    backgroundColor: '#1E293B',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderColor: '#334155',
-    borderWidth: 1,
-  },
-  secondaryBtnText: { color: '#E2E8F0', fontWeight: '600', fontSize: 13 },
-  sectionTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold', marginBottom: 12 },
-  stockCard: {
-    backgroundColor: '#151922',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 10,
-    borderColor: '#222834',
-    borderWidth: 1,
-  },
-  stockHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  stockSymbol: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' },
-  stockChange: { fontSize: 14, fontWeight: '600' },
-  stockBody: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  stockPrice: { color: '#F8FAFC', fontSize: 20, fontWeight: 'bold' },
-  sentimentLabel: { color: '#94A3B8', fontSize: 12, backgroundColor: '#0B0E14', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 },
+  balanceCard: { backgroundColor: colors.accent, borderRadius: 22, padding: 22, gap: 14 },
+  virtualLabel: { color: colors.accentInk, fontSize: 8, letterSpacing: 1, borderWidth: 1, borderColor: '#9DB656', borderRadius: 5, padding: 4 },
+  balanceNote: { color: '#42512B', fontSize: 12, lineHeight: 19 },
+  balanceAmount: { color: colors.accentInk, fontSize: 16, fontWeight: '600' },
+  balanceDivider: { height: 1, backgroundColor: '#B4D15F', marginTop: 4 },
 });

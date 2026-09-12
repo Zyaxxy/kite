@@ -4,10 +4,9 @@
     "slug": "kite-solana-stocks",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
-      "backgroundColor": "#0B0E14"
+      "backgroundColor": "#101311"
     },
     "ios": {
       "supportsTablet": true,
@@ -15,7 +14,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0B0E14"
+        "backgroundColor": "#101311"
       },
       "package": "com.kite.solana"
     }
