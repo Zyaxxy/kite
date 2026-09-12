@@ -90,15 +90,19 @@ export function ActualTradePanel({
     try {
       if (!auth.walletAddress)
         throw new Error("Sign in or connect your Solana wallet first.");
-      if (asset.decimals === null)
-        throw new Error(
-          "Token precision is unavailable. Refresh market data before trading.",
-        );
-      toTokenAmount(amount, side === "buy" ? 6 : asset.decimals);
+      // USDC precision is fixed; the server verifies sell precision from the mint.
+      // A missing or stale market metadata field must not block that lookup.
+      if (side === "buy") toTokenAmount(amount, 6);
+      else if (
+        !/^(0|[1-9]\d*)(\.\d+)?$/.test(amount.trim()) ||
+        !/[1-9]/.test(amount)
+      )
+        throw new Error("Enter a positive decimal amount.");
       setBusy("quote");
       const response = await fetch("/api/trade/order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(60_000),
         body: JSON.stringify({
           mint: asset.mint,
           amount,
