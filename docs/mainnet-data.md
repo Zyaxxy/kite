@@ -1,6 +1,6 @@
 # Mainnet market data and paper trading
 
-The production SDK entry point exports live market discovery, paper accounting and direct-wallet trading contracts. The old Anchor/devnet prototype is retained behind `packages/sdk/src/legacy-devnet.ts`; it is not part of the active web/mobile SDK interface. No vault, mint authority or server wallet is used for mainnet trades.
+The production SDK entry point exports live market discovery, paper accounting and direct-wallet trading contracts. Unused devnet mock mints, fabricated market insights and incomplete prototype transaction builders have been removed; the Anchor program remains available for independent development. No vault, mint authority or server wallet is used for mainnet trades.
 
 ## Data sources
 
@@ -15,7 +15,13 @@ The production SDK entry point exports live market discovery, paper accounting a
 
 `JUPITER_API_KEY` is a server-only key from the [Jupiter developer portal](https://developers.jup.ag/portal). With it the SDK uses `https://api.jup.ag`. Without it, market reads attempt Jupiter's public `https://lite-api.jup.ag` compatibility endpoint, verified on 12 September 2026. Availability/rate limits of that legacy endpoint are not guaranteed; set a key for production. The key must never use a `NEXT_PUBLIC_` or `EXPO_PUBLIC_` prefix.
 
-`GET /api/markets` serves both clients from the web backend. Issuer catalog metadata is cached for ten minutes and copied before enrichment; prices are fetched independently. Catalog pages and exact-mint quote batches use at most three concurrent requests per provider, with one bounded retry for HTTP 429 that honors Jupiter's `x-ratelimit-reset` window. All work shares a 30-second deadline; a rate-limited or slow provider leaves a partial snapshot instead of extending each batch's timeout indefinitely. The snapshot cache lasts 30 seconds (10 seconds for complete outages), coalesces concurrent requests, and preserves each batch's source observation timestamps. `priceObservedAt` means Kite received a positive token price, while `priceBlockId` identifies the provider's last price block when supplied; it is not a claim that the token traded at the fetch time. HTTP 503 includes the same snapshot shape with `status: unavailable`; partial provider success returns HTTP 200 with `status: partial` and warnings. Clients should refresh at least once per minute and show missing/stale values explicitly.
+`GET /api/markets` serves both clients from the web backend. Issuer identity is fetched independently from Jupiter and has an overall eight-second deadline. Catalog metadata is reused for ten minutes, with a short shared server catalog cache; issuer failures are never treated as a complete allowlist. Research, token search and trade identity checks use this catalog directly instead of waiting for prices.
+
+Public market reads return verified catalog entries or prior observations immediately with `refreshing: true`. One coalesced refresh publishes token prices before supplemental reference enrichment. [Next.js `after`](https://nextjs.org/docs/app/api-reference/functions/after) keeps the bounded background work alive after the response. Token observations refresh on a 30-second server cache; full reference batches run every five minutes. Tokens previously priced only by V3 receive targeted V3 requests between full reference passes. Reference values and source dates are retained separately, never promoted to token prices or redated.
+
+Catalog pages and exact-mint batches use at most three concurrent requests, with one reset-aware retry for HTTP 429. Price work has a 30-second total deadline. Failed background refreshes retain dated observations, surface a warning and back off for five seconds. Clients poll every two seconds only while hydration is active, otherwise once per minute when visible. They reuse in-flight requests, use ETag/If-None-Match to avoid downloading unchanged catalogs, and do not run due paper plans on an intermediate catalog snapshot. HTTP 503 still denotes unavailable catalogs; partial data is explicit. See [measured performance and cache limits](data-performance.md).
+
+`priceObservedAt` means Kite received a positive token price, while `priceBlockId` identifies the provider's last price block when supplied; it is not a claim that the token traded at fetch time. Cached data keeps those timestamps, and paper execution still rejects quotes older than two minutes.
 
 ## Market pulse and baskets
 

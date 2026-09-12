@@ -4,13 +4,12 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc",
     "dev": "tsc --watch"
   },
   "dependencies": {
     "@solana/web3.js": "^1.98.0",
-    "@solana/spl-token": "^0.4.12",
-    "@pythnetwork/pyth-solana-receiver": "^0.7.0"
+    "@solana/spl-token": "^0.4.12"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

@@ -51,12 +51,18 @@ export function MarketStatus() {
           being shown.<button onClick={() => void refresh()}>Retry</button>
         </div>
       )}
-      {!error && snapshot?.status === "partial" && (
+      {!error && !snapshot?.refreshing && snapshot?.status === "partial" && (
         <div className="notice" style={{ marginBottom: 18 }}>
           <Info size={15} />
           Showing available live prices. Unpriced and paused assets remain in
           the catalog for reference.
           <button onClick={() => void refresh()}>Refresh</button>
+        </div>
+      )}
+      {!loading && !error && snapshot?.refreshing && (
+        <div className="notice" style={{ marginBottom: 18 }} role="status">
+          <RefreshCw size={15} /> Updating market observations. You can explore
+          assets and company research now.
         </div>
       )}
       {loading && (

@@ -156,3 +156,70 @@ test('request cancellation stops quota waiting and preserves completed token quo
   assert.equal(snapshot.assets[0].priceUsd,25);
   assert.equal(snapshot.status,'partial');
 });
+
+test('issuer-only discovery performs no Jupiter requests', async () => {
+  const { getMainnetCatalog } = require('../dist/markets.js');
+  const requested = [];
+  const catalog = await getMainnetCatalog({fetcher: async input => {
+    const url = String(input); requested.push(url);
+    if (url.includes('xstocks.fi')) return j({nodes:[{symbol:'Ax',name:'Issuer A',deployments:[{network:'Solana',address:mintA}]}],page:{hasNextPage:false}});
+    if (url.endsWith('/products')) return new Response('');
+    if (url.endsWith('/api/metrics')) return j({metrics:[]});
+    throw new Error('Price lookup must not be needed to identify an asset');
+  }});
+  assert.equal(catalog.assets[0].mint,mintA);
+  assert.equal(catalog.assets[0].priceUsd,null);
+  assert.ok(requested.every(url=>!url.includes('jup.ag')));
+});
+
+test('token observations publish before blocked references and remain detached', async () => {
+  const asset={mint:mintA,symbol:'Ax',underlyingSymbol:'A',issuer:'xstocks',priceUsd:null,verified:true,tradingHalted:false};
+  const catalog={assets:[asset],baskets:[],asOf:new Date().toISOString(),network:'mainnet-beta',sources:['xStocks issuer catalog'],warnings:[],status:'live'};
+  let finishPrice;
+  const priceReady=new Promise(resolve=>{finishPrice=resolve;});
+  let coreReady;
+  const core=new Promise(resolve=>{coreReady=resolve;});
+  const task=getMainnetMarkets({catalog,onUpdate:coreReady,fetcher:async input=>{
+    if(String(input).includes('/tokens/v2/'))return j([{id:mintA,usdPrice:12,decimals:8}]);
+    await priceReady;
+    return j({[mintA]:{usdPrice:13,stockData:{id:'xstocks',price:14,updatedAt:'2026-09-12T12:00:00Z'}}});
+  }});
+  const early=await core;
+  assert.equal(early.assets[0].priceUsd,12);
+  assert.equal(asset.priceUsd,null,'caller-owned catalog is unchanged');
+  finishPrice();
+  const complete=await task;
+  assert.equal(complete.assets[0].priceUsd,13);
+  assert.equal(complete.assets[0].underlyingPriceUsd,14);
+  assert.equal(early.assets[0].priceUsd,12,'later enrichment does not mutate the published response');
+  assert.equal(early.assets[0].underlyingPriceUsd,undefined);
+});
+
+test('frequent token refreshes can omit the supplemental reference batches', async()=>{
+  const asset={mint:mintA,symbol:'Ax',underlyingSymbol:'A',issuer:'xstocks',priceUsd:null,verified:true,tradingHalted:false};
+  const catalog={assets:[asset],baskets:[],asOf:new Date().toISOString(),network:'mainnet-beta',sources:['xStocks issuer catalog'],warnings:[],status:'live'};
+  const calls=[];
+  const result=await getMainnetMarkets({catalog,includePriceReferences:false,fetcher:async input=>{
+    calls.push(String(input));
+    assert.ok(String(input).includes('/tokens/v2/'));
+    return j([{id:mintA,usdPrice:20,decimals:8}]);
+  }});
+  assert.equal(calls.length,1);
+  assert.equal(result.assets[0].priceUsd,20);
+  assert.equal(result.assets[0].priceSource,'jupiter-tokens-v2');
+});
+
+test('token quotes available only through V3 still refresh between full reference passes', async()=>{
+  const assets=[mintA,mintB].map((mint,index)=>({mint,symbol:`T${index}x`,underlyingSymbol:`T${index}`,issuer:'xstocks',priceUsd:null,verified:true,tradingHalted:false}));
+  const catalog={assets,baskets:[],asOf:new Date().toISOString(),network:'mainnet-beta',sources:['xStocks issuer catalog'],warnings:[],status:'live'};
+  const priceCalls=[];
+  const result=await getMainnetMarkets({catalog,includePriceReferences:false,priceFallbackMints:[mintA,mintB],fetcher:async input=>{
+    const url=new URL(String(input));
+    if(url.pathname.includes('/tokens/'))return j([{id:mintA,usdPrice:12}]);
+    priceCalls.push(url.searchParams.get('ids'));
+    return j({[mintB]:{usdPrice:15,stockData:{id:'xstocks',price:99,updatedAt:'2026-09-12T12:00:00Z'}}});
+  }});
+  assert.deepEqual(priceCalls,[mintB],'already refreshed Tokens V2 mints do not need duplicate V3 price requests');
+  assert.equal(result.assets.find(asset=>asset.mint===mintB).priceUsd,15);
+  assert.equal(result.assets.find(asset=>asset.mint===mintB).priceSource,'jupiter-price-v3');
+});

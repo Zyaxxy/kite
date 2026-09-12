@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Linking,
@@ -12,7 +12,7 @@ import type {
   ResearchFundamental,
   StockResearch as StockResearchData,
 } from "@kite/sdk";
-import { apiGet } from "../lib/config";
+import { cachedResearch, loadResearch } from "../lib/research-cache";
 import { Button, FilterRow } from "./Primitives";
 import { colors, ui } from "../theme";
 
@@ -96,74 +96,78 @@ export function StockResearch({
   refreshKey?: number;
 }) {
   const [tab, setTab] = useState<ResearchTab>("Overview");
-  const [result, setResult] = useState<StockResearchData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [result, setResult] = useState<StockResearchData | null>(() =>
+    cachedResearch(asset.mint),
+  );
+  const [loading, setLoading] = useState(() => !cachedResearch(asset.mint));
   const [error, setError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
+  const previousRequest = useRef({ mint: asset.mint, refreshKey, retry });
   const research = result?.mint === asset.mint ? result : null;
+  const refreshing = loading || (research?.refreshing === true && !error);
 
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
-    let timedOut = false;
-    const timeout = setTimeout(() => {
-      timedOut = true;
-      controller.abort();
-    }, 60_000);
-    setLoading(true);
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+    const previous = previousRequest.current;
+    const force =
+      previous.mint === asset.mint &&
+      (previous.refreshKey !== refreshKey || previous.retry !== retry);
+    previousRequest.current = { mint: asset.mint, refreshKey, retry };
     setError(null);
-    setResult(null);
-    void apiGet<StockResearchData>(
-      `/api/research?mint=${encodeURIComponent(asset.mint)}`,
-      controller.signal,
-    )
-      .then((response) => {
-        if (
-          response.mint !== asset.mint ||
-          !Array.isArray(response.bars) ||
-          !Array.isArray(response.fundamentals) ||
-          !Array.isArray(response.news) ||
-          !Array.isArray(response.events) ||
-          !Array.isArray(response.sources) ||
-          !Array.isArray(response.warnings)
-        )
-          throw new Error("Company research returned an invalid response.");
-        if (active) setResult(response);
-      })
-      .catch((failure) => {
-        if (active && (!controller.signal.aborted || timedOut))
+    setResult(cachedResearch(asset.mint));
+    async function request(forceRefresh: boolean) {
+      setLoading(true);
+      try {
+        const response = await loadResearch(
+          asset.mint,
+          controller.signal,
+          forceRefresh,
+        );
+        if (!active) return;
+        setResult(response);
+        if (response.refreshing) {
+          refreshTimer = setTimeout(() => {
+            void request(true);
+          }, 2_000);
+        }
+      } catch (failure) {
+        if (active && !controller.signal.aborted) {
           setError(
-            timedOut
-              ? "Company research took too long to respond. Please retry."
-              : failure instanceof Error
-                ? failure.message
-                : "Company research is temporarily unavailable.",
+            failure instanceof Error
+              ? failure.message
+              : "Company research is temporarily unavailable.",
           );
-      })
-      .finally(() => {
-        clearTimeout(timeout);
+        }
+      } finally {
         if (active) setLoading(false);
-      });
+      }
+    }
+    void request(force);
     return () => {
       active = false;
-      clearTimeout(timeout);
+      clearTimeout(refreshTimer);
       controller.abort();
     };
   }, [asset.mint, refreshKey, retry]);
 
   const technicals = research?.technicals;
-  const latestFundamentals = [
-    ...(research?.fundamentals ?? [])
-      .reduce((latest, fact) => {
-        if (
-          !latest.has(fact.id) ||
-          latest.get(fact.id)!.periodEnd < fact.periodEnd
-        )
-          latest.set(fact.id, fact);
-        return latest;
-      }, new Map<string, ResearchFundamental>())
-      .values(),
-  ];
+  const latestFundamentals = useMemo(
+    () => [
+      ...(research?.fundamentals ?? [])
+        .reduce((latest, fact) => {
+          if (
+            !latest.has(fact.id) ||
+            latest.get(fact.id)!.periodEnd < fact.periodEnd
+          )
+            latest.set(fact.id, fact);
+          return latest;
+        }, new Map<string, ResearchFundamental>())
+        .values(),
+    ],
+    [research?.fundamentals],
+  );
   const currency = research?.profile?.currency;
   const price = (value: number | null | undefined): string =>
     value == null
@@ -188,10 +192,14 @@ export function StockResearch({
         onSelect={(value) => setTab(value as ResearchTab)}
       />
       <View style={ui.card}>
-        {loading ? (
+        {refreshing ? (
           <View style={ui.row}>
             <ActivityIndicator color={colors.accent} />
-            <Text style={ui.body}>Gathering company research…</Text>
+            <Text style={ui.body}>
+              {research
+                ? "Refreshing company research…"
+                : "Gathering company research…"}
+            </Text>
           </View>
         ) : null}
         {error ? (
@@ -206,7 +214,7 @@ export function StockResearch({
             />
           </View>
         ) : null}
-        {!loading && !error && research?.status === "unavailable" ? (
+        {!refreshing && !error && research?.status === "unavailable" ? (
           <Text style={ui.body}>
             Company research is currently unavailable from the public providers.
           </Text>
@@ -250,8 +258,8 @@ export function StockResearch({
                 </Text>
                 <Text style={ui.heading}>{price(technicals.close)}</Text>
                 <Text style={ui.small}>
-                  The latest session may still be in progress. This is not an
-                  executable token quote.
+                  Completed underlying share session. This is not an executable
+                  token quote.
                 </Text>
               </View>
             ) : null}
@@ -419,7 +427,7 @@ export function StockResearch({
           </View>
         ) : null}
 
-        {research && !loading ? (
+        {research ? (
           <View style={ui.stack}>
             <View style={ui.divider} />
             {research.warnings.length ? (
@@ -442,7 +450,8 @@ export function StockResearch({
             ) : null}
             <Button
               secondary
-              label="Refresh research"
+              label={refreshing ? "Refreshing research…" : "Refresh research"}
+              disabled={refreshing}
               onPress={() => setRetry((value) => value + 1)}
             />
           </View>

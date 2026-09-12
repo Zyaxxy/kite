@@ -9,7 +9,7 @@ import {
   type SwapToken,
   type TradeSide,
 } from "@kite/sdk";
-import { getServerMarkets } from "@/lib/server/markets";
+import { getServerMarketCatalog } from "@/lib/server/markets";
 import { authorizeTrade } from "@/lib/server/trade-authorization";
 import { getTradeMintDecimals } from "@/lib/server/mint-precision";
 import { searchJupiterSwapTokens } from "@/lib/server/swap-tokens";
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
       throw new Error("Choose two different tokens to swap.");
     if (!PublicKey.isOnCurve(new PublicKey(taker).toBytes()))
       throw new Error("A valid signing wallet is required.");
-    const markets = await getServerMarkets();
+    const markets = await getServerMarketCatalog();
     const mints = [inputMint, outputMint];
     const issuerAssets = mints.map((address) =>
       markets.assets.find((asset) => asset.mint === address),

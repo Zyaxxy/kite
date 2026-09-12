@@ -349,13 +349,12 @@ test("private companies do not query a coincidentally matching public stock tick
           return new Response(
             "<rss><channel><item><title>OpenAI update - Publisher</title><link>https://publisher.example/openai</link><source>Publisher</source><pubDate>Fri, 11 Sep 2026 12:00:00 GMT</pubDate></item></channel></rss>",
           );
-        if (url.includes("list=search"))
-          return json({ query: { search: [{ title: "OpenAI", pageid: 42 }] } });
         return json({
           query: {
             pages: {
               42: {
                 pageid: 42,
+                title: "OpenAI",
                 extract: "A provider-returned company description.",
               },
             },
@@ -402,17 +401,224 @@ test("an unrelated encyclopedia result is not used as the company overview", asy
       const url = String(input);
       urls.push(url);
       if (url.includes("/chart/")) return json(chart());
-      if (url.includes("list=search"))
+      if (url.includes("generator=search"))
         return json({
-          query: { search: [{ pageid: 123, title: "Different company" }] },
+          query: {
+            pages: {
+              123: {
+                pageid: 123,
+                title: "Different company",
+                extract: "Facts about an unrelated business.",
+              },
+            },
+          },
         });
       return json({});
     },
   });
   assert.equal(result.profile.name, "NVIDIA Corporation");
   assert.equal(result.profile.description, null);
+  assert.equal(urls.filter((url) => url.includes("wikipedia")).length, 1);
+});
+
+test("company enrichment starts before slow financials finish and shares one request deadline", async () => {
+  const urls = [];
+  const signals = [];
+  let finishFinancials;
+  const financials = new Promise((resolve) => {
+    finishFinancials = resolve;
+  });
+  const operation = getStockResearch(asset, {
+    now: () => now,
+    fetcher: async (input, init) => {
+      const url = String(input);
+      urls.push(url);
+      signals.push(init.signal);
+      if (url.includes("/chart/")) return json(chart());
+      if (url.includes("/timeseries/")) return financials;
+      if (url.includes("wikipedia"))
+        return json({
+          query: {
+            pages: {
+              12: {
+                pageid: 12,
+                title: "NVIDIA",
+                extract: "A provider-returned company description.",
+              },
+            },
+          },
+        });
+      return json({});
+    },
+  });
+  await new Promise(setImmediate);
+  assert.equal(urls.filter((url) => url.includes("wikipedia")).length, 1);
+  assert.equal(urls.length, 4);
+  assert.ok(signals.every((signal) => signal === signals[0]));
+  finishFinancials(
+    json({
+      timeseries: {
+        result: [series("annualTotalRevenue", [fact(50, "2025-12-31")])],
+      },
+    }),
+  );
+  const result = await operation;
   assert.equal(
-    urls.some((url) => url.includes("prop=extracts")),
+    result.profile.description,
+    "A provider-returned company description.",
+  );
+  assert.equal(result.fundamentals.length, 1);
+});
+
+test("coalesces cold loads and serves dated cache immediately while one refresh reuses slow-changing facts", async (t) => {
+  let clock = now;
+  let gate;
+  const calls = [];
+  const symbol = "CACHEFLOW";
+  const cachedAsset = {
+    ...asset,
+    mint: "cache-flow",
+    underlyingSymbol: symbol,
+  };
+  t.mock.method(Date, "now", () => clock);
+  t.mock.method(globalThis, "fetch", async (input) => {
+    const url = String(input);
+    calls.push(url);
+    if (gate) await gate;
+    if (url.includes("/chart/")) {
+      const value = chart(symbol);
+      value.chart.result[0].meta.longName = "Cache Flow";
+      return json(value);
+    }
+    if (url.includes("/timeseries/"))
+      return json({
+        timeseries: {
+          result: [
+            series("annualTotalRevenue", [fact(50, "2025-12-31")], symbol),
+          ],
+        },
+      });
+    if (url.includes("wikipedia"))
+      return json({
+        query: {
+          pages: {
+            12: {
+              pageid: 12,
+              title: "Cache Flow",
+              extract: "A provider-returned company description.",
+            },
+          },
+        },
+      });
+    return json({});
+  });
+  const [first, concurrent] = await Promise.all([
+    getStockResearch(cachedAsset),
+    getStockResearch(cachedAsset),
+  ]);
+  assert.equal(first, concurrent);
+  assert.equal(first.refreshing, false);
+  assert.equal(calls.length, 4);
+  assert.equal(await getStockResearch(cachedAsset), first);
+  assert.equal(calls.length, 4);
+
+  clock += 5 * 60_000 + 1;
+  let release;
+  gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const refreshes = [];
+  const options = { waitUntil: (task) => refreshes.push(task) };
+  const stale = await getStockResearch(cachedAsset, options);
+  const another = await getStockResearch(cachedAsset, options);
+  assert.deepEqual(stale, { ...first, refreshing: true });
+  assert.deepEqual(another, stale);
+  assert.equal(
+    first.refreshing,
+    false,
+    "Already returned observations are not mutated",
+  );
+  assert.equal(stale.asOf, new Date(now).toISOString());
+  assert.equal(calls.length, 6);
+  assert.equal(refreshes.length, 2);
+  release();
+  await Promise.all(refreshes);
+  const refreshed = await getStockResearch(cachedAsset);
+  assert.equal(refreshed.asOf, new Date(clock).toISOString());
+  assert.equal(refreshed.refreshing, false);
+  assert.equal(calls.filter((url) => url.includes("/timeseries/")).length, 1);
+  assert.equal(calls.filter((url) => url.includes("wikipedia")).length, 1);
+  assert.equal(refreshed.fundamentals[0].periodEnd, "2025-12-31");
+});
+
+test("research cache survives a short outage without extending observation dates and retries recovery", async (t) => {
+  let clock = now;
+  let offline = false;
+  const symbol = "RECOVERY";
+  const cachedAsset = { ...asset, mint: "recovery", underlyingSymbol: symbol };
+  t.mock.method(Date, "now", () => clock);
+  t.mock.method(globalThis, "fetch", async (input) => {
+    if (offline) throw new Error("provider offline");
+    if (String(input).includes("/chart/")) {
+      const value = chart(symbol);
+      value.chart.result[0].meta.longName = "Recovery Provider";
+      return json(value);
+    }
+    if (String(input).includes("/timeseries/"))
+      return json({
+        timeseries: {
+          result: [
+            series("annualTotalRevenue", [fact(50, "2025-12-31")], symbol),
+          ],
+        },
+      });
+    return json({});
+  });
+  const first = await getStockResearch(cachedAsset);
+  clock += 5 * 60_000 + 1;
+  offline = true;
+  const refreshes = [];
+  const stale = await getStockResearch(cachedAsset, {
+    waitUntil: (task) => refreshes.push(task),
+  });
+  assert.equal(stale.asOf, first.asOf);
+  assert.equal(stale.refreshing, true);
+  await Promise.all(refreshes);
+  const retained = await getStockResearch(cachedAsset);
+  assert.equal(retained.asOf, first.asOf);
+  assert.equal(
+    retained.refreshing,
+    false,
+    "A provider retry cooldown stops client polling",
+  );
+  assert.equal(retained.bars.length, first.bars.length);
+  assert.match(retained.warnings.join(" "), /last observed research/);
+  const cooldownTasks = [];
+  await getStockResearch(cachedAsset, {
+    waitUntil: (task) => cooldownTasks.push(task),
+  });
+  assert.equal(cooldownTasks.length, 0);
+
+  clock += 30_001;
+  offline = false;
+  const recoveredTasks = [];
+  await getStockResearch(cachedAsset, {
+    waitUntil: (task) => recoveredTasks.push(task),
+  });
+  await Promise.all(recoveredTasks);
+  const recovered = await getStockResearch(cachedAsset);
+  assert.equal(recovered.asOf, new Date(clock).toISOString());
+  assert.equal(recovered.refreshing, false);
+  assert.equal(
+    recovered.warnings.some((warning) => warning.includes("last observed")),
     false,
   );
+
+  offline = true;
+  clock += 15 * 60_000 + 1;
+  const expired = await getStockResearch(cachedAsset);
+  assert.equal(expired.status, "unavailable");
+  assert.equal(expired.refreshing, false);
+  assert.deepEqual(expired.bars, []);
+  assert.deepEqual(expired.fundamentals, []);
 });

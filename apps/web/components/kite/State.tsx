@@ -65,9 +65,15 @@ interface KiteState {
 const Context = createContext<KiteState | null>(null);
 const ACCOUNT_KEY = "kite.paper.mainnet.v1";
 const WATCH_KEY = "kite.watchlist.mainnet.v1";
+let observedMarkets: MarketSnapshot | null = null;
 export function KiteProvider({ children }: { children: React.ReactNode }) {
-  const [snapshot, setSnapshot] = useState<MarketSnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [snapshot, setSnapshot] = useState<MarketSnapshot | null>(() =>
+    observedMarkets &&
+    Date.now() - Date.parse(observedMarkets.asOf) < 5 * 60_000
+      ? observedMarkets
+      : null,
+  );
+  const [loading, setLoading] = useState(!snapshot);
   const [error, setError] = useState<string | null>(null);
   const [paper, setPaper] = useState(() => createPaperAccount());
   const [hydrated, setHydrated] = useState(false);
@@ -78,7 +84,10 @@ export function KiteProvider({ children }: { children: React.ReactNode }) {
   const [storageError, setStorageError] = useState<string | null>(null);
   const mounted = useRef(true);
   const paperRef = useRef(paper);
-  const inFlight = useRef(false);
+  const inFlight = useRef<Promise<void> | null>(null);
+  const marketRef = useRef(snapshot);
+  const lastFetchedAt = useRef(0);
+  const marketEtag = useRef<string | null>(null);
   useEffect(() => {
     mounted.current = true;
     try {
@@ -116,47 +125,82 @@ export function KiteProvider({ children }: { children: React.ReactNode }) {
       mounted.current = false;
     };
   }, []);
-  const refresh = useCallback(async () => {
-    if (inFlight.current) return;
-    inFlight.current = true;
-    try {
-      const res = await fetch("/api/markets", {
-        cache: "no-store",
-        signal: AbortSignal.timeout(60000),
-      });
-      if (!res.ok)
-        throw new Error("Market feeds are unavailable. Please try again.");
-      const data = (await res.json()) as MarketSnapshot;
-      if (!Array.isArray(data.assets) || data.network !== "mainnet-beta")
-        throw new Error("Market data could not be verified.");
-      if (mounted.current) {
-        setSnapshot(data);
-        setError(null);
+  const loadMarkets = useCallback((force = false): Promise<void> => {
+    if (inFlight.current) return inFlight.current;
+    if (
+      !force &&
+      !marketRef.current?.refreshing &&
+      Date.now() - lastFetchedAt.current < 30_000
+    )
+      return Promise.resolve();
+    const operation = (async () => {
+      try {
+        const res = await fetch("/api/markets", {
+          headers: marketEtag.current
+            ? { "If-None-Match": marketEtag.current }
+            : {},
+          cache: "no-store",
+          signal: AbortSignal.timeout(20_000),
+        });
+        if (res.status === 304 && marketRef.current) {
+          lastFetchedAt.current = Date.now();
+          if (mounted.current) setError(null);
+          return;
+        }
+        if (!res.ok)
+          throw new Error("Market feeds are unavailable. Please try again.");
+        const data = (await res.json()) as MarketSnapshot;
+        if (!Array.isArray(data.assets) || data.network !== "mainnet-beta")
+          throw new Error("Market data could not be verified.");
+        marketEtag.current = res.headers.get("etag");
+        marketRef.current = data;
+        observedMarkets = data;
+        lastFetchedAt.current = Date.now();
+        if (mounted.current) {
+          setSnapshot(data);
+          setError(null);
+        }
+      } catch (e) {
+        if (mounted.current)
+          setError(
+            e instanceof Error ? e.message : "Unable to load market data.",
+          );
+      } finally {
+        inFlight.current = null;
+        if (mounted.current) setLoading(false);
       }
-    } catch (e) {
-      if (mounted.current)
-        setError(
-          e instanceof Error ? e.message : "Unable to load market data.",
-        );
-    } finally {
-      inFlight.current = false;
-      if (mounted.current) setLoading(false);
-    }
+    })();
+    inFlight.current = operation;
+    return operation;
   }, []);
+  const refresh = useCallback(() => loadMarkets(true), [loadMarkets]);
   useEffect(() => {
-    void refresh();
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") void refresh();
-    }, 60000);
+    let active = true;
+    let cycle = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      const current = ++cycle;
+      if (document.visibilityState === "visible") await loadMarkets();
+      if (active && current === cycle)
+        timer = setTimeout(
+          poll,
+          marketRef.current?.refreshing ? 2_000 : 60_000,
+        );
+    };
+    void poll();
     const onVisible = () => {
-      if (document.visibilityState === "visible") void refresh();
+      if (document.visibilityState === "visible") {
+        clearTimeout(timer);
+        void poll();
+      }
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => {
-      window.clearInterval(timer);
+      active = false;
+      clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [refresh]);
+  }, [loadMarkets]);
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(null), 5500);
@@ -240,7 +284,8 @@ export function KiteProvider({ children }: { children: React.ReactNode }) {
     [persist, hydrated, accountReadFailed],
   );
   useEffect(() => {
-    if (!hydrated || accountReadFailed || !snapshot) return;
+    if (!hydrated || accountReadFailed || !snapshot || snapshot.refreshing)
+      return;
     const next = runDuePaperPlans(paperRef.current, snapshot);
     if (next !== paperRef.current) persist(next);
   }, [snapshot, hydrated, accountReadFailed, persist]);

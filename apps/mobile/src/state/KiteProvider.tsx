@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
 import { createPaperAccount, parsePaperAccount, runDuePaperPlans, type MarketSnapshot, type PaperAccount } from '@kite/sdk';
-import { apiGet } from '../lib/config';
+import { apiGetConditional } from '../lib/config';
 
 const STORAGE_KEY = 'kite.mobile.paper.v1';
 const WATCHLIST_KEY = 'kite.mobile.watchlist.v1';
@@ -26,7 +26,10 @@ export function KiteProvider({ children }: { children: ReactNode }) {
   const accountRef = useRef(account);
   const watchlistRef = useRef(watchlist);
   const writeQueue = useRef<Promise<void>>(Promise.resolve());
-  const requestRef = useRef<AbortController | null>(null);
+  const requestRef = useRef<{ controller: AbortController; promise: Promise<void> } | null>(null);
+  const lastRefreshAt = useRef(0);
+  const marketRef = useRef(market);
+  const marketEtag = useRef<string | null>(null);
 
   const persist = useCallback((key: string, value: unknown) => {
     writeQueue.current = writeQueue.current.then(() => AsyncStorage.setItem(key, JSON.stringify(value))).catch(() => {
@@ -37,31 +40,51 @@ export function KiteProvider({ children }: { children: ReactNode }) {
   const updateAccount = useCallback((update: (current: PaperAccount) => PaperAccount) => {
     if (!ready) throw new Error('Your paper account is still loading.');
     const next = update(accountRef.current);
+    if (next === accountRef.current) return;
     accountRef.current = next;
     setAccount(next);
     persist(STORAGE_KEY, next);
   }, [ready, persist]);
 
-  const refresh = useCallback(async () => {
-    if (requestRef.current) return;
+  const fetchMarket = useCallback((force = false): Promise<void> => {
+    if (requestRef.current && !requestRef.current.controller.signal.aborted) return requestRef.current.promise;
+    if (!force && !marketRef.current?.refreshing && Date.now() - lastRefreshAt.current < 30_000) return Promise.resolve();
     const controller = new AbortController();
-    requestRef.current = controller;
-    setLoading(true);
+    const showLoading = force || !marketRef.current;
+    if (showLoading) setLoading(true);
     let timedOut = false;
     const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 60_000);
-    try {
-      const response = await apiGet<MarketSnapshot>('/api/markets', controller.signal);
-      if (response.network !== 'mainnet-beta' || !Array.isArray(response.assets) || !Array.isArray(response.baskets)) throw new Error('The market service returned an invalid mainnet response.');
-      setMarket(response); setError(null);
-    } catch (failure) {
-      if (timedOut) setError('The live market connection timed out. Pull down to retry.');
-      else if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : 'Unable to reach live markets.');
-    } finally {
-      clearTimeout(timeout);
-      if (!controller.signal.aborted || timedOut) setLoading(false);
-      requestRef.current = null;
-    }
+    const promise = apiGetConditional<MarketSnapshot>('/api/markets', controller.signal, marketRef.current ? marketEtag.current : null)
+      .then(result => {
+        if (controller.signal.aborted) return;
+        if (result.notModified) {
+          marketEtag.current = result.etag;
+          lastRefreshAt.current = Date.now();
+          setError(null);
+          return;
+        }
+        const response = result.data;
+        if (response.network !== 'mainnet-beta' || !Array.isArray(response.assets) || !Array.isArray(response.baskets)) throw new Error('The market service returned an invalid mainnet response.');
+        marketEtag.current = result.etag;
+        lastRefreshAt.current = Date.now();
+        marketRef.current = response;
+        setMarket(response); setError(null);
+      })
+      .catch((failure: unknown) => {
+        if (timedOut) setError('The live market connection timed out. Pull down to retry.');
+        else if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : 'Unable to reach live markets.');
+      })
+      .finally(() => {
+        clearTimeout(timeout);
+        if (requestRef.current?.controller === controller) {
+          requestRef.current = null;
+          if (showLoading && (!controller.signal.aborted || timedOut)) setLoading(false);
+        }
+      });
+    requestRef.current = { controller, promise };
+    return promise;
   }, []);
+  const refresh = useCallback(() => fetchMarket(true), [fetchMarket]);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,14 +105,18 @@ export function KiteProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    void refresh();
-    const timer = setInterval(() => { if (AppState.currentState === 'active') void refresh(); }, 60_000);
-    const listener = AppState.addEventListener('change', state => { if (state === 'active') void refresh(); });
-    return () => { clearInterval(timer); listener.remove(); requestRef.current?.abort(); };
-  }, [refresh]);
+    void fetchMarket();
+    const listener = AppState.addEventListener('change', state => { if (state === 'active') void fetchMarket(); });
+    return () => { listener.remove(); requestRef.current?.controller.abort(); };
+  }, [fetchMarket]);
 
   useEffect(() => {
-    if (!market || !ready) return;
+    const timer = setInterval(() => { if (AppState.currentState === 'active') void fetchMarket(); }, market?.refreshing ? 2_000 : 60_000);
+    return () => clearInterval(timer);
+  }, [fetchMarket, market?.refreshing]);
+
+  useEffect(() => {
+    if (!market || !ready || market.refreshing) return;
     updateAccount(current => runDuePaperPlans(current, market));
   }, [market, ready, updateAccount]);
 

@@ -26,9 +26,9 @@ export function MarketStatus() {
   const { market, loading, error, storageError, refresh } = useKite();
   const issue = storageError || error;
   if (issue) return <Pressable accessibilityRole="button" onPress={() => { void refresh(); }} style={styles.notice}><Text style={[ui.small, { color: colors.down }]}>{issue}</Text><Text style={[ui.small, { color: colors.accent }]}>Refresh connection</Text></Pressable>;
-  if (market?.warnings.length) return <View style={styles.notice}><Text style={ui.small}>{market.warnings.join(' ')}</Text></View>;
+  if (market?.warnings.length) return <View style={styles.notice}><Text style={ui.small}>{market.warnings.join(' ')}</Text>{market.refreshing ? <Text style={ui.small}>Updating mainnet prices…</Text> : null}</View>;
   return <View style={ui.between}><View style={ui.row}><View style={styles.liveDot} /><Text style={ui.eyebrow}>SOLANA MAINNET</Text></View>
-    <Text style={ui.small}>{loading ? 'Refreshing…' : market ? `Updated ${new Date(market.asOf).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Connecting…'}</Text>
+    <Text style={ui.small}>{loading || market?.refreshing ? 'Refreshing…' : market ? `Updated ${new Date(market.asOf).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Connecting…'}</Text>
   </View>;
 }
 

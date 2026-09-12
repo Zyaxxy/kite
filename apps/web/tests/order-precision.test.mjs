@@ -32,36 +32,49 @@ function createRoute({
   unknownToken = false,
   incompleteCatalog = false,
 } = {}) {
-  const calls = { precision: [], quotes: [], discovery: [] };
+  const calls = {
+    precision: [],
+    quotes: [],
+    discovery: [],
+    catalog: 0,
+    prices: 0,
+  };
   const exports = {};
   const dependencies = {
     "next/server": require("next/server"),
     "@solana/web3.js": require("@solana/web3.js"),
     "@kite/sdk": sdk,
     "@/lib/server/markets": {
-      getServerMarkets: async () => ({
-        status: "live",
-        sources: incompleteCatalog
-          ? []
-          : ["xStocks issuer catalog", "PreStocks issuer catalog"],
-        assets: [
-          {
-            mint,
-            symbol: "TESTx",
-            verified: true,
-            tradingHalted: haltedMint === mint,
-            decimals: metadataDecimals,
-          },
-          {
-            mint: secondMint,
-            symbol: "SECONDx",
-            name: "Second test asset",
-            verified: true,
-            tradingHalted: haltedMint === secondMint,
-            decimals: 6,
-          },
-        ],
-      }),
+      getServerMarketCatalog: async () => {
+        calls.catalog++;
+        return {
+          status: "live",
+          sources: incompleteCatalog
+            ? []
+            : ["xStocks issuer catalog", "PreStocks issuer catalog"],
+          assets: [
+            {
+              mint,
+              symbol: "TESTx",
+              verified: true,
+              tradingHalted: haltedMint === mint,
+              decimals: metadataDecimals,
+            },
+            {
+              mint: secondMint,
+              symbol: "SECONDx",
+              name: "Second test asset",
+              verified: true,
+              tradingHalted: haltedMint === secondMint,
+              decimals: 6,
+            },
+          ],
+        };
+      },
+      getServerMarkets: async () => {
+        calls.prices++;
+        throw new Error("Trade identity must not wait for prices");
+      },
     },
     "@/lib/server/swap-tokens": {
       searchJupiterSwapTokens: async (query) => {
@@ -155,6 +168,15 @@ function createRoute({
       ),
   };
 }
+
+test("trade identity validation obtains a quote without requesting global market prices", async () => {
+  const route = createRoute();
+  const response = await route.swap(mint, secondMint);
+  assert.equal(response.status, 200);
+  assert.equal(route.calls.catalog, 1);
+  assert.equal(route.calls.prices, 0);
+  assert.equal(route.calls.quotes.length, 1);
+});
 
 test("buy and sell quotes recover when market metadata has no decimals", async () => {
   for (const side of ["buy", "sell"]) {

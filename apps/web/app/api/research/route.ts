@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { getStockResearch } from "@kite/sdk";
-import { getServerMarkets } from "@/lib/server/markets";
+import { getServerMarketCatalog } from "@/lib/server/markets";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -14,14 +14,16 @@ export async function GET(request: NextRequest) {
     );
   }
   try {
-    const markets = await getServerMarkets();
+    const markets = await getServerMarketCatalog();
     const asset = markets.assets.find((item) => item.mint === mint);
     if (!asset)
       return NextResponse.json(
         { error: "This asset is not in the issuer market catalog." },
         { status: markets.status === "unavailable" ? 503 : 404 },
       );
-    const research = await getStockResearch(asset);
+    const research = await getStockResearch(asset, {
+      waitUntil: (task) => after(() => task),
+    });
     return NextResponse.json(research, {
       status: 200,
       headers: { "Cache-Control": "private, max-age=60" },

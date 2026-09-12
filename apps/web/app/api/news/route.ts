@@ -5,79 +5,6 @@ interface NewsArticle {
   source: string | null;
   link: string;
   pubDate: string | null;
-  sentiment: "Bullish" | "Neutral" | "Bearish";
-}
-
-// Headline keyword inference only; these labels are not provider sentiment data.
-const BULLISH_KEYWORDS = [
-  "rise",
-  "surges",
-  "gain",
-  "profit",
-  "growth",
-  "record",
-  "high",
-  "beat",
-  "bullish",
-  "demand",
-  "outperform",
-  "upgrade",
-  "partner",
-  "lead",
-  "expands",
-  "boost",
-  "rally",
-  "breakthrough",
-  "approval",
-  "dividend",
-  "revenue",
-  "accelerates",
-];
-
-const BEARISH_KEYWORDS = [
-  "fall",
-  "drop",
-  "slump",
-  "loss",
-  "miss",
-  "plunge",
-  "decline",
-  "bearish",
-  "cut",
-  "warning",
-  "probe",
-  "lawsuit",
-  "downgrade",
-  "delay",
-  "risk",
-  "inflation",
-  "recession",
-  "headwind",
-  "scrutiny",
-  "selloff",
-  "deficit",
-];
-
-function analyzeHeadlineSentiment(title: string): {
-  score: number;
-  label: "Bullish" | "Neutral" | "Bearish";
-} {
-  const lower = title.toLowerCase();
-  let bullCount = 0;
-  let bearCount = 0;
-
-  for (const w of BULLISH_KEYWORDS) {
-    if (lower.includes(w)) bullCount++;
-  }
-  for (const w of BEARISH_KEYWORDS) {
-    if (lower.includes(w)) bearCount++;
-  }
-
-  if (bullCount > bearCount)
-    return { score: Math.min(1.0, 0.3 + bullCount * 0.2), label: "Bullish" };
-  if (bearCount > bullCount)
-    return { score: Math.max(-1.0, -0.3 - bearCount * 0.2), label: "Bearish" };
-  return { score: 0, label: "Neutral" };
 }
 
 function readXmlText(value: string): string {
@@ -167,41 +94,13 @@ export async function GET(request: NextRequest) {
         source,
         link,
         pubDate,
-        sentiment: analyzeHeadlineSentiment(title).label,
       });
     }
-
-    const avgScore = items.length
-      ? Number(
-          (
-            items.reduce(
-              (sum, item) => sum + analyzeHeadlineSentiment(item.title).score,
-              0,
-            ) / items.length
-          ).toFixed(2),
-        )
-      : null;
-    const sentimentLabel =
-      avgScore === null
-        ? null
-        : avgScore >= 0.5
-          ? "Very Bullish"
-          : avgScore > 0.15
-            ? "Bullish"
-            : avgScore > -0.15
-              ? "Neutral"
-              : avgScore > -0.5
-                ? "Bearish"
-                : "Very Bearish";
 
     return NextResponse.json({
       symbol,
       cleanSymbol,
       status: items.length ? "live" : "empty",
-      sentimentScore: avgScore,
-      sentimentLabel,
-      sentimentMethod: items.length ? "headline-keywords" : null,
-      aiSummary: null,
       articles: items,
       fetchedAt: new Date().toISOString(),
       message: items.length
@@ -214,10 +113,6 @@ export async function GET(request: NextRequest) {
         symbol,
         cleanSymbol,
         status: "unavailable",
-        sentimentScore: null,
-        sentimentLabel: null,
-        sentimentMethod: null,
-        aiSummary: null,
         articles: [],
         fetchedAt: null,
         message: "News is temporarily unavailable. Please try again later.",
