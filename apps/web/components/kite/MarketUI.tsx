@@ -319,12 +319,21 @@ export interface BasketDisplay {
 export function BasketCard({
   basket,
   index = 0,
+  tabIndex,
+  prefetch,
 }: {
   basket: BasketDisplay;
   index?: number;
+  tabIndex?: number;
+  prefetch?: boolean;
 }) {
   return (
-    <Link href={`/basket/${basket.id}`} className="basket-card">
+    <Link
+      href={`/basket/${basket.id}`}
+      className="basket-card"
+      tabIndex={tabIndex}
+      prefetch={prefetch}
+    >
       <div className={`basket-art art-${index % 3}`}>
         <OrbitArt variant={index % 3} />
       </div>

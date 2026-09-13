@@ -1567,20 +1567,75 @@ input::-webkit-inner-spin-button {
   min-height: 44px;
   flex-shrink: 0;
 }
-.landing-basket-showcase .basket-card-body {
+.basket-marquee .basket-card-body {
   display: flex;
   flex: 1;
   flex-direction: column;
 }
-.landing-basket-showcase .basket-card p {
+.basket-marquee .basket-card p {
   margin-bottom: 4px;
 }
-.landing-basket-showcase .mini-assets {
+.basket-marquee .mini-assets {
   margin-top: auto;
   padding-top: 16px;
 }
-.landing-swipe-hint {
+.basket-marquee {
+  --basket-card-width: 370px;
+  --basket-gap: 24px;
+}
+.basket-marquee-viewport {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-behavior: auto;
+  scroll-snap-type: none;
+  scrollbar-width: none;
+  padding: 4px 2px 8px;
+}
+.basket-marquee-viewport::-webkit-scrollbar {
   display: none;
+}
+.basket-marquee-track,
+.basket-marquee-set {
+  display: flex;
+  gap: var(--basket-gap);
+  width: max-content;
+}
+.basket-marquee-track {
+  position: relative;
+}
+.basket-marquee-set {
+  flex: none;
+}
+.basket-marquee-set .basket-card {
+  flex: 0 0 var(--basket-card-width);
+  width: var(--basket-card-width);
+}
+.basket-marquee-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  min-height: 44px;
+}
+.basket-motion-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  flex-shrink: 0;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 11px;
+}
+.basket-motion-toggle:hover {
+  border-color: var(--accent);
 }
 .landing-section .basket-art {
   height: 136px;
@@ -1799,26 +1854,9 @@ input::-webkit-inner-spin-button {
   .landing {
     padding: 0 30px;
   }
-  .landing-baskets .landing-basket-showcase {
-    display: flex;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    scroll-snap-type: x mandatory;
-    scrollbar-width: thin;
-    scrollbar-color: var(--line) transparent;
-    padding: 4px 2px 12px;
-  }
-  .landing-baskets .basket-card {
-    flex: 0 0 max(260px, 42%);
-    scroll-snap-align: start;
-  }
-  .landing-swipe-hint {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 12px;
-    color: var(--muted);
-    font-size: 11px;
+  .basket-marquee {
+    --basket-card-width: 320px;
+    --basket-gap: 20px;
   }
 }
 @media (max-width: 760px) {
@@ -2129,8 +2167,13 @@ input::-webkit-inner-spin-button {
   .landing-section .basket-grid {
     gap: 15px;
   }
-  .landing-baskets .basket-card {
-    flex-basis: 86%;
+  .basket-marquee {
+    --basket-card-width: min(320px, 76vw);
+    --basket-gap: 16px;
+  }
+  .basket-marquee-controls {
+    font-size: 11px;
+    gap: 12px;
   }
   .landing-section .basket-art {
     height: 120px;
