@@ -16,6 +16,7 @@ import {
 } from "@kite/sdk";
 import { Button, Chip, EmptyState, FilterRow } from "../components/Primitives";
 import { useKite } from "../state/KiteProvider";
+import { NativeComposedPanel } from "../components/NativeComposedPanel";
 import { colors, money, ui } from "../theme";
 
 export type PlanTarget = {
@@ -36,6 +37,7 @@ export function SipScreen({
   initialTarget: PlanTarget | null;
 }) {
   const { account, market, ready, updateAccount } = useKite();
+  const [mode, setMode] = useState("Paper");
   const [target, setTarget] = useState<PlanTarget | null>(initialTarget);
   const [frequency, setFrequency] = useState<PaperFrequency>("weekly");
   const [amount, setAmount] = useState("");
@@ -105,144 +107,163 @@ export function SipScreen({
           <Text style={ui.eyebrow}>SMALL STEPS. LONGER HORIZONS.</Text>
           <Text style={ui.title}>Find your rhythm.</Text>
           <Text style={ui.body}>
-            Put a recurring paper investment behind the ideas you believe in.
+            {mode === "Paper"
+              ? "Put a recurring paper investment behind the ideas you believe in."
+              : "Authorize recurring token payments with a buyer, a spending limit and an expiry."}
           </Text>
         </View>
-        <View style={ui.card}>
-          <Chip label="Paper plans" selected />
-          <Text style={ui.heading}>Consistency starts here.</Text>
-          <Text style={ui.body}>
-            Plans use virtual funds and live mainnet prices. Due installments
-            run when the app is open. Missed cycles are never filled with
-            invented historical prices.
-          </Text>
-          <Button
-            label={showForm ? "Close plan builder" : "Create a paper plan"}
-            onPress={() => setShowForm((current) => !current)}
-          />
-        </View>
-        {notice ? (
-          <Text accessibilityRole="alert" style={[ui.body, ui.positive]}>
-            {notice}
-          </Text>
-        ) : null}
-        {!showForm && error ? (
-          <Text accessibilityRole="alert" style={[ui.body, ui.negative]}>
-            {error}
-          </Text>
-        ) : null}
-        {showForm ? (
-          <View style={ui.card}>
-            <Text style={ui.heading}>Build your plan.</Text>
-            <Text style={ui.label}>Your investment</Text>
-            <Button
-              secondary
-              label={target?.name ?? "Choose an asset or basket"}
-              onPress={() => setPicker(true)}
-            />
-            <Text style={ui.label}>Your rhythm</Text>
-            <FilterRow
-              options={FREQUENCIES.map((item) => item.label)}
-              selected={
-                FREQUENCIES.find((item) => item.value === frequency)?.label ??
-                "Weekly"
-              }
-              onSelect={(label) =>
-                setFrequency(
-                  FREQUENCIES.find((item) => item.label === label)?.value ??
-                    "weekly",
-                )
-              }
-            />
-            <Text style={ui.label}>Virtual USD per installment</Text>
-            <TextInput
-              accessibilityLabel="Recurring paper investment amount"
-              style={ui.input}
-              keyboardType="decimal-pad"
-              value={amount}
-              onChangeText={setAmount}
-              placeholder="0.00"
-              placeholderTextColor={colors.muted}
-            />
-            <Text style={ui.small}>
-              Current virtual buying power: {money(account.cashUsd)}. The first
-              installment is due after one selected interval.
-            </Text>
-            {error ? (
-              <Text accessibilityRole="alert" style={[ui.small, ui.negative]}>
+        <FilterRow
+          options={["Paper", "Actual"]}
+          selected={mode}
+          onSelect={setMode}
+        />
+        {mode === "Actual" ? (
+          <NativeComposedPanel />
+        ) : (
+          <>
+            <View style={ui.card}>
+              <Chip label="Paper plans" selected />
+              <Text style={ui.heading}>Consistency starts here.</Text>
+              <Text style={ui.body}>
+                Plans use virtual funds and live mainnet prices. Due
+                installments run when the app is open. Missed cycles are never
+                filled with invented historical prices.
+              </Text>
+              <Button
+                label={showForm ? "Close plan builder" : "Create a paper plan"}
+                onPress={() => setShowForm((current) => !current)}
+              />
+            </View>
+            {notice ? (
+              <Text accessibilityRole="alert" style={[ui.body, ui.positive]}>
+                {notice}
+              </Text>
+            ) : null}
+            {!showForm && error ? (
+              <Text accessibilityRole="alert" style={[ui.body, ui.negative]}>
                 {error}
               </Text>
             ) : null}
-            {target && !availableTarget?.available ? (
-              <Text style={[ui.small, ui.negative]}>
-                This investment needs available market prices before a plan can
-                be created.
-              </Text>
-            ) : null}
-            <Button
-              label="Create paper plan"
-              onPress={createPlan}
-              disabled={
-                !ready ||
-                !availableTarget?.available ||
-                !Number.isFinite(Number(amount)) ||
-                Number(amount) <= 0
-              }
-            />
-          </View>
-        ) : null}
-        <Text style={ui.heading}>Your plans</Text>
-        {account.plans.length ? (
-          account.plans.map((plan) => (
-            <View key={plan.id} style={ui.card}>
-              <View style={ui.between}>
-                <View style={{ flex: 1, gap: 5 }}>
-                  <Text style={ui.label}>{plan.name}</Text>
-                  <Text style={ui.small}>
-                    {
-                      FREQUENCIES.find((item) => item.value === plan.frequency)
-                        ?.label
-                    }{" "}
-                    · {money(plan.amountUsd)} virtual USD
+            {showForm ? (
+              <View style={ui.card}>
+                <Text style={ui.heading}>Build your plan.</Text>
+                <Text style={ui.label}>Your investment</Text>
+                <Button
+                  secondary
+                  label={target?.name ?? "Choose an asset or basket"}
+                  onPress={() => setPicker(true)}
+                />
+                <Text style={ui.label}>Your rhythm</Text>
+                <FilterRow
+                  options={FREQUENCIES.map((item) => item.label)}
+                  selected={
+                    FREQUENCIES.find((item) => item.value === frequency)
+                      ?.label ?? "Weekly"
+                  }
+                  onSelect={(label) =>
+                    setFrequency(
+                      FREQUENCIES.find((item) => item.label === label)?.value ??
+                        "weekly",
+                    )
+                  }
+                />
+                <Text style={ui.label}>Virtual USD per installment</Text>
+                <TextInput
+                  accessibilityLabel="Recurring paper investment amount"
+                  style={ui.input}
+                  keyboardType="decimal-pad"
+                  value={amount}
+                  onChangeText={setAmount}
+                  placeholder="0.00"
+                  placeholderTextColor={colors.muted}
+                />
+                <Text style={ui.small}>
+                  Current virtual buying power: {money(account.cashUsd)}. The
+                  first installment is due after one selected interval.
+                </Text>
+                {error ? (
+                  <Text
+                    accessibilityRole="alert"
+                    style={[ui.small, ui.negative]}
+                  >
+                    {error}
                   </Text>
-                </View>
-                <Chip
-                  label={plan.active ? "Active" : "Paused"}
-                  selected={plan.active}
+                ) : null}
+                {target && !availableTarget?.available ? (
+                  <Text style={[ui.small, ui.negative]}>
+                    This investment needs available market prices before a plan
+                    can be created.
+                  </Text>
+                ) : null}
+                <Button
+                  label="Create paper plan"
+                  onPress={createPlan}
+                  disabled={
+                    !ready ||
+                    !availableTarget?.available ||
+                    !Number.isFinite(Number(amount)) ||
+                    Number(amount) <= 0
+                  }
                 />
               </View>
-              <Text style={ui.small}>
-                {plan.active ? "Next due" : "Scheduled date"}:{" "}
-                {new Date(plan.nextExecutionAt).toLocaleString()}
-              </Text>
-              {plan.lastError ? (
-                <Text style={[ui.small, ui.negative]}>
-                  {plan.lastError} The plan will retry with fresh prices while
-                  the app is open.
-                </Text>
-              ) : null}
-              <Button
-                secondary
-                label={plan.active ? "Pause plan" : "Resume plan"}
-                onPress={() => {
-                  try {
-                    updateAccount((current) =>
-                      togglePaperPlan(current, plan.id),
-                    );
-                  } catch (failure) {
-                    setError(
-                      failure instanceof Error ? failure.message : "Try again.",
-                    );
-                  }
-                }}
+            ) : null}
+            <Text style={ui.heading}>Your plans</Text>
+            {account.plans.length ? (
+              account.plans.map((plan) => (
+                <View key={plan.id} style={ui.card}>
+                  <View style={ui.between}>
+                    <View style={{ flex: 1, gap: 5 }}>
+                      <Text style={ui.label}>{plan.name}</Text>
+                      <Text style={ui.small}>
+                        {
+                          FREQUENCIES.find(
+                            (item) => item.value === plan.frequency,
+                          )?.label
+                        }{" "}
+                        · {money(plan.amountUsd)} virtual USD
+                      </Text>
+                    </View>
+                    <Chip
+                      label={plan.active ? "Active" : "Paused"}
+                      selected={plan.active}
+                    />
+                  </View>
+                  <Text style={ui.small}>
+                    {plan.active ? "Next due" : "Scheduled date"}:{" "}
+                    {new Date(plan.nextExecutionAt).toLocaleString()}
+                  </Text>
+                  {plan.lastError ? (
+                    <Text style={[ui.small, ui.negative]}>
+                      {plan.lastError} The plan will retry with fresh prices
+                      while the app is open.
+                    </Text>
+                  ) : null}
+                  <Button
+                    secondary
+                    label={plan.active ? "Pause plan" : "Resume plan"}
+                    onPress={() => {
+                      try {
+                        updateAccount((current) =>
+                          togglePaperPlan(current, plan.id),
+                        );
+                      } catch (failure) {
+                        setError(
+                          failure instanceof Error
+                            ? failure.message
+                            : "Try again.",
+                        );
+                      }
+                    }}
+                  />
+                </View>
+              ))
+            ) : (
+              <EmptyState
+                title="A little, at your own pace."
+                description="Choose an asset or a basket, an amount and a cadence. Your recurring paper investments will live here."
               />
-            </View>
-          ))
-        ) : (
-          <EmptyState
-            title="A little, at your own pace."
-            description="Choose an asset or a basket, an amount and a cadence. Your recurring paper investments will live here."
-          />
+            )}
+          </>
         )}
       </ScrollView>
       <Modal

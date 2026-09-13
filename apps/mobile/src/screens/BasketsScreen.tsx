@@ -10,9 +10,16 @@ import {
   View,
 } from "react-native";
 import { executePaperBasket, type MarketBasket } from "@kite/sdk";
-import { Button, Chip, EmptyState, OrbitArt } from "../components/Primitives";
+import {
+  Button,
+  Chip,
+  EmptyState,
+  OrbitArt,
+  FilterRow,
+} from "../components/Primitives";
 import { AssetLogo, MarketStatus } from "../components/Market";
 import { useKite } from "../state/KiteProvider";
+import { NativeComposedPanel } from "../components/NativeComposedPanel";
 import { colors, money, ui } from "../theme";
 
 export function BasketsScreen({
@@ -22,6 +29,7 @@ export function BasketsScreen({
 }) {
   const { market, account, updateAccount, ready, loading, refresh } = useKite();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mode, setMode] = useState("Paper");
   const [amount, setAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -145,7 +153,14 @@ export function BasketsScreen({
               label="Back to baskets"
               onPress={() => setSelectedId(null)}
             />
-            {selected ? (
+            <FilterRow
+              options={["Paper", "Actual"]}
+              selected={mode}
+              onSelect={setMode}
+            />
+            {selected && mode === "Actual" ? (
+              <NativeComposedPanel basket={selected} />
+            ) : selected ? (
               <View style={ui.card}>
                 <View style={ui.between}>
                   <Text style={ui.heading}>{selected.ticker}</Text>

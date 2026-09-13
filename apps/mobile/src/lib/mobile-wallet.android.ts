@@ -2,7 +2,7 @@ import { TurboModuleRegistry } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import { Buffer } from "buffer";
 import { PublicKey } from "@solana/web3.js";
-import { canApproveTrade, type MainnetTradeOrder } from "@kite/sdk";
+import { canApproveTrade, type SignableWalletOrder } from "@kite/sdk";
 import type {
   AuthorizationResult,
   MobileWallet,
@@ -173,7 +173,7 @@ export async function disconnectMobileWallet(): Promise<void> {
   }
 }
 export async function signMobileTransaction(
-  order: MainnetTradeOrder,
+  order: SignableWalletOrder,
 ): Promise<string> {
   return session(async (wallet) => {
     const account = await authorize(wallet);
@@ -182,6 +182,10 @@ export async function signMobileTransaction(
         "The wallet changed or the quote expired. Request a new quote.",
       );
     assertSessionActive();
+    if (order.transactionVersion === 1)
+      throw new Error(
+        "V1 wallet capabilities are not enabled in this Android integration yet. Open Kite web with a supported wallet.",
+      );
     const response = await wallet.signTransactions({
       payloads: [order.transaction],
     });

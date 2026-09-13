@@ -10,7 +10,7 @@ import React, {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   signAndExecuteMobileOrder,
-  type MainnetTradeOrder,
+  type SignableWalletOrder,
   type MainnetTradeResult,
 } from "@kite/sdk";
 import {
@@ -39,7 +39,7 @@ interface MobileTradingState {
   connect(): Promise<void>;
   disconnect(): Promise<void>;
   acknowledgePending(): Promise<void>;
-  execute(order: MainnetTradeOrder): Promise<MainnetTradeResult>;
+  execute(order: SignableWalletOrder): Promise<MainnetTradeResult>;
 }
 const Context = createContext<MobileTradingState | null>(null);
 
@@ -133,7 +133,7 @@ export function MobileTradingProvider({ children }: { children: ReactNode }) {
     setPending(null);
   }, []);
   const execute = useCallback(
-    async (order: MainnetTradeOrder) => {
+    async (order: SignableWalletOrder) => {
       if (!ready || busyRef.current || pendingRef.current)
         throw new Error(
           "Resolve the existing wallet request before placing another swap.",
@@ -144,7 +144,12 @@ export function MobileTradingProvider({ children }: { children: ReactNode }) {
       try {
         const result = await signAndExecuteMobileOrder(
           order,
-          kiteClient,
+          order.transactionVersion === undefined
+            ? kiteClient
+            : {
+                executeTrade: (request) =>
+                  kiteClient.executeTransaction(request),
+              },
           {
             getAddress: () => accountRef.current?.address ?? null,
             signTransaction: signMobileTransaction,

@@ -1,4 +1,4 @@
-import type { MainnetTradeOrder } from "@kite/sdk";
+import type { SignableWalletOrder } from "@kite/sdk";
 export interface MobileWalletAccount {
   address: string;
   label?: string;
@@ -18,7 +18,7 @@ export async function disconnectMobileWallet(): Promise<void> {
   /* No native authorization on this platform. */
 }
 export async function signMobileTransaction(
-  _order: MainnetTradeOrder,
+  _order: SignableWalletOrder,
 ): Promise<string> {
   throw unsupported();
 }
