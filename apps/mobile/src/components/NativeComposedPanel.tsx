@@ -101,12 +101,17 @@ export function NativeComposedPanel({ basket }: { basket?: MarketBasket }) {
     setOrder(null);
     setMessage("");
     try {
+      if (!wallet.canSignV1)
+        throw new Error(
+          "Reconnect an updated wallet that supports V1 signing, or open Kite web.",
+        );
       let result: WalletTransactionOrder;
       let lines: string[];
       if (revoke) {
         result = await kiteClient.revokeRecurringPayment(
           wallet.account.address,
           revoke,
+          wallet.supportedTransactionVersions,
         );
         lines = [
           "Revoke this payment permission. Previously collected payments cannot be reversed.",
@@ -118,7 +123,7 @@ export function NativeComposedPanel({ basket }: { basket?: MarketBasket }) {
           amount,
           taker: wallet.account.address,
           slippageBps: 100,
-          supportedTransactionVersions: [0],
+          supportedTransactionVersions: wallet.supportedTransactionVersions,
         });
         result = b;
         lines = [
@@ -139,6 +144,7 @@ export function NativeComposedPanel({ basket }: { basket?: MarketBasket }) {
           periodSeconds:
             period === "Daily" ? 86400 : period === "Weekly" ? 604800 : 2592000,
           periods: Number(periods),
+          supportedTransactionVersions: wallet.supportedTransactionVersions,
         });
         result = p;
         lines = [
@@ -167,7 +173,7 @@ export function NativeComposedPanel({ basket }: { basket?: MarketBasket }) {
           {basket ? "Buy the whole basket" : "Recurring token payments"}
         </Text>
         <Text style={ui.body}>
-          Use Kite web with Privy or a supported Solana wallet on this device.
+          Open Kite web with a wallet that supports V1 transaction signing.
         </Text>
         <Button
           label="Continue in Kite web"
@@ -203,6 +209,20 @@ export function NativeComposedPanel({ basket }: { basket?: MarketBasket }) {
         />
       ) : (
         <>
+          {!wallet.canSignV1 && (
+            <>
+              <Text style={ui.small}>
+                Reconnect a wallet that supports V1 signing to continue.
+              </Text>
+              <Button
+                label="Check wallet compatibility"
+                onPress={() => {
+                  void wallet.connect();
+                }}
+                disabled={wallet.busy}
+              />
+            </>
+          )}
           <Text style={ui.label}>Pay with tokens in your wallet</Text>
           <View style={{ gap: 8 }}>
             {holdings.map((h) => (
@@ -295,7 +315,11 @@ export function NativeComposedPanel({ basket }: { basket?: MarketBasket }) {
             label="Review transaction"
             loading={busy}
             disabled={
-              disabled || !token || !amount || (!basket && (!buyer || !consent))
+              disabled ||
+              !wallet.canSignV1 ||
+              !token ||
+              !amount ||
+              (!basket && (!buyer || !consent))
             }
             onPress={() => {
               void prepare();

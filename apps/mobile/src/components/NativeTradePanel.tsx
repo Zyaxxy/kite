@@ -93,6 +93,10 @@ export function NativeTradePanel({ asset }: { asset: MarketAsset }) {
     setResult(null);
     setLoading(true);
     try {
+      if (!wallet.canSignV1)
+        throw new Error(
+          "Reconnect an updated wallet that supports V1 signing, or open Kite web.",
+        );
       if (input.decimals === undefined)
         throw new Error(
           "Token precision is unavailable. Refresh your wallet balances.",
@@ -122,6 +126,7 @@ export function NativeTradePanel({ asset }: { asset: MarketAsset }) {
         outputMint: asset.mint,
         amount: amount.trim(),
         taker: address,
+        supportedTransactionVersions: wallet.supportedTransactionVersions,
       });
       if (active.current && request === version.current) {
         setOrder(next);
@@ -189,6 +194,20 @@ export function NativeTradePanel({ asset }: { asset: MarketAsset }) {
         Spend tokens you already hold. Review the route, then approve it in your
         wallet.
       </Text>
+      {wallet.account && !wallet.canSignV1 && (
+        <>
+          <Text style={ui.small}>
+            Reconnect a wallet that supports V1 signing to trade.
+          </Text>
+          <Button
+            label="Check wallet compatibility"
+            onPress={() => {
+              void wallet.connect();
+            }}
+            disabled={wallet.busy}
+          />
+        </>
+      )}
       {wallet.supported ? (
         <>
           {wallet.account ? (

@@ -18,6 +18,7 @@ import {
   MAINNET_SOL_MINT,
   type BasketOrderRequest,
   type BasketOrder,
+  type SwapToken,
 } from "@kite/sdk";
 import { getServerMarketCatalog } from "./markets";
 import { getTradeMintDecimals } from "./mint-precision";
@@ -158,6 +159,24 @@ function balance(account: RpcAccount, mint: string, owner: string): bigint {
 export async function prepareBasketOrder(
   input: BasketOrderRequest,
 ): Promise<BasketOrder> {
+  return prepareAllocationOrder(input);
+}
+
+/** Single-token swaps use the same strict build, debit and destination checks. */
+export async function prepareTokenSwapOrder(
+  input: Omit<BasketOrderRequest, "basketId">,
+  outputToken: SwapToken,
+): Promise<BasketOrder> {
+  return prepareAllocationOrder(
+    { ...input, basketId: outputToken.mint },
+    outputToken,
+  );
+}
+
+async function prepareAllocationOrder(
+  input: BasketOrderRequest,
+  outputToken?: SwapToken,
+): Promise<BasketOrder> {
   const apiKey = process.env.JUPITER_API_KEY;
   if (!apiKey) throw new Error("Jupiter routing is not configured.");
   const taker = new PublicKey(input.taker).toBase58();
@@ -176,13 +195,21 @@ export async function prepareBasketOrder(
     );
   await assertMainnetV1Ready(input.supportedTransactionVersions);
   const market = await getServerMarketCatalog();
-  const basket = market.baskets.find((b) => b.id === input.basketId);
+  const basket = outputToken
+    ? {
+        id: outputToken.mint,
+        missingSymbols: [],
+        assets: [{ asset: outputToken, weight: 10_000 }],
+      }
+    : market.baskets.find((b) => b.id === input.basketId);
   if (
-    !hasCompleteIssuerCatalogs(market) ||
+    (!outputToken && !hasCompleteIssuerCatalogs(market)) ||
     !basket ||
     basket.missingSymbols.length ||
     !basket.assets.length ||
-    basket.assets.some((a) => !a.asset.verified || a.asset.tradingHalted)
+    basket.assets.some(
+      (a) => (!outputToken && !a.asset.verified) || a.asset.tradingHalted,
+    )
   )
     throw new Error(
       "The complete, tradable issuer basket is unavailable. No partial basket will be purchased.",

@@ -2,7 +2,11 @@ import { TurboModuleRegistry } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import { Buffer } from "buffer";
 import { PublicKey } from "@solana/web3.js";
-import { canApproveTrade, type SignableWalletOrder } from "@kite/sdk";
+import {
+  advertisedSigningVersions,
+  canApproveTrade,
+  type SignableWalletOrder,
+} from "@kite/sdk";
 import type {
   AuthorizationResult,
   MobileWallet,
@@ -12,6 +16,7 @@ import { WEB_URL } from "./config";
 export interface MobileWalletAccount {
   address: string;
   label?: string;
+  supportedTransactionVersions?: number[];
 }
 interface StoredAuthorization {
   token: string;
@@ -93,6 +98,17 @@ async function authorize(wallet: MobileWallet): Promise<MobileWalletAccount> {
     });
   assertSessionActive();
   const account = accountFromAuthorization(result);
+  // Do not confuse sign-and-send support with the raw signing method used below.
+  try {
+    const capabilities = await wallet.getCapabilities();
+    account.supportedTransactionVersions = advertisedSigningVersions(
+      capabilities.supported_transaction_versions,
+      capabilities.features.includes("solana:signTransactions"),
+    );
+  } catch {
+    account.supportedTransactionVersions = [];
+  }
+  assertSessionActive();
   await SecureStore.setItemAsync(
     KEY,
     JSON.stringify({ token: result.auth_token, account, origin: WEB_URL }),
@@ -156,7 +172,9 @@ async function session<T>(
   }
 }
 export async function restoreMobileWallet(): Promise<MobileWalletAccount | null> {
-  return (await stored())?.account ?? null;
+  const account = (await stored())?.account;
+  // A saved session is not fresh evidence of installed wallet capabilities.
+  return account ? { ...account, supportedTransactionVersions: [] } : null;
 }
 export async function connectMobileWallet(): Promise<MobileWalletAccount> {
   return session(authorize);
@@ -182,9 +200,11 @@ export async function signMobileTransaction(
         "The wallet changed or the quote expired. Request a new quote.",
       );
     assertSessionActive();
-    if (order.transactionVersion === 1)
+    if (order.transactionVersion !== 1)
+      throw new Error("New trades require V1. Request a fresh review.");
+    if (!account.supportedTransactionVersions?.includes(1))
       throw new Error(
-        "V1 wallet capabilities are not enabled in this Android integration yet. Open Kite web with a supported wallet.",
+        "This Android wallet does not advertise V1 transaction signing. Update or reconnect a compatible wallet, or open Kite web.",
       );
     const response = await wallet.signTransactions({
       payloads: [order.transaction],

@@ -2,11 +2,12 @@ import type { SignableWalletOrder } from "@kite/sdk";
 export interface MobileWalletAccount {
   address: string;
   label?: string;
+  supportedTransactionVersions?: number[];
 }
 export const supportsMobileWallet = false;
 const unsupported = () =>
   new Error(
-    "Native wallet signing requires a compatible Android wallet and a Kite development or release build. Use Privy on Kite web for this device.",
+    "Native wallet signing requires a compatible Android wallet and a Kite development or release build. Open Kite web with a wallet that advertises V1 signing.",
   );
 export async function restoreMobileWallet(): Promise<MobileWalletAccount | null> {
   return null;

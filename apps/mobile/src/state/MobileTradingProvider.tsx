@@ -32,6 +32,8 @@ interface PendingAttempt {
 interface MobileTradingState {
   account: MobileWalletAccount | null;
   supported: boolean;
+  supportedTransactionVersions: number[];
+  canSignV1: boolean;
   ready: boolean;
   busy: boolean;
   pending: PendingAttempt | null;
@@ -181,6 +183,9 @@ export function MobileTradingProvider({ children }: { children: ReactNode }) {
       value={{
         account,
         supported: supportsMobileWallet,
+        supportedTransactionVersions:
+          account?.supportedTransactionVersions ?? [],
+        canSignV1: account?.supportedTransactionVersions?.includes(1) === true,
         ready,
         busy,
         pending,

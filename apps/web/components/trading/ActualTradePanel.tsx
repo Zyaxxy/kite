@@ -229,6 +229,7 @@ export function ActualTradePanel({
         outputMint: outputToken.mint,
         amount,
         taker: auth.walletAddress,
+        supportedTransactionVersions: auth.supportedTransactionVersions,
       });
       if (
         version === requestVersion.current &&
@@ -259,7 +260,10 @@ export function ActualTradePanel({
         throw new Error("This quote expired. Request a new quote.");
       setBusy("sign");
       // Opens the user's wallet confirmation; no server-held key can authorize a trade.
-      const signedTransaction = await auth.signTransaction(order.transaction);
+      const signedTransaction = await auth.signTransaction(
+        order.transaction,
+        order.transactionVersion,
+      );
       if (!canApproveTrade(order, activeWallet.current))
         throw new Error(
           "The wallet changed or the quote expired. Request a new quote.",
@@ -271,7 +275,11 @@ export function ActualTradePanel({
           "Kite could not save this swap’s pending state. Nothing was submitted. Enable browser storage before trying again.",
         );
       executionAttempted = true;
-      const data = await kiteClient.executeTrade({
+      const data = await (
+        order.transactionVersion === 1
+          ? kiteClient.executeTransaction.bind(kiteClient)
+          : kiteClient.executeTrade.bind(kiteClient)
+      )({
         signedTransaction,
         authorization: order.authorization,
       });
@@ -338,6 +346,12 @@ export function ActualTradePanel({
           )}
           <WalletButton />
         </div>
+      )}
+      {auth.walletAddress && !auth.canSignV1 && (
+        <p className="notice">
+          This wallet does not advertise V1 signing. Update it or connect a
+          compatible wallet to trade.
+        </p>
       )}
       {auth.walletAddress && (
         <p className="fineprint">
@@ -507,7 +521,7 @@ export function ActualTradePanel({
         <button
           className="btn"
           disabled={
-            !auth.canSign ||
+            !auth.canSignV1 ||
             !amount ||
             !portfolio ||
             Boolean(balancesError) ||

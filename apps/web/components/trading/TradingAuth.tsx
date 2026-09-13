@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, type ReactNode } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { VersionedTransaction } from "@solana/web3.js";
+import { advertisedSigningVersions } from "@kite/sdk";
 
 export interface PrivySession {
   configured: boolean;
@@ -43,7 +44,9 @@ export function TradingAuthProvider({
 export function useTradingAuth() {
   const privy = useContext(PrivySessionContext);
   const adapter = useWallet();
-  const usePrivyWallet = privy.authenticated && Boolean(privy.walletAddress);
+  // A user may keep their Privy session while explicitly selecting a V1-capable external wallet.
+  const usePrivyWallet =
+    !adapter.connected && privy.authenticated && Boolean(privy.walletAddress);
   const walletAddress = usePrivyWallet
     ? privy.walletAddress
     : (adapter.publicKey?.toBase58() ?? null);
@@ -53,7 +56,10 @@ export function useTradingAuth() {
     adapter.wallet?.adapter as unknown as
       | {
           wallet?: {
-            accounts: readonly { address: string }[];
+            accounts: readonly {
+              address: string;
+              features?: readonly string[];
+            }[];
             features: Record<string, unknown>;
           };
         }
@@ -69,11 +75,19 @@ export function useTradingAuth() {
         }) => Promise<readonly { signedTransaction: Uint8Array }[]>;
       }
     | undefined;
-  const supportsV1 =
+  const signingAccount = standard?.accounts.find(
+    (a) => a.address === walletAddress,
+  );
+  const supportedTransactionVersions = advertisedSigningVersions(
+    rawFeature?.supportedTransactionVersions,
     !usePrivyWallet &&
-    rawFeature?.supportedTransactionVersions?.includes(1) === true &&
-    Boolean(rawFeature.signTransaction);
-  const supportedTransactionVersions = supportsV1 ? [0, 1] : [0];
+      Boolean(
+        signingAccount?.features?.includes("solana:signTransaction") &&
+        rawFeature?.signTransaction &&
+        adapter.connected,
+      ),
+  );
+  const supportsV1 = supportedTransactionVersions.includes(1);
 
   const signTransaction = useCallback(
     async (encodedTransaction: string, version: 0 | 1 = 0) => {
@@ -142,6 +156,8 @@ export function useTradingAuth() {
     logOut: logout,
     signTransaction,
     supportedTransactionVersions,
+    supportsV1,
+    canSignV1: supportsV1,
     canSign: usePrivyWallet
       ? Boolean(privy.signTransaction)
       : Boolean(adapter.signTransaction && adapter.connected),

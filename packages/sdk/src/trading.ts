@@ -99,6 +99,10 @@ export function parseJupiterSwapTokens(value: unknown): SwapToken[] {
   });
 }
 export interface MainnetTradeOrder {
+  /** Present on new V1 orders; absent on historical Jupiter orders. */
+  transactionVersion?: 0 | 1;
+  serializedBytes?: number;
+  lastValidBlockHeight?: number;
   requestId: string;
   transaction: string;
   inputMint: string;

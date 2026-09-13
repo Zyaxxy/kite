@@ -133,7 +133,7 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
           </p>
           <button
             className="btn full"
-            disabled={disabled || !auth.canSign || order.expiresAt <= now}
+            disabled={disabled || !auth.canSignV1 || order.expiresAt <= now}
             onClick={async () => {
               if (await flow.execute(order)) balances.refresh();
               setOrder(null);
@@ -154,7 +154,7 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
       ) : (
         <button
           className={`btn ${order ? "secondary" : ""} full`}
-          disabled={disabled || !auth.canSign || !amount}
+          disabled={disabled || !auth.canSignV1 || !amount}
           onClick={review}
         >
           {quoting
@@ -167,6 +167,12 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
       {!auth.walletAddress && (
         <p className="fineprint">
           Sign in or connect a wallet in the header to buy with your tokens.
+        </p>
+      )}
+      {auth.walletAddress && !auth.canSignV1 && (
+        <p className="notice">
+          This wallet does not advertise V1 signing. Update it or connect a
+          compatible wallet to buy.
         </p>
       )}
       {balances.error && <p className="fineprint">{balances.error}</p>}
