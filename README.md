@@ -5,15 +5,15 @@ A self-custody interface for tokenized equities on Solana, with a paper-trading 
 ## Applications
 
 - `apps/web`: Next.js 15.5 — landing, discovery, full markets, thematic baskets, asset details, portfolio, watchlist, activity, recurring paper plans and account settings.
-- `apps/mobile`: Expo / React Native — the same forest-and-lime visual system, shared market data and paper trading. Actual trading opens the configured web app for Privy / wallet approval.
-- `packages/sdk`: typed issuer discovery, quotes, allocations, paper ledger, recurring paper plans and mainnet trade types.
-- `packages/anchor`: preserved legacy devnet experiment. It is not used by either frontend or the mainnet trading flow.
+- `apps/mobile`: Expo / React Native — the same forest-and-lime visual system, shared market data and paper trading. Supported Android builds sign through MWA; iOS and Expo web offer the configured Privy web flow.
+- `packages/sdk`: typed issuer discovery, research, quotes, shared API transport/state, paper accounting, wallet execution and guarded protocol utilities.
+- `packages/anchor`: local-only bounded SIP settlement prototype, with no custody vault or receipt token. It is not connected to frontend mainnet trading.
 
 The previous static brokerage UI, fabricated market insights, fake holdings and devnet minting endpoints have been retired. The full live issuer catalogs are queried; a missing price is shown as unavailable. No charts, sentiment or news are manufactured.
 
 ## Run locally
 
-Use Node 22 or 24 LTS and pnpm 10+.
+Use the documented Node 24.12.0 toolchain and the pinned pnpm 10.31.0 lockfile.
 
 ```sh
 pnpm install
@@ -21,13 +21,13 @@ pnpm build:sdk
 pnpm dev:web
 ```
 
-Open `http://localhost:3000`. To run mobile, configure `apps/mobile/.env` from its `.env.example`, then run `pnpm dev:mobile`. A physical device must use your computer's LAN address or an HTTPS deployment for `EXPO_PUBLIC_API_BASE_URL`; its own localhost cannot reach your computer.
+Open `http://localhost:3000`. To run mobile, configure `apps/mobile/.env.local` from its `.env.example`, then run `pnpm dev:mobile`. A physical device must use your computer's LAN address or an HTTPS deployment for `EXPO_PUBLIC_API_BASE_URL`; its own localhost cannot reach your computer.
 
 ## Configuration
 
-Copy `apps/web/.env.example` to `apps/web/.env.local`. Market discovery can work with the public issuer APIs and Jupiter's available public endpoint. Configure `JUPITER_API_KEY` for the supported authenticated Jupiter service and actual swap routes. Configure Privy and the mainnet RPC for actual trading. Secrets remain on the web server; only public app IDs and public RPC configuration belong in `NEXT_PUBLIC_*` / `EXPO_PUBLIC_*` variables.
+Copy `apps/web/.env.example` to `apps/web/.env.local`. Market discovery can work with the public issuer APIs and Jupiter's available public endpoint. Configure `JUPITER_API_KEY` for the supported authenticated Jupiter service and actual swap routes. Configure Privy, the mainnet RPC and an independent `KITE_TRADE_SECRET` of at least 32 characters for actual trading. Secrets remain on the web server; only public app IDs and public RPC configuration belong in `NEXT_PUBLIC_*` / `EXPO_PUBLIC_*` variables.
 
-See [mainnet data](docs/mainnet-data.md), [trading setup](docs/mainnet-trading.md), and [mobile setup](apps/mobile/README.md) for endpoints, environment variables and limitations.
+See [deployment and rollback verification](docs/deployment-readiness.md), [mainnet data](docs/mainnet-data.md), [trading setup](docs/mainnet-trading.md), and [mobile setup](apps/mobile/README.md) for endpoints, environment variables and limitations.
 
 ## Demo flow
 

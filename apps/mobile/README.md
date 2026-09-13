@@ -22,7 +22,7 @@ pnpm dev:web
 # In a separate terminal:
 node scripts/dev-api-tunnel.mjs --write-env
 # In a third terminal, after the API tunnel URL is saved:
-pnpm --filter @kite/mobile tunnel
+pnpm --filter @kite/mobile tunnel --clear
 ```
 
 The API tunnel proxy binds only to `127.0.0.1:3101`. It forwards GET requests for `/api/health`, `/api/markets`, `/api/research`, `/api/tokens`, `/api/portfolio`, and JSON POST requests for `/api/trade/order` and `/api/trade/execute`. Other paths, browser cookies and private/debug endpoints are excluded. Request bodies are bounded. `--write-env` updates only `EXPO_PUBLIC_API_BASE_URL` in the gitignored mobile environment; it never copies server secrets.
@@ -37,7 +37,7 @@ Expo web is a browser: its exact origin (for example `http://localhost:8081`) mu
 - On supported Android builds, open an asset and switch **Paper → Actual**. Connect a compatible wallet, choose one of its funded tokens, enter an amount and review the fresh route. The app refreshes wallet balances before quoting. Max excludes frozen tokens and keeps a conservative 0.01 SOL reserve; this is not a fee estimate.
 - **Approve in wallet** invokes MWA `signTransactions` only. The signed payload then goes to Kite’s server authorization/execute route. Neither the mobile app nor the server holds a signing key. Orders cannot be approved with a different account or after expiry.
 - MWA authorization tokens are kept in Expo SecureStore, bound to the configured HTTPS identity origin. Later sessions reauthorize. Disconnect forgets the local session and attempts wallet-side deauthorization. MWA base64 account addresses are converted to base58 before API requests.
-- Before sending a signed transaction, Kite saves the attempt identity to AsyncStorage. It never saves a signed transaction. A timeout produces **confirmation unknown** and blocks another swap until the user checks wallet activity. Restarting the app preserves this guard.
+- Before sending a signed transaction, Kite saves the attempt identity to AsyncStorage. It never saves a signed transaction. An execution/confirmation timeout produces **confirmation unknown** and blocks another swap until the user checks wallet activity. Restarting the app preserves this guard.
 - MWA is loaded only by the Android module and only when requested. Expo Go lacks the native wallet module. iOS and Expo web offer the existing Privy flow on Kite web; native Privy is not represented as configured.
 - No mainnet vault or custody deposit is involved. Actual recurring plans and atomic basket transactions remain gated by their separately reviewed protocol implementation.
 
