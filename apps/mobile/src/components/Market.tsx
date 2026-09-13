@@ -8,7 +8,7 @@ export function AssetLogo({ asset, large = false }: { asset: MarketAsset; large?
   const [failed, setFailed] = useState(false);
   const size = large ? 64 : 42;
   return <View style={[styles.logo, { width: size, height: size, borderRadius: large ? 20 : 14 }]}>
-    {asset.logoUrl && !failed ? <Image accessibilityIgnoresInvertColors source={{ uri: asset.logoUrl }} style={{ width: size - 14, height: size - 14, borderRadius: 9 }} onError={() => setFailed(true)} /> : <Text style={[styles.initial, large && { fontSize: 21 }]}>{asset.underlyingSymbol.slice(0, 2).toUpperCase()}</Text>}
+    {asset.logoUrl && !failed ? <Image accessibilityLabel={`${asset.name} logo`} accessibilityIgnoresInvertColors source={{ uri: asset.logoUrl }} style={{ width: size - 14, height: size - 14, borderRadius: 9 }} onError={() => setFailed(true)} /> : <Text style={[styles.initial, large && { fontSize: 21 }]}>{asset.underlyingSymbol.slice(0, 2).toUpperCase()}</Text>}
   </View>;
 }
 

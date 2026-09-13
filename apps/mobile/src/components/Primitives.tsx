@@ -5,7 +5,7 @@ import { colors, ui } from '../theme';
 export function Button({ label, onPress, secondary = false, disabled = false, loading = false, style }: {
   label: string; onPress: () => void; secondary?: boolean; disabled?: boolean; loading?: boolean; style?: ViewStyle;
 }) {
-  return <Pressable accessibilityRole="button" accessibilityState={{ disabled: disabled || loading }} disabled={disabled || loading} onPress={onPress}
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: disabled || loading, busy: loading }} disabled={disabled || loading} onPress={onPress}
     style={({ pressed }) => [styles.button, secondary && styles.secondary, (disabled || loading) && styles.disabled, pressed && styles.pressed, style]}>
     {loading ? <ActivityIndicator color={secondary ? colors.accent : colors.accentInk} /> : <Text style={[styles.buttonText, secondary && { color: colors.ink }]}>{label}</Text>}
   </Pressable>;
@@ -48,7 +48,7 @@ const styles = StyleSheet.create({
   buttonText: { color: colors.accentInk, fontSize: 14, fontWeight: '700' },
   secondary: { backgroundColor: colors.raised, borderWidth: 1, borderColor: colors.line },
   disabled: { opacity: 0.45 }, pressed: { opacity: 0.8 },
-  chip: { paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1, borderColor: colors.line, borderRadius: 40, backgroundColor: colors.surface },
+  chip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1, borderColor: colors.line, borderRadius: 40, backgroundColor: colors.surface },
   chipSelected: { borderColor: colors.accent, backgroundColor: colors.raised },
   chipText: { fontSize: 12, fontWeight: '600', color: colors.muted },
   link: { color: colors.accent, fontSize: 12, fontWeight: '600' },

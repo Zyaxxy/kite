@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
   },
   virtualLabel: {
     color: colors.accentInk,
-    fontSize: 8,
+    fontSize: 10,
     letterSpacing: 1,
     borderWidth: 1,
     borderColor: "#9DB656",

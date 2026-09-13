@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import {
-  Alert,
   Linking,
   RefreshControl,
   ScrollView,
@@ -13,7 +12,7 @@ import { AssetLogo, MarketStatus } from "../components/Market";
 import { Button, Chip, FilterRow } from "../components/Primitives";
 import { StockResearch } from "../components/StockResearch";
 import { useKite } from "../state/KiteProvider";
-import { WEB_URL } from "../lib/config";
+import { NativeTradePanel } from "../components/NativeTradePanel";
 import { colors, money, percentage, ui } from "../theme";
 
 export function AssetScreen({
@@ -34,9 +33,11 @@ export function AssetScreen({
     refresh,
     ready,
   } = useKite();
+  const [mode, setMode] = useState("Paper");
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [amount, setAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [researchRefresh, setResearchRefresh] = useState(0);
   const held = account.positions.find(
     (position) => position.mint === asset.mint,
@@ -56,10 +57,7 @@ export function AssetScreen({
       );
       setAmount("");
       setError(null);
-      Alert.alert(
-        "Paper order filled",
-        `${side === "buy" ? "Bought" : "Sold"} ${money(numericAmount)} of ${asset.symbol} using virtual funds. View the fill in Portfolio.`,
-      );
+      setNotice(`${side === "buy" ? "Bought" : "Sold"} ${money(numericAmount)} of ${asset.symbol} using virtual funds. View the fill in Portfolio.`);
     } catch (failure) {
       setError(
         failure instanceof Error
@@ -69,16 +67,6 @@ export function AssetScreen({
     }
   }
 
-  async function openActual() {
-    if (!WEB_URL) return;
-    try {
-      await Linking.openURL(
-        `${WEB_URL}/stock/${encodeURIComponent(asset.mint)}?mode=actual`,
-      );
-    } catch {
-      setError("Kite web could not be opened. Check your web URL.");
-    }
-  }
 
   return (
     <ScrollView
@@ -183,6 +171,8 @@ export function AssetScreen({
           </Text>
         ) : null}
       </View>
+      <FilterRow options={["Paper", "Actual"]} selected={mode} onSelect={setMode} />
+      {mode === "Paper" ? <>
       <View style={ui.card}>
         <View style={ui.between}>
           <Text style={ui.heading}>Your next move.</Text>
@@ -205,7 +195,7 @@ export function AssetScreen({
         <TextInput
           accessibilityLabel="Paper trade amount in dollars"
           value={amount}
-          onChangeText={setAmount}
+          onChangeText={(value) => { setAmount(value); setNotice(null); }}
           keyboardType="decimal-pad"
           placeholder="0.00"
           placeholderTextColor={colors.muted}
@@ -221,6 +211,7 @@ export function AssetScreen({
               : "—"}
           </Text>
         </View>
+        {notice ? <Text accessibilityRole="alert" style={[ui.small, ui.positive]}>{notice}</Text> : null}
         {error ? (
           <Text accessibilityRole="alert" style={[ui.small, ui.negative]}>
             {error}
@@ -260,25 +251,7 @@ export function AssetScreen({
           disabled={!canTrade}
         />
       </View>
-      <View style={ui.card}>
-        <Text style={ui.eyebrow}>ACTUAL TRADING</Text>
-        <Text style={ui.body}>
-          Continue on Kite web with Privy to swap from any supported Solana
-          token into this asset, or swap between market assets. Review the
-          available mainnet route before signing a transaction in your wallet.
-        </Text>
-        <Button
-          secondary
-          label="Open actual trading on web"
-          onPress={openActual}
-          disabled={!WEB_URL}
-        />
-        {!WEB_URL ? (
-          <Text style={ui.small}>
-            Configure a Kite web address to use Privy sign-in.
-          </Text>
-        ) : null}
-      </View>
+      </> : <NativeTradePanel asset={asset} />}
       <StockResearch asset={asset} refreshKey={researchRefresh} />
       <View style={ui.card}>
         <Text style={ui.eyebrow}>KNOW WHAT YOU OWN</Text>
