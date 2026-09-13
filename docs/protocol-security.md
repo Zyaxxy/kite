@@ -2,13 +2,15 @@
 
 Updated 13 September 2026. Scope: composed basket purchases and the official Solana Subscriptions integration. This is an implementation review, not an independent audit. The old custom Anchor prototype and its tests were removed; historical evidence for it remains in git history and is not evidence for this integration.
 
+Recurring investment extension: setup terms are HMAC-bound and persisted only after an owner signature; executor orders are scoped to a plan/occurrence and cannot bypass the persistent executor endpoint. Collection and swaps compose atomically, with exact funding debit, unchanged staging balance, verified investor destinations, bounded slippage and a 1% price-impact cap. Durable pending records precede submission. Independent plan leases, bounded scans, expiry recovery and a recent heartbeat protect operation; they do not remove the delegate's underlying ability to collect without delivery. See [operations and trust boundaries](recurring-investing-operations.md). All new transactions are V1-only; old-format reading remains for recovery.
+
 ## Basket controls
 
 - Full issuer catalog and non-halted, verified basket components are required. Token decimals come from initialized mainnet mint accounts, never ticker guesses.
 - Integer allocations preserve the total budget. A retained input-token component still requires the full reviewed funding balance.
 - Jupiter `/build` responses must match input/output mints, integer allocations, ExactIn mode and slippage. Nonzero platform fees and unrecognized extra instructions are rejected.
 - Swap instructions target the known Jupiter swap program. Setup is limited to idempotent wallet-owned ATAs and bounded SOL wrapping into the user's own wrapped-SOL ATA. Cleanup returns wrapped SOL to that same wallet. Arbitrary delegates, token transfers and extra signers are rejected.
-- Address lookup tables are resolved through mainnet RPC. A single explicit compute/priority budget is applied. V0 byte/account limits and V1 byte/account/native-config limits are enforced; there is no partial basket fallback.
+- New transactions use V1 with inline account addresses and no address lookup tables. Explicit native resource/priority budgets and the V1 byte/account limits are enforced; there is no partial basket fallback.
 - Exact assembled transactions must pass simulation. Destination token balances must increase by at least every quoted minimum, and the token funding debit cannot exceed the allocation. Live chain changes after simulation can still make a transaction fail.
 
 ## Authorization and broadcast
@@ -31,7 +33,7 @@ The buyer runner constructs instructions locally from mainnet state, uses a sepa
 
 ## Evidence and remaining verification
 
-Focused SDK tests exercise V0/V1 capacity, signer constraints, signing/explorer identity, official recurring instruction construction, bounded terms, expiry and non-accumulating periods. Server tests exercise HMAC/signature/message/expiry checks and live-feature gating failures. These tests use ephemeral transaction fixtures and never submit them.
+Focused SDK tests exercise V1 creation and capacity, historical transaction reading, signer constraints, signing/explorer identity, official recurring instruction construction, bounded terms, expiry and non-accumulating periods. Server tests exercise HMAC/signature/message/expiry checks and live-feature gating failures. These tests use ephemeral transaction fixtures and never submit them.
 
 A read-only Jupiter probe returned a real AAPLx `/build` route. Program executable/feature-account observations and compilation are not evidence of a completed wallet purchase. No user funds were spent, no owner or buyer signature was collected, and no keeper was activated during implementation. Connected-wallet execution, each intended issuer/token extension, mobile app switching and the actual V1 activation must be checked in the deployment before claiming those combinations have been exercised.
 

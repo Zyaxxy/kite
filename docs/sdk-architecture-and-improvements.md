@@ -8,15 +8,15 @@ Updated 13 September 2026.
 
 The actual basket screens now call `POST /api/buy-basket`. The server resolves the complete issuer basket, verifies tradability and onchain mint precision, allocates integer funding units using largest remainders, and fetches Jupiter Swap V2 `/build` routes through a bounded, paced queue with a limited rate-limit retry. Any supported funding token may be used. An allocation already held in the input token is retained instead of swapped to itself.
 
-Each route must match the pair, allocated amount and chosen slippage. The server accepts the Jupiter swap program, restricts setup to owned ATAs and bounded SOL wrapping, resolves lookup tables on chain, and composes one transaction. It simulates the complete purchase and checks minimum output delivery into the user's token accounts and the input-token debit. It does not concatenate independently signed `/order` transactions.
+Each route must match the pair, allocated amount and chosen slippage. The server accepts the Jupiter swap program, restricts setup to owned ATAs and bounded SOL wrapping, and composes one V1 transaction with inline addresses. It simulates the complete purchase and checks minimum output delivery into the user's token accounts and the input-token debit. It does not concatenate independently signed `/order` transactions.
 
 The wallet reviews and signs once. `POST /api/transaction/execute` verifies the server HMAC, identical message, expiry and payer's Ed25519 signature before RPC broadcast. Confirmation uncertainty persists across reloads and is never treated as permission to place another order automatically. Atomic failure rolls back all asset changes; network fees can still apply.
 
-## V0 and V1
+## V1 creation and historical transaction reading
 
-V0 remains preferred when existing lookup tables fit within 1,232 bytes and 64 accounts. Kit 8 builds V1 messages, with explicit compute-unit, loaded-account-data and total-lamport priority-fee limits. V1 permits up to 4,096 bytes and still has a 64-account limit.
+All new actual transactions use V1; the unused V0 builder has been removed. Kit 8 builds messages with explicit compute-unit, loaded-account-data and total-lamport priority-fee limits. V1 permits up to 4,096 bytes and still has a 64-account limit. No ALTs are used or fetched. Historical V0 transactions remain readable for receipts and pending-outcome recovery.
 
-V1 is selected only when the mainnet feature account is owned by the Feature program, has an activation slot at or before the observed slot, and the connected wallet explicitly advertises V1 transaction signing. The server checks activation again before broadcasting. Supported Wallet Standard wallets sign the raw V1 bytes. Privy and the current Android MWA bridge use V0 until those integrations expose verified V1 capabilities.
+Creation is enabled only when the mainnet feature account is owned by the Feature program, has an activation slot at or before the observed slot, and the selected wallet signing method explicitly advertises V1. The server checks activation again before broadcasting. Android checks MWA capabilities afresh before signing. Privy sign-in remains available, but unsupported embedded signers do not bypass the V1 requirement; a compatible external wallet can be connected while signed in.
 
 Solana's official page currently schedules mainnet activation for epoch 1035, approximately **15 September 2026, 01:20 UTC**. The date is not used as a capability switch. [Official activation and client requirements](https://solana.com/upgrades/larger-transaction-sizes).
 
@@ -37,6 +37,8 @@ The shared authority receives the SPL delegate allowance; the program's recurrin
 The SDK pins Kit 7 and its sysvars generation for the official Subscriptions SDK peer range, and aliases Kit 8 for V1 serialization. These are deliberate compatibility boundaries.
 
 ## Buyer-side collection
+
+The primary Plans flow now uses the [recurring investment service](recurring-investing-operations.md): shared daily/weekly/calendar-monthly schedules, immutable basket/stock plans, signed setup persistence, atomic collection plus stock swaps, durable worker recovery, actual receipts and owner revocation. New approvals require executor configuration and a recent heartbeat. This service is implemented but still requires operating infrastructure and funded end-to-end verification. The paragraphs below describe the retained advanced payment-only collector.
 
 The owner signs setup and revocation. The approved buyer signs each collection; RPC or TypeScript alone cannot schedule a token transfer without that signature. The checked-in buyer runner can run once or as a periodic service. It derives collection instructions locally from the onchain permission, pays network fees from the buyer's wallet, and transfers into that buyer's own ATA.
 

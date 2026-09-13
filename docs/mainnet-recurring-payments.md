@@ -1,10 +1,12 @@
 # Mainnet recurring payments
 
+This page documents the **advanced payment-only** interface. The main Plans screen now supports stock/basket investing with selectable calendar schedules; see [recurring investing operations](recurring-investing-operations.md). All new actual transactions are V1-only and require verified network and signing-wallet support.
+
 Kite uses the official deployed [Solana Subscriptions program](https://solana.com/docs/payments/subscriptions/recurring-delegation), not a Kite vault or a newly deployed contract. The TypeScript client builds instructions for the shared onchain program; TypeScript itself does not replace onchain enforcement.
 
 ## Owner flow
 
-Switch to Actual trading and open Recurring payments. Select a funded token, enter the buyer's Solana signing address, an amount per period, cadence and number of periods. Read the buyer-withdrawal consent, review the exact terms, then approve once in the wallet. Android MWA supports the same setup; other mobile platforms link to the web/Privy flow.
+Switch to Actual trading and expand advanced payment permissions. Select a funded token, enter the buyer's Solana signing address, an amount per period, cadence and number of periods. Read the buyer-withdrawal consent, review the exact terms, then approve once in a V1-capable wallet. Android checks the wallet's advertised signing capability. Privy sign-in remains available, but login alone does not establish V1 signing support.
 
 The first permission for a mint initializes the Subscription Authority and approves that program PDA as the token delegate. The program then enforces the specific recurring record's limits. No tokens are deposited into a vault. An existing unrelated SPL delegate is never overwritten. A previously disabled authority is never silently reapproved.
 

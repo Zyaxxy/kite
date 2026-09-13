@@ -42,9 +42,29 @@ See [mobile setup and Android release profiles](../apps/mobile/README.md). Previ
 | Links and images           | Policy/footer navigation, stock and basket links, unknown-wallet-token inline swaps, meaningful avatar alt text                                 | Smoke-test the public domain and any configured external support links                                                    |
 | Forms and spam             | Exact amount/precision validation, funded-balance check, bounded JSON bodies and API throttling                                                 | Configure a distributed gateway quota; there is no new unauthenticated contact form to protect                            |
 | Analytics                  | Consent-gated Plausible page categories and Web Vitals; no wallet, query, transaction or form data sent                                         | Supply an owned Plausible site matching `NEXT_PUBLIC_PLAUSIBLE_DOMAIN`; analytics is disabled until configured            |
-| Main call to action        | Public landing emphasizes entering the paper-trading workspace                                                                                  | Confirm the intended public launch destination                                                                            |
+| Main call to action        | Public landing leads to basket discovery; the workspace prioritizes baskets and recurring plans                                                 | Confirm the intended public launch destination                                                                            |
 
-## Latest mainnet integration verification
+## Latest recurring investment verification
+
+Recorded against implementation commit `7063061` on 13 September 2026. These local checks ran with Node **26.4.0**; the documented deployment toolchain remains Node 24.12.0 and pnpm 10.31.0 and should be exercised in deployment CI.
+
+- **221/221 tests passed** across SDK, web API/security, mobile configuration, recurring worker and local API-tunnel integration. Coverage includes daily/weekly/calendar-month scheduling, custom intervals, exact encoded Jupiter terms, signed-plan binding, atomic delivery, expiry, replay protection and crash-before-send recovery.
+- SDK compilation, web TypeScript and strict mobile TypeScript passed. Next.js 15.5.24 production build passed.
+- Expo web and Android exports passed: 1.27 MB web JavaScript and 4.31 MB Android Hermes bundle before transport compression. These are export results, not physical-device or mobile-network performance measurements.
+- **225 client artifacts** were scanned against three configured server-only values with no literal/encoded matches. This checks known configured secrets, not every possible information flow.
+- Responsive web inspection at 375px showed the recurring controls without horizontal overflow. No connected-wallet signature or funded execution was performed.
+- The refreshed local production server returned 200 for landing and plan screens, 200 with an explicit unconfigured state for investment availability, 401 for unauthenticated executor access and 422 for an invalid plan request.
+- Local-only tunnel tests verified public plan routes and CORS, blocked executor routes and stripped credentials. No public tunnel was needed for these tests.
+
+No executor key, hosted worker or investor funds were provisioned. New approvals remain disabled until the operator configures persistent storage and a reachable worker, and the API verifies V1 activation and signing-method compatibility. The dependency audit figures below belong to the earlier audit; this pass did not rerun it or resolve the remaining advisories.
+
+Reproduce the regression suite from the repository root after compiling the SDK:
+
+```sh
+node --test packages/sdk/test/*.test.cjs apps/web/tests/*.test.mjs apps/mobile/tests/*.test.cjs scripts/test/*.test.cjs scripts/test/*.test.mjs
+```
+
+## Earlier mainnet integration verification
 
 - 161 SDK, web API/security and mobile configuration checks passed. SDK, web and strict mobile TypeScript checks passed.
 - Next.js production build and cleared Expo web/Android exports passed. Metro uses a client-only SDK entry to exclude server-side Kit/Subscriptions builders on both Expo platforms.
@@ -90,6 +110,8 @@ pnpm audit --prod
 
 ## Protocol and release gates
 
+Update for recurring investments: newly created transactions are V1-only, including individual swaps and permission management. Calendar schedules, a durable executor API/worker and stock/basket settlement are implemented. Operating them requires a shared private persistent API volume, an executor signer, fresh worker heartbeat and funded end-to-end verification; see [recurring investing operations](recurring-investing-operations.md). Existing V0 transactions remain readable for history/recovery. V1 still requires current route/account limits and wallet compatibility.
+
 The production audit fell from 57 findings to 8 (zero critical, three high, five moderate). Dependency auditing and the compatible patch decisions are recorded in [dependency security](dependency-security.md). Remaining advisories require the documented upstream migration or mitigation work; passing application tests does not clear those findings.
 
 The actual basket API and recurring permission APIs are connected to web and Android. Configure a buyer-controlled signer and persistent collection runner to operate recurring payments; the web server does not hold that key. V1 remains gated on live mainnet activation and wallet capabilities, and oversized baskets fail atomically. Token-extension compatibility and connected-wallet/device checks remain deployment validation, not claims derived from unit tests. See [current architecture](sdk-architecture-and-improvements.md) and [recurring payments](mainnet-recurring-payments.md).
@@ -128,5 +150,19 @@ Each row is a separate commit in chronological order. Later client commits depen
 | `370be64` | Android MWA basket and recurring UI, unsupported-platform web handoff                 | Requires SDK, Metro entry and APIs                                                                              |
 
 Revert clients before their APIs and SDK. Removing application code does not revoke an onchain delegation: owners must revoke permissions, and buyer operators must stop scheduled collection separately.
+
+## Recurring investment commit groups
+
+The V1 migration is a breaking transaction-capability change: new approvals require a compatible wallet and the live feature. The investment API adds persistent storage and worker configuration. Individual commits remain available for inspection, but deploy the matching SDK, clients, API and worker together; some intermediate commits introduce consumers before the complete service is assembled.
+
+| Commits                                    | Scope                                                                                      |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `bd78067`, `44c4152`, `2b87669`            | V1-only composition/signing, removal of the unused V0 builder and payment-runner migration |
+| `59db6f6`, `9b9a6e4`, `3aefe1e`, `511ae33` | Calendar schedules, durable worker, expired-review recovery and heartbeat                  |
+| `f615d52`, `dc6f9c3`, `5de3e21`            | Web/mobile recurring forms, focused discovery and narrow-screen actions                    |
+| `7acc7b2`, `94516b9`, `7c2fad0`            | Atomic investment API/store, security tests and public tunnel routes                       |
+| `e2be071`, `c8f97a4`, `7063061`            | Encoded Jupiter validation, tampering tests and exact-transaction submission recovery      |
+
+Stop the executor and reconcile pending signatures before a service rollback. Back up persistent plan and worker state. Code rollback does not erase or revoke an owner's spending grants; revocation is a separate owner-signed onchain action.
 
 A live MAG7 encoding probe required 98 accounts with the observed Jupiter routes and was rejected by the 64-account ceiling. V1 increases byte capacity, not this account ceiling. Route availability and composition can change; this implementation does not claim every theme fits a single transaction.
