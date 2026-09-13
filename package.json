@@ -26,7 +26,15 @@
     "overrides": {
       "react-native": "0.76.5",
       "metro": "0.81.5",
-      "metro-core": "0.81.5"
+      "metro-core": "0.81.5",
+      "tar@>=6 <7.5.21": "7.5.21",
+      "@xmldom/xmldom@<0.8.15": "0.8.15",
+      "postcss@>=8 <8.5.23": "8.5.28",
+      "viem@2>ws@>=8 <8.21.0": "8.21.3",
+      "axios@>=1 <1.18.0": "1.18.0"
+    },
+    "patchedDependencies": {
+      "@expo/cli@0.22.28": "patches/@expo__cli@0.22.28.patch"
     }
   }
 }
