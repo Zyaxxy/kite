@@ -18,6 +18,7 @@ import {
 } from "../trading";
 
 export interface TradeOrderRequest {
+  supportedTransactionVersions?: number[];
   inputMint: string;
   outputMint: string;
   amount: string;
@@ -353,15 +354,17 @@ export class KiteClient {
   async revokeRecurringPayment(
     taker: string,
     delegation: string,
+    supportedTransactionVersions?: number[],
   ): Promise<WalletTransactionOrder> {
     const { data } = await this.request("/api/recurring/revoke", {
-      body: { taker, delegation },
+      body: { taker, delegation, supportedTransactionVersions },
     });
     return verified(data, (v) => validWalletOrder(v, taker));
   }
   async collectRecurringPayment(
     taker: string,
     delegation: string,
+    supportedTransactionVersions?: number[],
   ): Promise<
     WalletTransactionOrder & {
       amount: string;
@@ -370,7 +373,7 @@ export class KiteClient {
     }
   > {
     const { data } = await this.request("/api/recurring/collect", {
-      body: { taker, delegation },
+      body: { taker, delegation, supportedTransactionVersions },
     });
     return verified(
       data,

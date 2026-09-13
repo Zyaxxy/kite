@@ -4,7 +4,6 @@ import {
   TransactionInstruction,
   AddressLookupTableAccount,
 } from "@solana/web3.js";
-import { buildAtomicBasketTransaction } from "./atomic-swap";
 
 export interface WalletTransactionOrder {
   requestId: string;
@@ -60,6 +59,7 @@ export interface RecurringPaymentRequest {
   amount: string;
   periodSeconds: number;
   periods: number;
+  supportedTransactionVersions?: number[];
 }
 
 /** Instruction conversion is structural: no private keys or signing happens here. */
@@ -79,7 +79,7 @@ export function kitInstructionToWeb3(ix: {
   });
 }
 
-/** Prefer compact v0 with existing ALTs. V1 is a fallback only with explicit capability evidence. */
+/** New mainnet orders are V1 only. The caller must verify network and wallet capability. */
 export async function composeMainnetTransaction(params: {
   payer: string;
   blockhash: string;
@@ -93,33 +93,16 @@ export async function composeMainnetTransaction(params: {
 }): Promise<{
   transaction: string;
   serializedBytes: number;
-  transactionVersion: 0 | 1;
+  transactionVersion: 1;
 }> {
   const units = params.computeUnitLimit ?? 1_400_000;
   const fee = params.priorityFeeLamports ?? 10_000;
   if (!Number.isInteger(fee) || fee < 0 || fee > 100_000)
     throw new Error("Invalid priority fee limit.");
-  try {
-    const result = buildAtomicBasketTransaction({
-      payer: new PublicKey(params.payer),
-      recentBlockhash: params.blockhash,
-      legs: [params.instructions],
-      lookupTables: params.lookupTables,
-      computeUnitLimit: units,
-      computeUnitPriceMicroLamports: BigInt(
-        Math.floor((fee * 1_000_000) / units),
-      ),
-    });
-    return {
-      transaction: Buffer.from(result.transaction.serialize()).toString(
-        "base64",
-      ),
-      serializedBytes: result.serializedBytes,
-      transactionVersion: 0,
-    };
-  } catch (error) {
-    if (!params.allowV1) throw error;
-  }
+  if (!params.allowV1)
+    throw new Error(
+      "V1 trading requires an activated mainnet and a wallet that supports V1 signing. No transaction was created.",
+    );
   const kit = await import("@solana/kit-v1");
   if (!Number.isInteger(units) || units < 1 || units > 1_400_000)
     throw new Error("Invalid compute budget.");

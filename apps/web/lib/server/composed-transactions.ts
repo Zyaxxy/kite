@@ -66,6 +66,20 @@ export async function mainnetV1Active(): Promise<boolean> {
     return false;
   }
 }
+/** Gate creation before spending time on routes; rechecked again at broadcast. */
+export async function assertMainnetV1Ready(
+  supportedTransactionVersions?: readonly number[],
+): Promise<void> {
+  if (!supportedTransactionVersions?.includes(1))
+    throw new Error(
+      "This wallet does not advertise V1 transaction signing. Update it or connect a compatible wallet to trade.",
+    );
+  await assertMainnet();
+  if (!(await mainnetV1Active()))
+    throw new Error(
+      "V1 trading is waiting for activation on the configured Solana mainnet RPC. No transaction was created.",
+    );
+}
 export async function latestBlockhash() {
   return (
     await mainnetRpc<{
@@ -114,6 +128,8 @@ export async function authorizeComposed(
   const { transaction: tx, message } = await inspectWalletTransaction(
     input.transaction,
   );
+  if (message.version !== 1 || input.transactionVersion !== 1)
+    throw new Error("New transaction authorizations require V1.");
   const signers = Object.keys(tx.signatures);
   if (
     signers.length !== 1 ||
@@ -188,6 +204,8 @@ export async function verifyComposed(authorization: string, signed: string) {
     throw new Error("A valid wallet signature is required.");
   return {
     version: message.version,
+    taker: p.taker as string,
+    messageHash: p.messageHash as string,
     lastValidBlockHeight: p.lastValidBlockHeight as number,
   };
 }

@@ -2,7 +2,6 @@ import { fetchJupiterBuild } from "./jupiter-build";
 import {
   PublicKey,
   TransactionInstruction,
-  AddressLookupTableAccount,
   SystemProgram,
 } from "@solana/web3.js";
 import {
@@ -23,11 +22,10 @@ import {
 import { getServerMarketCatalog } from "./markets";
 import { getTradeMintDecimals } from "./mint-precision";
 import {
-  assertMainnet,
+  assertMainnetV1Ready,
   authorizeComposed,
   latestBlockhash,
   mainnetRpc,
-  mainnetV1Active,
   simulateComposed,
   type RpcAccount,
 } from "./composed-transactions";
@@ -176,7 +174,7 @@ export async function prepareBasketOrder(
     throw new Error(
       "Choose an amount and slippage from 1 to 300 basis points.",
     );
-  await assertMainnet();
+  await assertMainnetV1Ready(input.supportedTransactionVersions);
   const market = await getServerMarketCatalog();
   const basket = market.baskets.find((b) => b.id === input.basketId);
   if (
@@ -253,9 +251,6 @@ export async function prepareBasketOrder(
         );
   if (funds < BigInt(inAmount))
     throw new Error("Your wallet balance is below the full basket amount.");
-  const canV1 =
-    Boolean(input.supportedTransactionVersions?.includes(1)) &&
-    (await mainnetV1Active());
   // No /order transaction concatenation: each route is built for its exact integer allocation.
   const routes = await Promise.all(
     allocations.map(async (a, i) => {
@@ -303,7 +298,6 @@ export async function prepareBasketOrder(
   );
   const instructions: TransactionInstruction[] = [];
   const setupKeys = new Set<string>();
-  const tableKeys = new Set<string>();
   for (let i = 0; i < routes.length; i++) {
     const r = routes[i];
     if (!r) continue;
@@ -347,40 +341,16 @@ export async function prepareBasketOrder(
       );
     for (const other of r.otherInstructions ?? [])
       instructions.push(ix(other, taker));
-    Object.keys(r.addressesByLookupTableAddress ?? {}).forEach((key) =>
-      tableKeys.add(key),
-    );
   }
   if (!instructions.length)
     throw new Error("This allocation does not require a swap.");
-  // Resolve provider tables on chain rather than trusting an unverified address mapping.
-  const tables: AddressLookupTableAccount[] = [];
-  const allKeys = [...tableKeys];
-  if (allKeys.length) {
-    const { value } = await mainnetRpc<{ value: RpcAccount[] }>(
-      "getMultipleAccounts",
-      [allKeys, { encoding: "base64", commitment: "confirmed" }],
-    );
-    value.forEach((a, i) => {
-      if (!a || a.owner !== "AddressLookupTab1e1111111111111111111111111")
-        throw new Error("A route lookup table is unavailable.");
-      tables.push(
-        new AddressLookupTableAccount({
-          key: new PublicKey(allKeys[i]),
-          state: AddressLookupTableAccount.deserialize(
-            Buffer.from(a.data[0], "base64"),
-          ),
-        }),
-      );
-    });
-  }
+  // V1 encodes route accounts inline; provider lookup tables are not needed.
   const lifetime = await latestBlockhash();
   const built = await composeMainnetTransaction({
     payer: taker,
     ...lifetime,
     instructions,
-    lookupTables: tables,
-    allowV1: canV1,
+    allowV1: true,
   });
   const addresses = [
     ...destinations,

@@ -6,11 +6,13 @@ const {
   TransactionInstruction,
   SystemProgram,
   VersionedTransaction,
+  TransactionMessage,
+  ComputeBudgetProgram,
 } = require("@solana/web3.js");
 const sdk = require("../dist");
 const key = () => Keypair.generate().publicKey.toBase58();
 
-test("V1 is opt-in; oversized v0 never silently splits into separate orders", async () => {
+test("V1-only creation rejects missing capability and never splits orders", async () => {
   const payer = key(),
     blockhash = key();
   const instructions = [
@@ -28,7 +30,7 @@ test("V1 is opt-in; oversized v0 never silently splits into separate orders", as
       instructions,
       allowV1: false,
     }),
-    /supported v0|supported transaction/,
+    /V1 trading requires/,
   );
   const v1 = await sdk.composeMainnetTransaction({
     payer,
@@ -79,9 +81,9 @@ test("V1 still refuses more than 64 accounts and additional signers", async () =
     /signer/,
   );
 });
-test("v0 stays preferred and explorer signature exists before submission", async () => {
+test("even compact orders use V1 with explicit resource budgets", async () => {
   const owner = Keypair.generate();
-  const v0 = await sdk.composeMainnetTransaction({
+  const built = await sdk.composeMainnetTransaction({
     payer: owner.publicKey.toBase58(),
     blockhash: key(),
     lastValidBlockHeight: 1,
@@ -93,22 +95,87 @@ test("v0 stays preferred and explorer signature exists before submission", async
       }),
     ],
     allowV1: true,
+    computeUnitLimit: 100_000,
+    loadedAccountsDataSizeLimit: 131072,
+    priorityFeeLamports: 5000,
   });
-  assert.equal(v0.transactionVersion, 0);
+  assert.equal(built.transactionVersion, 1);
+  const { message } = await sdk.inspectWalletTransaction(built.transaction);
+  assert.equal(message.version, 1);
+  const config =
+    require("@solana/kit-v1").decompileTransactionMessage(message).config;
+  assert.equal(config.computeUnitLimit, 100_000);
+  assert.equal(config.loadedAccountsDataSizeLimit, 131072);
+  assert.equal(config.priorityFeeLamports, 5000n);
+  assert.equal(message.addressTableLookups, undefined);
   await assert.rejects(
-    sdk.walletTransactionSignature(v0.transaction),
+    sdk.walletTransactionSignature(built.transaction),
     /did not sign/,
   );
-  const tx = VersionedTransaction.deserialize(
-    Buffer.from(v0.transaction, "base64"),
+});
+test("old v0 transaction reading and explorer signatures remain supported", async () => {
+  const owner = Keypair.generate();
+  const transaction = new VersionedTransaction(
+    new TransactionMessage({
+      payerKey: owner.publicKey,
+      recentBlockhash: key(),
+      instructions: [
+        SystemProgram.transfer({
+          fromPubkey: owner.publicKey,
+          toPubkey: new PublicKey(key()),
+          lamports: 1,
+        }),
+      ],
+    }).compileToV0Message(),
   );
-  tx.sign([owner]);
+  transaction.sign([owner]);
+  const encoded = Buffer.from(transaction.serialize()).toString("base64");
+  assert.equal(
+    (await sdk.inspectWalletTransaction(encoded)).message.version,
+    0,
+  );
   assert.match(
-    await sdk.walletTransactionSignature(
-      Buffer.from(tx.serialize()).toString("base64"),
-    ),
+    await sdk.walletTransactionSignature(encoded),
     /^[1-9A-HJ-NP-Za-km-z]{80,90}$/,
   );
+});
+test("V1 rejects no-op compute instructions, oversized payloads and invalid limits", async () => {
+  const params = {
+    payer: key(),
+    blockhash: key(),
+    lastValidBlockHeight: 1,
+    allowV1: true,
+  };
+  await assert.rejects(
+    sdk.composeMainnetTransaction({
+      ...params,
+      instructions: [ComputeBudgetProgram.setComputeUnitLimit({ units: 1 })],
+    }),
+    /message config/,
+  );
+  await assert.rejects(
+    sdk.composeMainnetTransaction({
+      ...params,
+      instructions: [
+        new TransactionInstruction({
+          programId: SystemProgram.programId,
+          keys: [],
+          data: Buffer.alloc(4096),
+        }),
+      ],
+    }),
+    /size limit/,
+  );
+  for (const limits of [
+    { computeUnitLimit: 0 },
+    { computeUnitLimit: 1_400_001 },
+    { loadedAccountsDataSizeLimit: 0 },
+    { priorityFeeLamports: 100_001 },
+  ])
+    await assert.rejects(
+      sdk.composeMainnetTransaction({ ...params, ...limits, instructions: [] }),
+      /budget|fee limit/,
+    );
 });
 test("official recurring setup contains only official instructions and the owner signer", async () => {
   const owner = key(),
