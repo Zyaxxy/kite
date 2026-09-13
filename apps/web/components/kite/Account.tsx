@@ -23,6 +23,7 @@ import { MarketStatus } from "./Discover";
 import { AssetName, Change, Empty, money } from "./MarketUI";
 import { OrbitArt } from "./Brand";
 import { useTradingAuth } from "../trading/TradingAuth";
+import { RecurringPaymentsPanel } from "../trading/RecurringPaymentsPanel";
 import { ActualPortfolio } from "../trading/ActualPortfolio";
 const WalletButton = dynamic(
   () =>
@@ -293,7 +294,9 @@ export function Activity() {
                 <td className="num hide-mobile">{o.quantity.toFixed(6)}</td>
                 <td className="num">{money(o.totalUsd)}</td>
                 <td className="num">
-                  <span className="badge lime">{o.swapId ? "PAPER SWAP" : "PAPER FILL"}</span>
+                  <span className="badge lime">
+                    {o.swapId ? "PAPER SWAP" : "PAPER FILL"}
+                  </span>
                 </td>
               </tr>
             ))}
@@ -373,22 +376,15 @@ export function Plans() {
       <PageIntro
         eyebrow="A habit of possibility"
         title="Little by little. On purpose."
-        description="Choose an idea, set an amount, and build a recurring paper investing habit."
+        description={
+          mode === "paper"
+            ? "Choose an idea, set an amount, and build a recurring paper investing habit."
+            : "Authorize recurring token payments from your wallet with a buyer, a spending limit and an expiry."
+        }
       />
       <MarketStatus />
       {mode === "actual" ? (
-        <div className="panel">
-          <Empty
-            icon={Repeat2}
-            title="Automated mainnet plans are not connected"
-            description="Actual swaps currently require a wallet approval for each trade. You can explore recurring investments safely with a paper plan."
-            action={
-              <button className="btn" onClick={() => setMode("paper")}>
-                Explore paper plans <ArrowUpRight size={14} />
-              </button>
-            }
-          />
-        </div>
+        <RecurringPaymentsPanel />
       ) : (
         <div className="plan-layout">
           <div className="stack">

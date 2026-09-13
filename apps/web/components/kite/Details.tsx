@@ -22,6 +22,7 @@ import {
 } from "./MarketUI";
 import { MarketStatus } from "./Discover";
 import { OrbitArt } from "./Brand";
+import { ActualBasketPanel } from "../trading/ActualBasketPanel";
 import { ActualTradePanel } from "../trading/ActualTradePanel";
 import { useBaskets } from "./useBaskets";
 import { StockResearchPanel } from "./StockResearch";
@@ -624,29 +625,14 @@ export function BasketDetail({ id }: { id: string }) {
                 </p>
               </>
             ) : (
-              <>
-                <div className="notice">
-                  <Info size={15} />
-                  Mainnet baskets are held as individual assets. Review and
-                  approve each swap separately.
-                </div>
-                <div className="stack" style={{ marginTop: 18, gap: 9 }}>
-                  {basket.assets.map((asset) => (
-                    <Link
-                      key={asset.mint}
-                      className="btn secondary full"
-                      href={`/stock/${asset.mint}?mode=actual`}
-                    >
-                      Trade {asset.symbol}
-                      <ArrowUpRight size={13} />
-                    </Link>
-                  ))}
-                </div>
-              </>
+              <ActualBasketPanel basket={basket.source} />
             )}
             <div className="divider" />
             <Link href={`/sip?basket=${id}`} className="text-link">
-              Create a recurring paper plan <ArrowUpRight size={13} />
+              {mode === "paper"
+                ? "Create a recurring paper plan"
+                : "Manage recurring payments"}{" "}
+              <ArrowUpRight size={13} />
             </Link>
           </div>
         </aside>
