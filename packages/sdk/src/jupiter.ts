@@ -2,11 +2,10 @@
  * Jupiter Price API v3 & v2 Client
  *
  * Provides on-chain last-swap USD pricing for any SPL token via Jupiter's
- * aggregator price oracle. Supports batch queries (up to 100 mints),
+ * aggregator price oracle. Supports batch queries (up to 50 mints),
  * liquidity metrics, price change 24h, and token decimals.
  *
  * Default Base URL: https://api.jup.ag/price/v3
- * Fallback Base URL: https://api.jup.ag/price/v2
  * Docs: https://station.jup.ag/docs/apis/price-api
  *
  * NOTE: As per market best practice for tokenized equities:
@@ -73,7 +72,7 @@ export interface JupiterExtraInfo {
     sellPrice: string;
     sellAt: number;
   };
-  confidenceLevel: 'high' | 'medium' | 'low';
+  confidenceLevel: "high" | "medium" | "low";
   depth?: {
     buyPriceImpactRatio: {
       depth: Record<string, number>;
@@ -94,7 +93,7 @@ export class JupiterPriceApiError extends Error {
   public statusCode?: number;
   constructor(message: string, statusCode?: number) {
     super(message);
-    this.name = 'JupiterPriceApiError';
+    this.name = "JupiterPriceApiError";
     this.statusCode = statusCode;
   }
 }
@@ -135,7 +134,10 @@ export class JupiterPriceClient {
    * @param options Client configuration options.
    */
   constructor(options?: JupiterPriceClientOptions) {
-    this.baseUrl = (options?.baseUrl || 'https://api.jup.ag/price/v3').replace(/\/$/, '');
+    this.baseUrl = (options?.baseUrl || "https://api.jup.ag/price/v3").replace(
+      /\/$/,
+      "",
+    );
     this.apiKey = options?.apiKey;
   }
 
@@ -146,7 +148,7 @@ export class JupiterPriceClient {
    * @returns Formatted price string.
    */
   static formatPrice(price: number | string, decimals?: number): string {
-    const num = typeof price === 'number' ? price : parseFloat(price);
+    const num = typeof price === "number" ? price : parseFloat(price);
     if (isNaN(num)) return String(price);
     if (decimals !== undefined) {
       return num.toFixed(decimals);
@@ -157,27 +159,27 @@ export class JupiterPriceClient {
   /** @internal */
   private async fetchFromApi<T>(endpoint: string): Promise<T> {
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     };
     if (this.apiKey) {
-      headers['x-api-key'] = this.apiKey;
+      headers["x-api-key"] = this.apiKey;
     }
 
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      method: 'GET',
+      method: "GET",
       headers,
     });
 
     if (!response.ok) {
       if (response.status === 429) {
         throw new JupiterPriceApiError(
-          'Rate limit exceeded (429). Slow down requests or use a Jupiter Developer Portal API key.',
-          429
+          "Rate limit exceeded (429). Slow down requests or use a Jupiter Developer Portal API key.",
+          429,
         );
       }
       throw new JupiterPriceApiError(
         `API request failed with status: ${response.status}`,
-        response.status
+        response.status,
       );
     }
 
@@ -214,7 +216,7 @@ export class JupiterPriceClient {
   }
 
   /**
-   * Gets last-swap USD prices for multiple tokens in batches of up to 100.
+   * Gets last-swap USD prices for multiple tokens in batches of up to 50.
    * @param mints Array of token mint addresses.
    * @returns A map of mint address → parsed USD price (only includes found tokens).
    */
@@ -223,7 +225,12 @@ export class JupiterPriceClient {
     const results: Record<string, number> = {};
 
     for (const [mint, info] of Object.entries(details)) {
-      if (info && typeof info.usdPrice === 'number') {
+      if (
+        info &&
+        typeof info.usdPrice === "number" &&
+        Number.isFinite(info.usdPrice) &&
+        info.usdPrice > 0
+      ) {
         results[mint] = info.usdPrice;
       }
     }
@@ -233,35 +240,50 @@ export class JupiterPriceClient {
 
   /**
    * Gets full price data with liquidity, decimals, and 24h change for multiple tokens.
-   * Automatically splits requests into chunks of 100 mints.
+   * Automatically splits requests into chunks of 50 mints.
    * @param mints Array of token mint addresses.
    * @returns A map of mint address → JupiterPriceV3Data.
    */
-  async getPricesWithDetails(mints: string[]): Promise<Record<string, JupiterPriceV3Data>> {
+  async getPricesWithDetails(
+    mints: string[],
+  ): Promise<Record<string, JupiterPriceV3Data>> {
     const results: Record<string, JupiterPriceV3Data> = {};
     if (mints.length === 0) return results;
 
-    const chunks = this.chunkArray(mints, 100);
+    const chunks = this.chunkArray(mints, 50);
 
     for (const chunk of chunks) {
-      const endpoint = `?ids=${chunk.join(',')}`;
+      const endpoint = `?ids=${chunk.join(",")}`;
       const json = await this.fetchFromApi<Record<string, unknown>>(endpoint);
 
       // Support v3 format: { [mint]: { usdPrice, liquidity, decimals, priceChange24h } }
       // Also supports v2 format: { data: { [mint]: { price, ... } } }
-      if (json.data && typeof json.data === 'object') {
+      if (json.data && typeof json.data === "object") {
         const v2Data = (json as unknown as JupiterPriceV2Response).data;
         for (const [id, item] of Object.entries(v2Data)) {
-          if (item && item.price) {
+          if (
+            chunk.includes(id) &&
+            item &&
+            typeof item.price === "string" &&
+            Number.isFinite(Number(item.price)) &&
+            Number(item.price) > 0
+          ) {
             results[id] = {
-              usdPrice: parseFloat(item.price),
-              decimals: 6,
+              usdPrice: Number(item.price),
             };
           }
         }
       } else {
         for (const [id, item] of Object.entries(json)) {
-          if (item && typeof item === 'object' && 'usdPrice' in item) {
+          if (
+            chunk.includes(id) &&
+            item &&
+            typeof item === "object" &&
+            "usdPrice" in item &&
+            typeof item.usdPrice === "number" &&
+            Number.isFinite(item.usdPrice) &&
+            item.usdPrice > 0
+          ) {
             results[id] = item as JupiterPriceV3Data;
           }
         }

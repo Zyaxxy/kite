@@ -19,9 +19,14 @@ export class MeteoraApiError extends Error {
   public statusText: string;
   public responseData: unknown;
 
-  constructor(status: number, statusText: string, message: string, responseData?: unknown) {
+  constructor(
+    status: number,
+    statusText: string,
+    message: string,
+    responseData?: unknown,
+  ) {
     super(message);
-    this.name = 'MeteoraApiError';
+    this.name = "MeteoraApiError";
     this.status = status;
     this.statusText = statusText;
     this.responseData = responseData;
@@ -40,12 +45,12 @@ export interface MeteoraTokenInfo {
 }
 
 export interface MeteoraMetricsTimeframes {
-  '30m'?: number;
-  '1h'?: number;
-  '2h'?: number;
-  '4h'?: number;
-  '12h'?: number;
-  '24h'?: number;
+  "30m"?: number;
+  "1h"?: number;
+  "2h"?: number;
+  "4h"?: number;
+  "12h"?: number;
+  "24h"?: number;
 }
 
 export interface MeteoraPool {
@@ -84,8 +89,8 @@ export interface MeteoraPoolSearchResponse {
 export interface MeteoraPoolSearchParams {
   page?: number;
   limit?: number;
-  sort_key?: 'tvl' | 'volume' | 'fees' | 'apr';
-  order_by?: 'desc' | 'asc';
+  sort_key?: "tvl" | "volume" | "fees" | "apr";
+  order_by?: "desc" | "asc";
   search_term?: string;
   include_unknown?: boolean;
   hide_low_tvl?: number;
@@ -125,12 +130,15 @@ export class MeteoraClient {
    * Creates an instance of MeteoraClient.
    * @param baseUrl The base URL of the Meteora API (default: `https://dlmm.datapi.meteora.ag`).
    */
-  constructor(baseUrl: string = 'https://dlmm.datapi.meteora.ag') {
-    this.baseUrl = baseUrl.replace(/\/$/, '');
+  constructor(baseUrl: string = "https://dlmm.datapi.meteora.ag") {
+    this.baseUrl = baseUrl.replace(/\/$/, "");
   }
 
   /** @internal */
-  private async fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  private async fetchApi<T>(
+    endpoint: string,
+    options?: RequestInit,
+  ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
 
     let response: Response;
@@ -151,7 +159,7 @@ export class MeteoraClient {
         response.status,
         response.statusText,
         `Meteora API Error: ${response.status} ${response.statusText}`,
-        data
+        data,
       );
     }
 
@@ -163,21 +171,33 @@ export class MeteoraClient {
    * @param params Parameters to filter, sort, and paginate the pools.
    * @returns A paginated list of Meteora DLMM pools.
    */
-  public async searchPools(params?: MeteoraPoolSearchParams): Promise<MeteoraPoolSearchResponse> {
+  public async searchPools(
+    params?: MeteoraPoolSearchParams,
+  ): Promise<MeteoraPoolSearchResponse> {
     const queryParams = new URLSearchParams();
 
     if (params) {
-      if (params.page !== undefined) queryParams.append('page', params.page.toString());
-      if (params.limit !== undefined) queryParams.append('limit', params.limit.toString());
-      if (params.sort_key !== undefined) queryParams.append('sort_key', params.sort_key);
-      if (params.order_by !== undefined) queryParams.append('order_by', params.order_by);
-      if (params.search_term !== undefined) queryParams.append('search_term', params.search_term);
-      if (params.include_unknown !== undefined) queryParams.append('include_unknown', params.include_unknown.toString());
-      if (params.hide_low_tvl !== undefined) queryParams.append('hide_low_tvl', params.hide_low_tvl.toString());
+      if (params.page !== undefined)
+        queryParams.append("page", params.page.toString());
+      if (params.limit !== undefined)
+        queryParams.append("limit", params.limit.toString());
+      if (params.sort_key !== undefined)
+        queryParams.append("sort_key", params.sort_key);
+      if (params.order_by !== undefined)
+        queryParams.append("order_by", params.order_by);
+      if (params.search_term !== undefined)
+        queryParams.append("search_term", params.search_term);
+      if (params.include_unknown !== undefined)
+        queryParams.append(
+          "include_unknown",
+          params.include_unknown.toString(),
+        );
+      if (params.hide_low_tvl !== undefined)
+        queryParams.append("hide_low_tvl", params.hide_low_tvl.toString());
     }
 
     const queryString = queryParams.toString();
-    const endpoint = queryString ? `/pools?${queryString}` : '/pools';
+    const endpoint = queryString ? `/pools?${queryString}` : "/pools";
 
     return this.fetchApi<MeteoraPoolSearchResponse>(endpoint);
   }
@@ -187,7 +207,9 @@ export class MeteoraClient {
    * @param mintAddress The token mint address to search for.
    * @returns A paginated list of matching Meteora pools.
    */
-  public async searchByMint(mintAddress: string): Promise<MeteoraPoolSearchResponse> {
+  public async searchByMint(
+    mintAddress: string,
+  ): Promise<MeteoraPoolSearchResponse> {
     return this.searchPools({ search_term: mintAddress });
   }
 
@@ -218,8 +240,8 @@ export class MeteoraClient {
     tvl: number;
     apr: number;
     apy: number;
-    fee24h: number;
-    volume24h: number;
+    fee24h: number | null;
+    volume24h: number | null;
     currentPrice: number;
   }> {
     const pool = await this.getPool(poolAddress);
@@ -227,8 +249,8 @@ export class MeteoraClient {
       tvl: pool.tvl,
       apr: pool.apr,
       apy: pool.apy,
-      fee24h: pool.fees?.['24h'] || 0,
-      volume24h: pool.volume?.['24h'] || 0,
+      fee24h: pool.fees?.["24h"] ?? null,
+      volume24h: pool.volume?.["24h"] ?? null,
       currentPrice: pool.current_price,
     };
   }
@@ -241,8 +263,10 @@ export class MeteoraClient {
    */
   public async getPoolOhlcv(
     address: string,
-    resolution: string | number = 60
+    resolution: string | number = 60,
   ): Promise<MeteoraOhlcvResponse> {
-    return this.fetchApi<MeteoraOhlcvResponse>(`/pools/${address}/ohlcv?resolution=${resolution}`);
+    return this.fetchApi<MeteoraOhlcvResponse>(
+      `/pools/${address}/ohlcv?resolution=${resolution}`,
+    );
   }
 }
