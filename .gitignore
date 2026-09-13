@@ -15,3 +15,5 @@ target
 .pnpm-store/
 *.tsbuildinfo
 .expo/
+apps/mobile/android/
+apps/mobile/ios/

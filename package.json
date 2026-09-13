@@ -6,6 +6,7 @@
   "scripts": {
     "dev:web": "pnpm --filter @kite/web dev",
     "dev:mobile": "pnpm --filter @kite/mobile start",
+    "dev:mobile:tunnel": "pnpm --filter @kite/mobile tunnel",
     "build:web": "pnpm --filter @kite/web build",
     "build:sdk": "pnpm --filter @kite/sdk build",
     "build:anchor": "cd packages/anchor && anchor build",
@@ -19,5 +20,12 @@
     "turbo": "^2.4.4",
     "typescript": "^5.7.3",
     "prettier": "^3.6.2"
+  },
+  "pnpm": {
+    "overrides": {
+      "react-native": "0.76.5",
+      "metro": "0.81.5",
+      "metro-core": "0.81.5"
+    }
   }
 }
