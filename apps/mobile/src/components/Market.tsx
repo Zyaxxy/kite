@@ -8,7 +8,7 @@ export function AssetLogo({ asset, large = false }: { asset: MarketAsset; large?
   const [failed, setFailed] = useState(false);
   const size = large ? 64 : 42;
   return <View style={[styles.logo, { width: size, height: size, borderRadius: large ? 20 : 14 }]}>
-    {asset.logoUrl && !failed ? <Image accessibilityIgnoresInvertColors source={{ uri: asset.logoUrl }} style={{ width: size - 14, height: size - 14, borderRadius: 9 }} onError={() => setFailed(true)} /> : <Text style={[styles.initial, large && { fontSize: 21 }]}>{asset.underlyingSymbol.slice(0, 2).toUpperCase()}</Text>}
+    {asset.logoUrl && !failed ? <Image accessibilityLabel={`${asset.name} logo`} accessibilityIgnoresInvertColors source={{ uri: asset.logoUrl }} style={{ width: size - 14, height: size - 14, borderRadius: 9 }} onError={() => setFailed(true)} /> : <Text style={[styles.initial, large && { fontSize: 21 }]}>{asset.underlyingSymbol.slice(0, 2).toUpperCase()}</Text>}
   </View>;
 }
 
@@ -27,7 +27,7 @@ export function MarketStatus() {
   const issue = storageError || error;
   if (issue) return <Pressable accessibilityRole="button" onPress={() => { void refresh(); }} style={styles.notice}><Text style={[ui.small, { color: colors.down }]}>{issue}</Text><Text style={[ui.small, { color: colors.accent }]}>Refresh connection</Text></Pressable>;
   if (market?.warnings.length) return <View style={styles.notice}><Text style={ui.small}>{market.warnings.join(' ')}</Text>{market.refreshing ? <Text style={ui.small}>Updating mainnet prices…</Text> : null}</View>;
-  return <View style={ui.between}><View style={ui.row}><View style={styles.liveDot} /><Text style={ui.eyebrow}>SOLANA MAINNET</Text></View>
+  return <View style={ui.between}><View style={ui.row}><View style={styles.liveDot} /><Text style={ui.eyebrow}>MARKET DATA</Text></View>
     <Text style={ui.small}>{loading || market?.refreshing ? 'Refreshing…' : market ? `Updated ${new Date(market.asOf).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Connecting…'}</Text>
   </View>;
 }

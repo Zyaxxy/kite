@@ -13,7 +13,15 @@ export async function GET(request: NextRequest) {
     });
     const body = JSON.stringify(snapshot);
     const etag = `"${createHash("sha256").update(body).digest("hex")}"`;
-    const headers = { "Cache-Control": "private, no-cache", ETag: etag };
+    const sharedCache = snapshot.status === "unavailable"
+      ? "no-store"
+      : snapshot.refreshing ? "public, s-maxage=1" : "public, s-maxage=15, stale-while-revalidate=15";
+    const headers = {
+      "Cache-Control": snapshot.status === "unavailable" ? "no-store" : "public, max-age=0, must-revalidate",
+      "CDN-Cache-Control": sharedCache,
+      "Vercel-CDN-Cache-Control": sharedCache,
+      ETag: etag,
+    };
     if (
       snapshot.status !== "unavailable" &&
       request.headers.get("if-none-match") === etag

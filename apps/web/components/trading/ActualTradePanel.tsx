@@ -5,8 +5,11 @@ import {
   fromTokenAmount,
   BASE_SWAP_TOKENS,
   MAINNET_USDC_MINT,
+  MAINNET_SOL_MINT,
+  toTokenAmount,
+  holdingToSwapToken,
+  maxSwapAmount,
   canApproveTrade,
-  classifyTradeExecution,
   UNKNOWN_TRADE_MESSAGE,
   type TradableAsset,
   type MainnetTradeOrder,
@@ -17,17 +20,19 @@ import { WalletButton } from "./WalletButton";
 import { useTradingAuth } from "./TradingAuth";
 import { SwapTokenSelector } from "./SwapTokenSelector";
 import styles from "./swap-tokens.module.css";
+import { useWalletPortfolio } from "./useWalletPortfolio";
+import { kiteClient } from "../kite/api-client";
 
 const USDC = BASE_SWAP_TOKENS.find(
   (token) => token.mint === MAINNET_USDC_MINT,
 )!;
-const issuerToken = (asset: TradableAsset): SwapToken => ({
+const issuerToken = (asset: TradableAsset & Partial<SwapToken>): SwapToken => ({
   ...asset,
-  source: "issuer",
-  verified: true,
-  logoUrl: null,
-  priceUsd: null,
-  tradingHalted: false,
+  source: asset.source ?? "issuer",
+  verified: asset.verified ?? true,
+  logoUrl: asset.logoUrl ?? null,
+  priceUsd: asset.priceUsd ?? null,
+  tradingHalted: asset.tradingHalted ?? false,
 });
 
 const PENDING_EXECUTION_KEY = "kite:pending-mainnet-execution";
@@ -39,21 +44,36 @@ interface PendingExecution {
 function persistPendingExecution(pending: PendingExecution | null) {
   try {
     if (pending)
-      sessionStorage.setItem(PENDING_EXECUTION_KEY, JSON.stringify(pending));
-    else sessionStorage.removeItem(PENDING_EXECUTION_KEY);
+      localStorage.setItem(PENDING_EXECUTION_KEY, JSON.stringify(pending));
+    else {
+      localStorage.removeItem(PENDING_EXECUTION_KEY);
+      sessionStorage.removeItem(PENDING_EXECUTION_KEY);
+    }
+    window.dispatchEvent(new Event(PENDING_EXECUTION_KEY));
+    return true;
   } catch {
-    /* The active component still blocks another trade when session storage is unavailable. */
+    return false;
   }
 }
 
 export function ActualTradePanel({
   asset,
   className = "",
+  initialSide = "buy",
 }: {
-  asset: TradableAsset;
+  asset: TradableAsset & Partial<SwapToken>;
   className?: string;
+  initialSide?: "buy" | "sell";
 }) {
   const auth = useTradingAuth();
+  const counterToken =
+    asset.mint === MAINNET_USDC_MINT ? BASE_SWAP_TOKENS[0] : USDC;
+  const {
+    portfolio,
+    loading: balancesLoading,
+    error: balancesError,
+    refresh: refreshBalances,
+  } = useWalletPortfolio(auth.walletAddress);
   const [inputToken, setInputToken] = useState<SwapToken>(USDC);
   const [outputToken, setOutputToken] = useState<SwapToken>(() =>
     issuerToken(asset),
@@ -65,32 +85,93 @@ export function ActualTradePanel({
   const [result, setResult] = useState<MainnetTradeResult | null>(null);
   const [pendingExecution, setPendingExecution] =
     useState<PendingExecution | null>(null);
+  const [pendingStorageError, setPendingStorageError] = useState(false);
   const [now, setNow] = useState(Date.now());
   const requestVersion = useRef(0);
   const activeWallet = useRef(auth.walletAddress);
+  const automaticInput = useRef<string | null>(null);
   activeWallet.current = auth.walletAddress;
+  const inputHolding = portfolio?.holdings.find(
+    (holding) => holding.mint === inputToken.mint,
+  );
+  const maxAmount = maxSwapAmount(inputHolding);
+  let balanceError: string | null = null;
+  if (portfolio && amount && inputToken.decimals !== null) {
+    try {
+      const requested = BigInt(toTokenAmount(amount, inputToken.decimals));
+      const available =
+        maxAmount === "0"
+          ? BigInt(0)
+          : BigInt(toTokenAmount(maxAmount, inputToken.decimals));
+      if (requested > available)
+        balanceError =
+          inputToken.mint === MAINNET_SOL_MINT
+            ? "Keep 0.01 SOL available for network fees and account rent."
+            : "This amount exceeds your available token balance.";
+    } catch (cause) {
+      balanceError =
+        cause instanceof Error ? cause.message : "Check the token amount.";
+    }
+  }
 
   useEffect(() => {
-    setInputToken(USDC);
-    setOutputToken(issuerToken(asset));
+    setInputToken(initialSide === "sell" ? issuerToken(asset) : counterToken);
+    setOutputToken(initialSide === "sell" ? counterToken : issuerToken(asset));
     setAmount("");
-  }, [asset.mint]);
+    automaticInput.current = null;
+  }, [asset.mint, initialSide]);
   useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem(PENDING_EXECUTION_KEY);
-      if (!raw) return;
-      const pending = JSON.parse(raw) as Record<string, unknown>;
-      if (
-        typeof pending.walletAddress === "string" &&
-        typeof pending.requestId === "string"
-      )
+    if (
+      !portfolio ||
+      initialSide === "sell" ||
+      automaticInput.current === portfolio.walletAddress ||
+      amount ||
+      busy
+    )
+      return;
+    automaticInput.current = portfolio.walletAddress;
+    const spendable = portfolio.holdings.filter(
+      (holding) =>
+        holding.mint !== outputToken.mint && maxSwapAmount(holding) !== "0",
+    );
+    const preferred =
+      spendable.find((holding) => holding.mint === MAINNET_USDC_MINT) ??
+      spendable[0];
+    if (preferred) setInputToken(holdingToSwapToken(preferred));
+  }, [portfolio, initialSide, outputToken.mint, amount, busy]);
+  useEffect(() => {
+    const readPending = () => {
+      try {
+        const raw =
+          localStorage.getItem(PENDING_EXECUTION_KEY) ??
+          sessionStorage.getItem(PENDING_EXECUTION_KEY);
+        if (!raw) {
+          setPendingExecution(null);
+          setPendingStorageError(false);
+          return;
+        }
+        const pending = JSON.parse(raw) as Record<string, unknown>;
+        if (
+          typeof pending.walletAddress !== "string" ||
+          typeof pending.requestId !== "string"
+        )
+          throw new Error("Unreadable pending execution");
         setPendingExecution({
           walletAddress: pending.walletAddress,
           requestId: pending.requestId,
         });
-    } catch {
-      /* Invalid browser storage does not authorize or retry a transaction. */
-    }
+        setPendingStorageError(false);
+      } catch {
+        setPendingStorageError(true);
+      }
+    };
+    readPending();
+    window.addEventListener("storage", readPending);
+    window.addEventListener(PENDING_EXECUTION_KEY, readPending);
+    return () => {
+      window.removeEventListener("storage", readPending);
+      window.removeEventListener(PENDING_EXECUTION_KEY, readPending);
+    };
   }, []);
   useEffect(() => {
     requestVersion.current += 1;
@@ -105,7 +186,7 @@ export function ActualTradePanel({
   }, [order]);
 
   async function requestQuote() {
-    if (pendingExecution) return;
+    if (pendingExecution || pendingStorageError || busy) return;
     setError(null);
     setResult(null);
     setOrder(null);
@@ -120,21 +201,40 @@ export function ActualTradePanel({
       )
         throw new Error("Enter a positive decimal amount.");
       setBusy("quote");
-      const response = await fetch("/api/trade/order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: AbortSignal.timeout(60_000),
-        body: JSON.stringify({
-          inputMint: inputToken.mint,
-          outputMint: outputToken.mint,
-          amount,
-          taker: auth.walletAddress,
-        }),
+      // Recheck funds immediately before the quote; old observations only support display.
+      const current = await kiteClient.getPortfolio(auth.walletAddress);
+      if (
+        version !== requestVersion.current ||
+        current.walletAddress !== activeWallet.current
+      )
+        return;
+      const holding = current.holdings.find(
+        (item) => item.mint === inputToken.mint,
+      );
+      if (holding?.decimals === undefined)
+        throw new Error("This token has no verified balance in your wallet.");
+      const available = maxSwapAmount(holding);
+      if (
+        available === "0" ||
+        BigInt(toTokenAmount(amount, holding.decimals)) >
+          BigInt(toTokenAmount(available, holding.decimals))
+      )
+        throw new Error(
+          inputToken.mint === MAINNET_SOL_MINT
+            ? "Your available SOL changed. Keep 0.01 SOL for fees and account rent."
+            : "This amount exceeds your current available token balance.",
+        );
+      const data = await kiteClient.requestTradeOrder({
+        inputMint: inputToken.mint,
+        outputMint: outputToken.mint,
+        amount,
+        taker: auth.walletAddress,
+        supportedTransactionVersions: auth.supportedTransactionVersions,
       });
-      const data = await response.json();
-      if (!response.ok)
-        throw new Error(data.error || "Unable to fetch a live quote.");
-      if (version === requestVersion.current) {
+      if (
+        version === requestVersion.current &&
+        data.taker === activeWallet.current
+      ) {
         setOrder(data);
         setNow(Date.now());
       }
@@ -151,7 +251,7 @@ export function ActualTradePanel({
   }
 
   async function approveTrade() {
-    if (!order || busy || pendingExecution) return;
+    if (!order || busy || pendingExecution || pendingStorageError) return;
     setError(null);
     let executionAttempted = false;
     const attempt = { walletAddress: order.taker, requestId: order.requestId };
@@ -160,24 +260,29 @@ export function ActualTradePanel({
         throw new Error("This quote expired. Request a new quote.");
       setBusy("sign");
       // Opens the user's wallet confirmation; no server-held key can authorize a trade.
-      const signedTransaction = await auth.signTransaction(order.transaction);
+      const signedTransaction = await auth.signTransaction(
+        order.transaction,
+        order.transactionVersion,
+      );
       if (!canApproveTrade(order, activeWallet.current))
         throw new Error(
           "The wallet changed or the quote expired. Request a new quote.",
         );
       setBusy("execute");
       // Retain only the attempt identity, never the signed transaction. Reloads cannot silently retry it.
-      persistPendingExecution(attempt);
+      if (!persistPendingExecution(attempt))
+        throw new Error(
+          "Kite could not save this swap’s pending state. Nothing was submitted. Enable browser storage before trying again.",
+        );
       executionAttempted = true;
-      const response = await fetch("/api/trade/execute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          signedTransaction,
-          authorization: order.authorization,
-        }),
+      const data = await (
+        order.transactionVersion === 1
+          ? kiteClient.executeTransaction.bind(kiteClient)
+          : kiteClient.executeTrade.bind(kiteClient)
+      )({
+        signedTransaction,
+        authorization: order.authorization,
       });
-      const data = classifyTradeExecution(await response.json());
       if (data.status === "Unknown") {
         setPendingExecution(attempt);
         return;
@@ -188,6 +293,7 @@ export function ActualTradePanel({
         return;
       }
       setResult(data);
+      refreshBalances();
     } catch (cause) {
       if (executionAttempted) setPendingExecution(attempt);
       else
@@ -207,12 +313,21 @@ export function ActualTradePanel({
       className={`actual-trade-panel ${className}`}
       aria-label={`Trade ${asset.symbol} on mainnet`}
     >
-      <div className="notice">
-        <strong>Actual trading</strong>
-        <p>
-          Swap your wallet’s tokens and market assets on Solana mainnet. Every
-          trade requires your approval.
-        </p>
+      <div className={styles.swapHeading}>
+        <div>
+          <p className="eyebrow">Actual trading</p>
+          <h3>Swap</h3>
+        </div>
+        {auth.walletAddress && (
+          <button
+            type="button"
+            className={styles.close}
+            disabled={balancesLoading || Boolean(busy)}
+            onClick={refreshBalances}
+          >
+            {balancesLoading ? "Refreshing…" : "Refresh balances"}
+          </button>
+        )}
       </div>
       {!auth.walletAddress && (
         <div className="trading-auth-actions">
@@ -232,18 +347,33 @@ export function ActualTradePanel({
           <WalletButton />
         </div>
       )}
-      {auth.walletAddress && (
-        <p className="fineprint">
-          Wallet {auth.walletAddress.slice(0, 6)}…{auth.walletAddress.slice(-4)}{" "}
-          · Solana mainnet
+      {auth.walletAddress && !auth.canSignV1 && (
+        <p className="notice">
+          This wallet does not advertise V1 signing. Update it or connect a
+          compatible wallet to trade.
         </p>
       )}
+      {auth.walletAddress && (
+        <p className="fineprint">
+          Wallet {auth.walletAddress.slice(0, 6)}…{auth.walletAddress.slice(-4)}
+        </p>
+      )}
+      {balancesError && (
+        <p className="notice error" role="alert">
+          {balancesError}
+        </p>
+      )}
+      {portfolio?.warnings?.map((warning) => (
+        <p className="fineprint" key={warning}>
+          {warning}
+        </p>
+      ))}
       <div className="segmented" role="group" aria-label="Trade direction">
         <button
           type="button"
           className={outputToken.mint === asset.mint ? "active" : ""}
           onClick={() => {
-            setInputToken(USDC);
+            setInputToken(counterToken);
             setOutputToken(issuerToken(asset));
             setAmount("");
           }}
@@ -256,7 +386,7 @@ export function ActualTradePanel({
           className={inputToken.mint === asset.mint ? "active" : ""}
           onClick={() => {
             setInputToken(issuerToken(asset));
-            setOutputToken(USDC);
+            setOutputToken(counterToken);
             setAmount("");
           }}
           disabled={Boolean(busy) || Boolean(pendingExecution)}
@@ -264,13 +394,84 @@ export function ActualTradePanel({
           Sell {asset.symbol}
         </button>
       </div>
-      <SwapTokenSelector
-        label="You pay"
-        token={inputToken}
-        otherMint={outputToken.mint}
-        disabled={Boolean(busy) || Boolean(pendingExecution)}
-        onChange={setInputToken}
-      />
+      <div className={styles.swapSide}>
+        <SwapTokenSelector
+          label="You pay"
+          token={inputToken}
+          otherMint={outputToken.mint}
+          disabled={Boolean(busy) || Boolean(pendingExecution)}
+          holdings={portfolio?.holdings}
+          walletConnected={Boolean(auth.walletAddress)}
+          balancesLoading={balancesLoading}
+          onChange={(token) => {
+            setInputToken(token);
+            setAmount("");
+            automaticInput.current = auth.walletAddress;
+          }}
+        />
+        <label className={styles.amountField}>
+          <span className={styles.label}>Amount to pay</span>
+          <input
+            inputMode="decimal"
+            type="text"
+            placeholder="0.00"
+            value={amount}
+            maxLength={40}
+            aria-invalid={Boolean(balanceError)}
+            disabled={Boolean(busy) || Boolean(pendingExecution)}
+            onChange={(event) => setAmount(event.target.value)}
+          />
+        </label>
+        <div className={styles.amountActions}>
+          <span>
+            {inputHolding
+              ? `Available ${maxAmount} ${inputToken.symbol}`
+              : balancesLoading
+                ? "Reading wallet…"
+                : auth.walletAddress
+                  ? "No available balance"
+                  : "Connect your wallet"}
+          </span>
+          <div>
+            <button
+              type="button"
+              disabled={
+                maxAmount === "0" || Boolean(busy) || Boolean(pendingExecution)
+              }
+              onClick={() => {
+                if (inputHolding?.decimals !== undefined)
+                  setAmount(
+                    fromTokenAmount(
+                      (
+                        BigInt(
+                          toTokenAmount(maxAmount, inputHolding.decimals),
+                        ) / BigInt(2)
+                      ).toString(),
+                      inputHolding.decimals,
+                    ),
+                  );
+              }}
+            >
+              Half
+            </button>
+            <button
+              type="button"
+              disabled={
+                maxAmount === "0" || Boolean(busy) || Boolean(pendingExecution)
+              }
+              onClick={() => setAmount(maxAmount)}
+            >
+              Max
+            </button>
+          </div>
+        </div>
+        {inputToken.mint === MAINNET_SOL_MINT && (
+          <p className="fineprint">
+            Max keeps 0.01 SOL for fees and account rent. The live route
+            confirms the actual cost.
+          </p>
+        )}
+      </div>
       <button
         type="button"
         className={styles.reverse}
@@ -295,32 +496,39 @@ export function ActualTradePanel({
         </svg>
         Reverse
       </button>
-      <SwapTokenSelector
-        label="You receive"
-        token={outputToken}
-        otherMint={inputToken.mint}
-        disabled={Boolean(busy) || Boolean(pendingExecution)}
-        onChange={setOutputToken}
-      />
-      <label className="form-field">
-        {inputToken.symbol} token units to spend
-        <input
-          inputMode="decimal"
-          type="text"
-          placeholder="0.00"
-          value={amount}
+      <div className={styles.swapSide}>
+        <SwapTokenSelector
+          label="You receive"
+          token={outputToken}
+          otherMint={inputToken.mint}
           disabled={Boolean(busy) || Boolean(pendingExecution)}
-          onChange={(event) => setAmount(event.target.value)}
+          onChange={setOutputToken}
+          holdings={portfolio?.holdings}
+          walletConnected={Boolean(auth.walletAddress)}
+          balancesLoading={balancesLoading}
         />
-      </label>
+        <div className={styles.receiveAmount}>
+          {order ? fromTokenAmount(order.outAmount, order.outputDecimals) : "—"}
+        </div>
+        <p className="fineprint">Estimated received after a live quote</p>
+      </div>
+      {balanceError && (
+        <p className="notice error" role="alert">
+          {balanceError}
+        </p>
+      )}
       {!order && (
         <button
           className="btn"
           disabled={
-            !auth.canSign ||
+            !auth.canSignV1 ||
             !amount ||
+            !portfolio ||
+            Boolean(balancesError) ||
+            Boolean(balanceError) ||
             Boolean(busy) ||
-            Boolean(pendingExecution)
+            Boolean(pendingExecution) ||
+            pendingStorageError
           }
           onClick={() => void requestQuote()}
         >
@@ -376,13 +584,19 @@ export function ActualTradePanel({
             </div>
           </dl>
           <p className="fineprint">
+            {order.simulation?.status === "passed"
+              ? "Mainnet preflight passed. "
+              : ""}
             Network fees and token-account rent may also apply. Your wallet
             shows the final transaction before you approve.
           </p>
           <button
             className="btn"
             disabled={
-              Boolean(busy) || !canApproveTrade(order, auth.walletAddress, now)
+              Boolean(busy) ||
+              Boolean(pendingExecution) ||
+              pendingStorageError ||
+              !canApproveTrade(order, auth.walletAddress, now)
             }
             onClick={() => void approveTrade()}
           >
@@ -407,6 +621,12 @@ export function ActualTradePanel({
           {error}
         </p>
       )}
+      {pendingStorageError && (
+        <p className="notice error" role="alert">
+          This browser could not read the previous swap state. Check wallet
+          activity and browser storage before placing another actual trade.
+        </p>
+      )}
       {pendingExecution && (
         <div className="stack" role="alert">
           <p className="notice">{UNKNOWN_TRADE_MESSAGE}</p>
@@ -429,7 +649,7 @@ export function ActualTradePanel({
           </button>
           <p className="fineprint">
             Kite will not retry the signed swap. This check remains required
-            when you return to a trade screen in this tab.
+            when you return to a trade screen in this browser.
           </p>
         </div>
       )}

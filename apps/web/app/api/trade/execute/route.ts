@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { classifyTradeExecution, UNKNOWN_TRADE_MESSAGE } from "@kite/sdk";
 import { verifyTradeAuthorization } from "@/lib/server/trade-authorization";
+import { readLimitedJson } from "@/lib/server/request-policy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   const apiKey = process.env.JUPITER_API_KEY;
-  if (!apiKey)
+  const tradeSecret = process.env.KITE_TRADE_SECRET;
+  if (!apiKey || !tradeSecret || tradeSecret.length < 32)
     return NextResponse.json(
       {
         status: "Failed",
@@ -18,8 +21,13 @@ export async function POST(request: NextRequest) {
     );
   let executionAttempted = false;
   try {
-    const body = (await request.json()) as Record<string, unknown>;
+    const body = (await readLimitedJson(request, 16_384)) as Record<
+      string,
+      unknown
+    > | null;
     if (
+      !body ||
+      typeof body !== "object" ||
       typeof body.signedTransaction !== "string" ||
       body.signedTransaction.length > 8_000 ||
       typeof body.authorization !== "string" ||
@@ -31,7 +39,7 @@ export async function POST(request: NextRequest) {
     const authorization = verifyTradeAuthorization(
       body.authorization,
       body.signedTransaction,
-      process.env.KITE_TRADE_SECRET || apiKey,
+      tradeSecret,
     );
     executionAttempted = true;
     const response = await fetch("https://api.jup.ag/swap/v2/execute", {

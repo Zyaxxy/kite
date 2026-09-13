@@ -1,52 +1,164 @@
-import React, { useState } from 'react';
-import { Alert, Linking, Platform, ScrollView, Text, View } from 'react-native';
-import { Button, Chip } from '../components/Primitives';
-import { API_BASE_URL, WEB_URL } from '../lib/config';
-import { connectMobileWallet, type MobileWalletAccount } from '../lib/mobile-wallet';
-import { ui } from '../theme';
+import React, { useState } from "react";
+import { Linking, ScrollView, Text, View } from "react-native";
+import { Button, Chip } from "../components/Primitives";
+import { API_BASE_URL, WEB_URL, API_CONFIGURATION_ERROR } from "../lib/config";
+import { useMobileTrading } from "../state/MobileTradingProvider";
+import { ui } from "../theme";
 
 export function SettingsScreen({ onReset }: { onReset: () => void }) {
-  const [account, setAccount] = useState<MobileWalletAccount | null>(null);
-  const [connecting, setConnecting] = useState(false);
-
-  async function connect() {
-    setConnecting(true);
-    try { setAccount(await connectMobileWallet()); }
-    catch (error) { Alert.alert('Wallet connection', error instanceof Error ? error.message : 'Connection could not be completed. Try again from a supported Android wallet.'); }
-    finally { setConnecting(false); }
-  }
-
-  async function openTrading() {
+  const wallet = useMobileTrading();
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function open(path: string) {
     if (!WEB_URL) return;
-    try { await Linking.openURL(`${WEB_URL}/settings`); }
-    catch { Alert.alert('Unable to open Kite', 'Check your configured web URL and try again.'); }
+    try {
+      await Linking.openURL(`${WEB_URL}${path}`);
+    } catch {
+      setError("Kite web could not open. Check the configured web address.");
+    }
   }
-
-  return <ScrollView style={ui.screen} contentContainerStyle={ui.content}>
-    <View style={ui.stack}><Text style={ui.eyebrow}>YOUR SPACE</Text><Text style={ui.title}>Make it yours.</Text><Text style={ui.body}>Practice on your terms. Connect when you are ready.</Text></View>
-    <View style={ui.card}>
-      <Chip label="Paper trading" selected />
-      <Text style={ui.heading}>A little room to explore.</Text>
-      <Text style={ui.body}>Your paper cash, holdings, orders and plans are saved on this device. Virtual funding is a simulation; prices come from the live mainnet market API.</Text>
-      <Button secondary label="Reset paper account" onPress={() => Alert.alert('Reset your paper account?', 'This removes paper holdings, orders and plans from this device. Your watchlist is kept.', [
-        { text: 'Keep account', style: 'cancel' }, { text: 'Reset account', style: 'destructive', onPress: onReset },
-      ])} />
-    </View>
-    <View style={ui.card}>
-      <Text style={ui.eyebrow}>REAL TRADING</Text><Text style={ui.heading}>Your keys. Your next move.</Text>
-      <Text style={ui.body}>Use Privy sign-in on Kite web to access actual trading. Every real transaction requires your approval. Paper activity stays separate from your wallet.</Text>
-      <Button label="Continue with Privy on web" onPress={openTrading} disabled={!WEB_URL} />
-      {!WEB_URL ? <Text style={ui.small}>A Kite web address has not been configured for this app.</Text> : null}
-      {Platform.OS === 'android' ? <>
-        <View style={ui.divider} /><Text style={ui.label}>Solana Mobile Wallet</Text>
-        <Text style={ui.small}>{account ? `Connected to ${account.label || 'your wallet'} on Solana mainnet. No transaction has been signed.` : 'Connect a compatible Android wallet to authorize your account on mainnet.'}</Text>
-        <Button secondary label={account ? 'Reconnect mobile wallet' : 'Connect mobile wallet'} onPress={connect} loading={connecting} />
-      </> : null}
-    </View>
-    <View style={ui.card}><Text style={ui.eyebrow}>CONNECTION</Text>
-      <View style={ui.between}><Text style={ui.label}>Network</Text><Text style={ui.body}>Solana mainnet</Text></View>
-      <View style={ui.between}><Text style={ui.label}>Market service</Text><Text style={ui.body}>{API_BASE_URL ? 'Configured' : 'Not configured'}</Text></View>
-      <Text style={ui.small}>Quotes can be delayed or unavailable. Paper fills use available market prices and are not a guarantee of real execution.</Text>
-    </View>
-  </ScrollView>;
+  return (
+    <ScrollView style={ui.screen} contentContainerStyle={ui.content}>
+      <View style={ui.stack}>
+        <Text style={ui.eyebrow}>YOUR SPACE</Text>
+        <Text style={ui.title}>Make it yours.</Text>
+        <Text style={ui.body}>
+          Practice on your terms. Connect when you are ready.
+        </Text>
+      </View>
+      <View style={ui.card}>
+        <Chip label="Paper trading" selected />
+        <Text style={ui.heading}>A little room to explore.</Text>
+        <Text style={ui.body}>
+          Your paper cash, holdings, orders and plans are saved on this device.
+          Virtual funding is a simulation; prices come from the live mainnet
+          market API.
+        </Text>
+        {confirmReset ? (
+          <>
+            <Text accessibilityRole="alert" style={ui.body}>
+              Reset removes your paper holdings, orders and plans. Your
+              watchlist and actual wallet stay intact.
+            </Text>
+            <Button
+              secondary
+              label="Keep paper account"
+              onPress={() => setConfirmReset(false)}
+            />
+            <Button
+              label="Confirm paper reset"
+              onPress={() => {
+                onReset();
+                setConfirmReset(false);
+              }}
+            />
+          </>
+        ) : (
+          <Button
+            secondary
+            label="Reset paper account"
+            onPress={() => setConfirmReset(true)}
+          />
+        )}
+      </View>
+      <View style={ui.card}>
+        <Text style={ui.eyebrow}>ACTUAL TRADING</Text>
+        <Text style={ui.heading}>Your keys. Your next move.</Text>
+        <Text style={ui.body}>
+          Every actual swap needs your approval. Your tokens stay in your
+          wallet. Paper activity stays separate.
+        </Text>
+        {wallet.supported ? (
+          <>
+            <Text style={ui.label}>Solana Mobile Wallet</Text>
+            <Text style={ui.small}>
+              {wallet.account
+                ? `${wallet.account.label || "Connected wallet"} · ${wallet.account.address.slice(0, 4)}…${wallet.account.address.slice(-4)}`
+                : "Connect a compatible Android wallet, then open any asset and choose Actual to review a mainnet swap."}
+            </Text>
+            <Button
+              label={
+                wallet.account
+                  ? "Reconnect mobile wallet"
+                  : "Connect Android wallet"
+              }
+              onPress={() => {
+                void wallet.connect();
+              }}
+              loading={wallet.busy}
+              disabled={!wallet.ready}
+            />
+            {wallet.account ? (
+              <Button
+                secondary
+                label="Disconnect wallet"
+                disabled={wallet.busy}
+                onPress={() => {
+                  void wallet.disconnect();
+                }}
+              />
+            ) : null}
+          </>
+        ) : (
+          <Text style={ui.small}>
+            Native wallet signing requires an Android development or release
+            build. Expo Go, iOS and web previews can continue with Privy on Kite
+            web.
+          </Text>
+        )}
+        <Button
+          secondary
+          label="Continue with Privy on web"
+          onPress={() => {
+            void open("/settings");
+          }}
+          disabled={!WEB_URL || wallet.busy}
+        />
+        {wallet.error || error ? (
+          <Text accessibilityRole="alert" style={[ui.small, ui.negative]}>
+            {error || wallet.error}
+          </Text>
+        ) : null}
+      </View>
+      <View style={ui.card}>
+        <Text style={ui.eyebrow}>CONNECTION</Text>
+        <View style={ui.between}>
+          <Text style={ui.label}>Network</Text>
+          <Text style={ui.body}>Solana mainnet</Text>
+        </View>
+        <View style={ui.between}>
+          <Text style={ui.label}>Market service</Text>
+          <Text style={ui.body}>
+            {API_BASE_URL ? "Configured" : "Needs setup"}
+          </Text>
+        </View>
+        <Text selectable style={ui.small}>
+          {API_CONFIGURATION_ERROR || API_BASE_URL}
+        </Text>
+        <Text style={ui.small}>
+          The app talks to Kite’s web API. An Expo tunnel serves the app bundle;
+          a separate HTTPS API tunnel or deployment serves live data.
+        </Text>
+      </View>
+      <View style={ui.card}>
+        <Text style={ui.eyebrow}>ABOUT KITE</Text>
+        <Button
+          secondary
+          label="Privacy policy"
+          disabled={!WEB_URL}
+          onPress={() => {
+            void open("/privacy");
+          }}
+        />
+        <Button
+          secondary
+          label="Terms and conditions"
+          disabled={!WEB_URL}
+          onPress={() => {
+            void open("/terms");
+          }}
+        />
+      </View>
+    </ScrollView>
+  );
 }

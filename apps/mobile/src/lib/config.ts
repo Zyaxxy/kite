@@ -1,27 +1,32 @@
-declare const process: { env: { EXPO_PUBLIC_API_BASE_URL?: string; EXPO_PUBLIC_WEB_URL?: string } };
+import { KiteClient, KiteApiError } from "@kite/sdk";
+import { resolvePublicOrigin } from "./endpoints";
 
-/** The mobile client uses the web API so provider credentials never ship in the app. */
-export const API_BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL ?? '').replace(/\/$/, '');
-export const WEB_URL = (process.env.EXPO_PUBLIC_WEB_URL ?? API_BASE_URL).replace(/\/$/, '');
+declare const process: {
+  env: { EXPO_PUBLIC_API_BASE_URL?: string; EXPO_PUBLIC_WEB_URL?: string };
+};
 
-async function apiResponse(path: string, signal?: AbortSignal, etag?: string | null): Promise<Response> {
-  if (!API_BASE_URL) throw new Error('Set EXPO_PUBLIC_API_BASE_URL to your running Kite web app to load live markets.');
-  const response = await fetch(`${API_BASE_URL}${path}`, { signal, headers: etag ? { 'If-None-Match': etag } : undefined });
-  if (!response.ok && !(etag && response.status === 304)) throw new Error(`The market service returned ${response.status}. Pull down to retry.`);
-  return response;
-}
+const api = resolvePublicOrigin(process.env.EXPO_PUBLIC_API_BASE_URL, __DEV__);
+const web = resolvePublicOrigin(
+  process.env.EXPO_PUBLIC_WEB_URL ?? process.env.EXPO_PUBLIC_API_BASE_URL,
+  __DEV__,
+);
+export const API_BASE_URL = api.origin;
+export const WEB_URL = web.origin;
+export const API_CONFIGURATION_ERROR = api.error;
+export const WEB_CONFIGURATION_ERROR = web.error;
 
-export async function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const response = await apiResponse(path, signal);
-  return response.json() as Promise<T>;
-}
-
-/** Conditional reads skip body decoding when a previously received response is unchanged. */
-export async function apiGetConditional<T>(path: string, signal?: AbortSignal, etag?: string | null): Promise<
-  { notModified: true; etag: string | null } | { notModified: false; etag: string | null; data: T }
-> {
-  const response = await apiResponse(path, signal, etag);
-  const nextEtag = response.headers.get('etag');
-  if (response.status === 304) return { notModified: true, etag: nextEtag ?? etag ?? null };
-  return { notModified: false, etag: nextEtag, data: await response.json() as T };
-}
+/** The shared client parses HTML protection/tunnel errors and never embeds provider keys. */
+export const kiteClient = new KiteClient({
+  baseUrl: API_BASE_URL,
+  allowInsecureHttp: __DEV__,
+  fetcher: (input, init) => {
+    if (API_CONFIGURATION_ERROR)
+      return Promise.reject(new KiteApiError(API_CONFIGURATION_ERROR));
+    return fetch(input, init).catch((error: unknown) => {
+      if (init?.signal?.aborted) throw error;
+      throw new KiteApiError(
+        "Cannot reach Kite. Check your connection and that the API tunnel is still running. Expo’s tunnel does not expose the web API.",
+      );
+    });
+  },
+});

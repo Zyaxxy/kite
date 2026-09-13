@@ -20,6 +20,7 @@ import {
   Menu,
 } from "lucide-react";
 import { Brand } from "./Brand";
+import { TradingModeSwitch } from "./TradingModeSwitch";
 import { AssetName, money } from "./MarketUI";
 import { useKite } from "./State";
 import { useTradingAuth } from "../trading/TradingAuth";
@@ -39,27 +40,6 @@ export function SignInButton() {
     <Link className="btn small secondary" href="/settings">
       {auth.authenticated ? "My account" : "Sign in"} <ArrowUpRight size={13} />
     </Link>
-  );
-}
-export function ModeSwitch() {
-  const { mode, setMode } = useKite();
-  return (
-    <div className="mode-switch" role="group" aria-label="Trading mode">
-      <button
-        aria-pressed={mode === "paper"}
-        className={mode === "paper" ? "active" : ""}
-        onClick={() => setMode("paper")}
-      >
-        Paper trading
-      </button>
-      <button
-        aria-pressed={mode === "actual"}
-        className={mode === "actual" ? "active" : ""}
-        onClick={() => setMode("actual")}
-      >
-        Actual trading
-      </button>
-    </div>
   );
 }
 export function Shell({
@@ -121,10 +101,6 @@ export function Shell({
             <Settings2 strokeWidth={1.5} />
             Settings
           </Link>
-          <div className="network-label">
-            <span className="status-dot" /> Solana mainnet{" "}
-            <ArrowUpRight size={11} style={{ marginLeft: "auto" }} />
-          </div>
         </div>
       </aside>
       <header className="topbar">
@@ -145,10 +121,7 @@ export function Shell({
             <span>Search anything</span>
             <kbd>⌘ K</kbd>
           </button>
-          <span className="badge lime">
-            <span className="status-dot" />
-            MAINNET
-          </span>
+          <TradingModeSwitch />
           <SignInButton />
         </div>
       </header>
@@ -159,7 +132,6 @@ export function Shell({
             <ShieldCheck size={12} /> Self-custody, by design
           </span>
           <span>
-            Solana mainnet ·{" "}
             {snapshot?.status === "live"
               ? "Live market data"
               : snapshot?.status === "partial"
@@ -325,7 +297,7 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
           )}
         </div>
         <div className="modal-footer">
-          Verified issuer catalogs · Solana mainnet{" "}
+          Verified issuer catalogs{" "}
           <span style={{ float: "right" }}>ESC to close</span>
         </div>
       </div>
@@ -350,7 +322,7 @@ export function PageIntro({
         <h1>{title}</h1>
         <p>{description}</p>
       </div>
-      {children ?? <ModeSwitch />}
+      {children}
     </div>
   );
 }

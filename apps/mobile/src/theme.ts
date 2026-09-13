@@ -8,12 +8,12 @@ export const colors = {
 
 export const ui = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { padding: 22, paddingBottom: 40, gap: 22 },
+  content: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: 20, paddingBottom: 40, gap: 24 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   between: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   stack: { gap: 12 },
   card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: 20, padding: 20, gap: 14 },
-  eyebrow: { color: colors.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1.8, textTransform: 'uppercase' },
+  eyebrow: { color: colors.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1.4, textTransform: 'uppercase' },
   title: { color: colors.ink, fontSize: 34, lineHeight: 39, fontWeight: '600', letterSpacing: -1.2 },
   heading: { color: colors.ink, fontSize: 21, fontWeight: '600', letterSpacing: -0.5 },
   body: { color: colors.muted, fontSize: 14, lineHeight: 21 },

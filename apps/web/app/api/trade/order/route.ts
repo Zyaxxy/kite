@@ -10,25 +10,29 @@ import {
   type TradeSide,
 } from "@kite/sdk";
 import { getServerMarketCatalog } from "@/lib/server/markets";
-import { authorizeTrade } from "@/lib/server/trade-authorization";
+import { prepareTokenSwapOrder } from "@/lib/server/basket-order";
+import { assertMainnetV1Ready } from "@/lib/server/composed-transactions";
 import { getTradeMintDecimals } from "@/lib/server/mint-precision";
 import { searchJupiterSwapTokens } from "@/lib/server/swap-tokens";
+import { readLimitedJson } from "@/lib/server/request-policy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   const apiKey = process.env.JUPITER_API_KEY;
-  if (!apiKey)
+  const tradeSecret = process.env.KITE_TRADE_SECRET;
+  if (!apiKey || !tradeSecret || tradeSecret.length < 32)
     return NextResponse.json(
       {
         error:
-          "Actual trading is unavailable: this deployment needs a server-side Jupiter API key.",
+          "Actual trading is unavailable: this deployment needs a server-side Jupiter API key and trade authorization secret.",
       },
       { status: 503 },
     );
   try {
-    const body: unknown = await request.json();
+    const body: unknown = await readLimitedJson(request, 4_096);
     if (!body || typeof body !== "object")
       throw new Error("Invalid trade request.");
     const values = body as Record<string, unknown>;
@@ -71,6 +75,14 @@ export async function POST(request: NextRequest) {
       throw new Error("Choose two different tokens to swap.");
     if (!PublicKey.isOnCurve(new PublicKey(taker).toBytes()))
       throw new Error("A valid signing wallet is required.");
+    const supportedTransactionVersions = Array.isArray(
+      values.supportedTransactionVersions,
+    )
+      ? values.supportedTransactionVersions.filter(
+          (v): v is number => typeof v === "number",
+        )
+      : [];
+    await assertMainnetV1Ready(supportedTransactionVersions);
     const markets = await getServerMarketCatalog();
     const mints = [inputMint, outputMint];
     const issuerAssets = mints.map((address) =>
@@ -149,98 +161,46 @@ export async function POST(request: NextRequest) {
       );
     }
     const rawAmount = toTokenAmount(amount, inputDecimals);
-    const params = new URLSearchParams({
-      inputMint,
-      outputMint,
-      amount: rawAmount,
-      taker,
-    });
-    const response = await fetch(`https://api.jup.ag/swap/v2/order?${params}`, {
-      headers: { "x-api-key": apiKey },
-      cache: "no-store",
-      signal: AbortSignal.timeout(20_000),
-    });
-    const data = (await response.json()) as Record<string, unknown>;
-    if (!response.ok)
-      return NextResponse.json(
-        { error: "Jupiter could not provide a live order. Try again shortly." },
-        { status: 502 },
-      );
-    if (
-      typeof data.transaction !== "string" ||
-      !data.transaction ||
-      typeof data.requestId !== "string"
-    )
-      return NextResponse.json(
-        {
-          error:
-            typeof data.errorMessage === "string"
-              ? data.errorMessage
-              : "No executable route is available for this amount and wallet balance.",
-        },
-        { status: 422 },
-      );
-    if (
-      data.inputMint !== inputMint ||
-      data.outputMint !== outputMint ||
-      data.inAmount !== rawAmount ||
-      typeof data.outAmount !== "string" ||
-      !/^\d+$/.test(data.outAmount) ||
-      BigInt(data.outAmount) <= BigInt(0)
-    )
-      throw new Error("The returned quote does not match the requested trade.");
-    if (
-      typeof data.slippageBps !== "number" ||
-      !Number.isFinite(data.slippageBps) ||
-      data.slippageBps < 0 ||
-      data.slippageBps > 10_000 ||
-      typeof data.feeBps !== "number" ||
-      !Number.isFinite(data.feeBps) ||
-      data.feeBps < 0 ||
-      data.feeBps > 10_000
-    )
-      throw new Error(
-        "The route did not return its slippage and fee information.",
-      );
-    const upstreamExpiry =
-      typeof data.expireAt === "string" ? Date.parse(data.expireAt) : NaN;
-    const expiresAt = Math.min(
-      Date.now() + 45_000,
-      Number.isFinite(upstreamExpiry) ? upstreamExpiry : Infinity,
+    const prepared = await prepareTokenSwapOrder(
+      {
+        inputMint,
+        amount,
+        taker,
+        slippageBps: 100,
+        supportedTransactionVersions,
+      },
+      outputToken,
     );
-    if (expiresAt <= Date.now())
-      throw new Error("The provider quote expired. Request another quote.");
+    const output = prepared.outputs[0];
     const order: MainnetTradeOrder = {
-      requestId: data.requestId,
-      transaction: data.transaction,
+      requestId: prepared.requestId,
+      transaction: prepared.transaction,
+      transactionVersion: prepared.transactionVersion,
+      serializedBytes: prepared.serializedBytes,
+      lastValidBlockHeight: prepared.lastValidBlockHeight,
       inputMint,
       outputMint,
       inAmount: rawAmount,
-      outAmount: data.outAmount,
-      ...(typeof data.otherAmountThreshold === "string" &&
-      /^\d+$/.test(data.otherAmountThreshold)
-        ? { otherAmountThreshold: data.otherAmountThreshold }
-        : {}),
-      slippageBps: data.slippageBps,
-      feeBps: data.feeBps,
-      feeMint: typeof data.feeMint === "string" ? data.feeMint : "",
-      router: typeof data.router === "string" ? data.router : "Jupiter",
-      priceImpactPct:
-        typeof data.priceImpactPct === "number" ? data.priceImpactPct : null,
-      expiresAt,
-      authorization: authorizeTrade(
-        data.transaction,
-        data.requestId,
-        taker,
-        expiresAt,
-        process.env.KITE_TRADE_SECRET || apiKey,
-      ),
+      outAmount: output.outAmount,
+      otherAmountThreshold: output.minimumAmount,
+      slippageBps: prepared.slippageBps,
+      feeBps: 0,
+      feeMint: inputMint,
+      router: "Jupiter",
+      priceImpactPct: null,
+      expiresAt: prepared.expiresAt,
+      authorization: prepared.authorization,
       taker,
       inputSymbol: inputToken.symbol,
       outputSymbol: outputToken.symbol,
       inputDecimals,
       outputDecimals,
       side,
+      simulation: {
+        status: "passed",
+        simulatedAt: new Date().toISOString(),
+        unitsConsumed: null,
+      },
     };
     return NextResponse.json(order, {
       headers: { "Cache-Control": "no-store" },

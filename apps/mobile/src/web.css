@@ -1,0 +1,5 @@
+html, body, #root { height: 100%; background: #101311; }
+#root { display: flex; flex-direction: column; }
+body { margin: 0; overscroll-behavior: none; }
+*:focus-visible { outline: 2px solid #D5F478; outline-offset: 3px; }
+input { font: inherit; }

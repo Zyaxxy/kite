@@ -2,16 +2,17 @@
  * Pyth Network Oracle & xStocks Reference Pricing Client
  *
  * Provides:
- * 1. XSTOCKS_PYTH_FEEDS — Confirmed Pyth price feed IDs for xStocks (AAPLx, TSLAx, NVDAx, SPYx, MSFTx)
+ * 1. XSTOCKS_PYTH_FEEDS — Pyth feed identities verified against Hermes metadata on 2026-09-13
  *    and underlying equity reference price feeds.
  * 2. PythHermesClient — Off-chain REST client for Pyth Hermes feed search and metadata.
  * 3. PythSolanaClient — On-chain Pyth price account reader via Solana RPC connection.
- * 4. fetchXStocksOracles — xStocks platform `/public/oracles` integration for reference pricing.
+ * 4. fetchXStocksOracles — explicitly configured issuer oracle metadata adapter.
  *
  * @module pyth-oracle
  */
 
-import { Connection, PublicKey } from '@solana/web3.js';
+import { Connection, PublicKey } from "@solana/web3.js";
+import { Buffer } from "buffer";
 
 // ---------------------------------------------------------------------------
 // Error
@@ -20,7 +21,7 @@ import { Connection, PublicKey } from '@solana/web3.js';
 export class PythOracleError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'PythOracleError';
+    this.name = "PythOracleError";
     Object.setPrototypeOf(this, PythOracleError.prototype);
   }
 }
@@ -45,7 +46,7 @@ export interface PythPriceData {
   /** Unix timestamp of publication */
   publishTime: number;
   /** Feed status */
-  status: 'trading' | 'halted' | 'unknown';
+  status: "trading" | "halted" | "unknown";
 }
 
 export interface PythFeedInfo {
@@ -63,7 +64,7 @@ export interface XStocksOracleInfo {
   name?: string;
   mint?: string;
   oracleAddress?: string;
-  oracleType?: 'pyth' | 'switchboard';
+  oracleType?: "pyth" | "switchboard";
   feedId?: string;
   price?: number;
   lastUpdated?: number;
@@ -84,75 +85,102 @@ export interface StockFeedDefinition {
 
 /**
  * Built-in registry mapping tokenized equity symbols (xStocks) to both their
- * specific xStock Pyth feed ID and their official stock equity reference feed ID.
+ * token feed and underlying equity feed. Verified from /v2/price_feeds on
+ * 2026-09-13. These identities do not establish current price availability,
+ * mint identity or corporate-action scaling; never substitute the equity feed
+ * for a token execution price.
  */
 export const XSTOCKS_PYTH_FEEDS: Record<string, StockFeedDefinition> = {
   NVDA: {
-    symbol: 'NVDA',
-    name: 'NVIDIA Corporation',
-    xStockFeedId: '0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f', // Crypto.NVDAX/USD
-    equityReferenceFeedId: '0xb1073854ed24cbc755dc527418f52b7d271f6cc967bbf8d8129112b18860a593', // Equity.US.NVDA/USD
+    symbol: "NVDA",
+    name: "NVIDIA Corporation",
+    xStockFeedId:
+      "0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f", // Crypto.NVDAX/USD
+    equityReferenceFeedId:
+      "0xb1073854ed24cbc755dc527418f52b7d271f6cc967bbf8d8129112b18860a593", // Equity.US.NVDA/USD
   },
   AAPL: {
-    symbol: 'AAPL',
-    name: 'Apple Inc.',
-    xStockFeedId: '0x978e6cc68a119ce066aa830017318563a9ed04ec3a0a6439010fc11296a58675', // Crypto.AAPLX/USD
-    equityReferenceFeedId: '0x49f6b65db1de6b10eaf75e7c03ca029c306d0357e91b5311b175084a5ad55688', // Equity.US.AAPL/USD
+    symbol: "AAPL",
+    name: "Apple Inc.",
+    xStockFeedId:
+      "0x978e6cc68a119ce066aa830017318563a9ed04ec3a0a6439010fc11296a58675", // Crypto.AAPLX/USD
+    equityReferenceFeedId:
+      "0x49f6b65cb1de6b10eaf75e7c03ca029c306d0357e91b5311b175084a5ad55688", // Equity.US.AAPL/USD
   },
   TSLA: {
-    symbol: 'TSLA',
-    name: 'Tesla, Inc.',
-    xStockFeedId: '0x47a156470288850a440df3a6ce85a55917b813a19bb5b31128a33a986566a362', // Crypto.TSLAX/USD
-    equityReferenceFeedId: '0x1607a8cb40ff073167a57a55ad7d6f51f496739988b7cb60f1ad9250b73c4d92', // Equity.US.TSLA/USD
+    symbol: "TSLA",
+    name: "Tesla, Inc.",
+    xStockFeedId:
+      "0x47a156470288850a440df3a6ce85a55917b813a19bb5b31128a33a986566a362", // Crypto.TSLAX/USD
+    equityReferenceFeedId:
+      "0x16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1", // Equity.US.TSLA/USD
   },
   SPY: {
-    symbol: 'SPY',
-    name: 'SPDR S&P 500 ETF Trust',
-    xStockFeedId: '0x2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14', // Crypto.SPYX/USD
-    equityReferenceFeedId: '0x2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14',
+    symbol: "SPY",
+    name: "SPDR S&P 500 ETF Trust",
+    xStockFeedId:
+      "0x2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14", // Crypto.SPYX/USD
+    equityReferenceFeedId:
+      "0x19e09bb805456ada3979a7d1cbb4b6d63babc3a0f8e8a9509f68afa5c4c11cd5",
   },
   MSFT: {
-    symbol: 'MSFT',
-    name: 'Microsoft Corporation',
-    xStockFeedId: '0xbb723a70af731ab56b9a650eb7e8ac22b7bc07ea77f8670bd1fa9a37bf6df3f5', // Crypto.MSFTX/USD
-    equityReferenceFeedId: '0xd0ca22c317926105f2843efc6291a1a2b2512f4c399738d7f7faea4b1eeea1e1', // Equity.US.MSFT/USD
+    symbol: "MSFT",
+    name: "Microsoft Corporation",
+    xStockFeedId:
+      "0xbb723a70af731ab56b9a650eb7e8ac22b7bc07ea77f8670bd1fa9a37bf6df3f5", // Crypto.MSFTX/USD
+    equityReferenceFeedId:
+      "0xd0ca23c1cc005e004ccf1db5bf76aeb6a49218f43dac3d4b275e92de12ded4d1", // Equity.US.MSFT/USD
   },
   AMZN: {
-    symbol: 'AMZN',
-    name: 'Amazon.com, Inc.',
-    xStockFeedId: '0xef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d',
-    equityReferenceFeedId: '0xef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d',
+    symbol: "AMZN",
+    name: "Amazon.com, Inc.",
+    xStockFeedId:
+      "0x7148fbe6e493ff2580305c92a8d7f8628c9943b11b9b253aebc24863fec290e8",
+    equityReferenceFeedId:
+      "0xb5d0e0fa58a1f8b81498ae670ce93c872d14434b72c364885d4fa1b257cbb07a",
   },
   GOOGL: {
-    symbol: 'GOOGL',
-    name: 'Alphabet Inc.',
-    xStockFeedId: '0x5e236fb247854e0cfde86a60d00f68d60ef469614456efb9b5f9037c87c0e5a6',
-    equityReferenceFeedId: '0x5e236fb247854e0cfde86a60d00f68d60ef469614456efb9b5f9037c87c0e5a6',
+    symbol: "GOOGL",
+    name: "Alphabet Inc.",
+    xStockFeedId:
+      "0xb911b0329028cd0283e4259c33809d62942bd2716a58084e5f31d64c00b5424e",
+    equityReferenceFeedId:
+      "0x5a48c03e9b9cb337801073ed9d166817473697efff0d138874e0f6a33d6d5aa6",
   },
   META: {
-    symbol: 'META',
-    name: 'Meta Platforms, Inc.',
-    xStockFeedId: '0x7e8346e3e5b328a99db324b13a30c5e933e144a7f0e0f803b96c21e695d38f8f',
-    equityReferenceFeedId: '0x7e8346e3e5b328a99db324b13a30c5e933e144a7f0e0f803b96c21e695d38f8f',
-  }
+    symbol: "META",
+    name: "Meta Platforms, Inc.",
+    xStockFeedId:
+      "0xbf3e5871be3f80ab7a4d1f1fd039145179fb58569e159aee1ccd472868ea5900",
+    equityReferenceFeedId:
+      "0x78a3e3b8e676a8f73c439f5d749737034b139bbbe899ba5775216fba596607fe",
+  },
 };
 
 /**
  * Normalizes a stock symbol (e.g. 'xAAPL', 'AAPLx', 'preOPENAI' -> 'AAPL', 'OPENAI').
  */
 export function normalizeSymbol(symbol: string): string {
-  return symbol
-    .trim()
-    .replace(/^x/i, '')
-    .replace(/x$/i, '')
-    .replace(/^pre/i, '')
+  const trimmed = symbol.trim();
+  const upper = trimmed.toUpperCase();
+  if (XSTOCKS_PYTH_FEEDS[upper]) return upper;
+  for (const candidate of [upper.replace(/^X/, ""), upper.replace(/X$/, "")])
+    if (XSTOCKS_PYTH_FEEDS[candidate]) return candidate;
+  // Only explicit lowercase token decorations are removed for unknown symbols.
+  // XOM and NFLX are genuine equity symbols, not prefixes/suffixes to strip.
+  return trimmed
+    .replace(/^pre(?=[A-Z])/, "")
+    .replace(/^x(?=[A-Z])/, "")
+    .replace(/x$/, "")
     .toUpperCase();
 }
 
 /**
  * Resolves a symbol to its Pyth feed configuration.
  */
-export function getStockFeedDefinition(symbol: string): StockFeedDefinition | null {
+export function getStockFeedDefinition(
+  symbol: string,
+): StockFeedDefinition | null {
   const norm = normalizeSymbol(symbol);
   return XSTOCKS_PYTH_FEEDS[norm] || null;
 }
@@ -171,30 +199,50 @@ export function listSupportedEquities(): StockFeedDefinition[] {
 export class PythHermesClient {
   public readonly baseUrl: string;
 
-  constructor(baseUrl: string = 'https://hermes.pyth.network') {
-    this.baseUrl = baseUrl.replace(/\/$/, '');
+  constructor(baseUrl: string = "https://hermes.pyth.network") {
+    this.baseUrl = baseUrl.replace(/\/$/, "");
   }
 
   /**
    * Search for Pyth price feeds by symbol or query string.
    */
-  async searchFeeds(query: string, assetType?: string): Promise<PythFeedInfo[]> {
+  async searchFeeds(
+    query: string,
+    assetType?: string,
+  ): Promise<PythFeedInfo[]> {
     try {
       const url = new URL(`${this.baseUrl}/v2/price_feeds`);
-      url.searchParams.append('query', query);
+      url.searchParams.append("query", query);
       if (assetType) {
-        url.searchParams.append('asset_type', assetType);
+        url.searchParams.append("asset_type", assetType);
       }
 
-      const res = await fetch(url.toString());
+      const res = await fetch(url.toString(), {
+        signal: AbortSignal.timeout(10_000),
+      });
       if (!res.ok) {
-        throw new PythOracleError(`Hermes API search error: ${res.status} ${res.statusText}`);
+        throw new PythOracleError(
+          `Hermes API search error: ${res.status} ${res.statusText}`,
+        );
       }
 
-      return res.json() as Promise<PythFeedInfo[]>;
+      const payload: unknown = await res.json();
+      if (!Array.isArray(payload))
+        throw new PythOracleError("Hermes returned invalid feed metadata.");
+      return payload.filter((feed): feed is PythFeedInfo =>
+        Boolean(
+          feed &&
+          typeof feed === "object" &&
+          typeof feed.id === "string" &&
+          /^(0x)?[a-fA-F0-9]{64}$/.test(feed.id) &&
+          feed.attributes &&
+          typeof feed.attributes === "object" &&
+          typeof feed.attributes.symbol === "string",
+        ),
+      );
     } catch (err) {
       if (err instanceof PythOracleError) throw err;
-      throw new PythOracleError(`Failed to search Pyth feeds: ${err instanceof Error ? err.message : String(err)}`);
+      throw new PythOracleError("Failed to search Pyth feeds.");
     }
   }
 
@@ -204,7 +252,10 @@ export class PythHermesClient {
   async getFeedDetails(symbol: string): Promise<PythFeedInfo | null> {
     const norm = normalizeSymbol(symbol);
     const feeds = await this.searchFeeds(`${norm}X`);
-    return feeds[0] || null;
+    return (
+      feeds.find((feed) => feed.attributes?.symbol === `Crypto.${norm}X/USD`) ??
+      null
+    );
   }
 }
 
@@ -213,7 +264,12 @@ export class PythHermesClient {
 // ---------------------------------------------------------------------------
 
 /** Pyth Solana Receiver Program ID */
-export const PYTH_RECEIVER_PROGRAM_ID = new PublicKey('rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ');
+export const PYTH_RECEIVER_PROGRAM_ID = new PublicKey(
+  "rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ",
+);
+export const PYTH_PUSH_ORACLE_PROGRAM_ID = new PublicKey(
+  "pythWSnswVUd12oZpeFP8e9CVaEqJg25g1Vtc2biRsT",
+);
 
 /**
  * On-chain reader for Pyth oracle feeds on Solana.
@@ -228,17 +284,26 @@ export class PythSolanaClient {
 
   /**
    * Derives the PDA address for a Pyth long-lived price feed account.
-   * Seeds: [shard_id (2-byte le), feed_id (32 bytes)] against Receiver Program.
+   * Seeds: [shard_id (2-byte le), feed_id (32 bytes)] against the Push Oracle program (the account owner remains Receiver).
    */
   getPriceFeedAccountAddress(shardId: number, feedIdHex: string): PublicKey {
-    const cleanHex = feedIdHex.replace(/^0x/, '');
-    const feedIdBuffer = Buffer.from(cleanHex, 'hex');
+    if (
+      !Number.isInteger(shardId) ||
+      shardId < 0 ||
+      shardId > 65535 ||
+      !/^(0x)?[a-fA-F0-9]{64}$/.test(feedIdHex)
+    )
+      throw new PythOracleError(
+        "A u16 shard and 32-byte hex feed ID are required.",
+      );
+    const cleanHex = feedIdHex.replace(/^0x/, "");
+    const feedIdBuffer = Buffer.from(cleanHex, "hex");
     const shardBuffer = Buffer.alloc(2);
     shardBuffer.writeUInt16LE(shardId);
 
     const [pubkey] = PublicKey.findProgramAddressSync(
       [shardBuffer, feedIdBuffer],
-      PYTH_RECEIVER_PROGRAM_ID
+      PYTH_PUSH_ORACLE_PROGRAM_ID,
     );
     return pubkey;
   }
@@ -246,39 +311,61 @@ export class PythSolanaClient {
   /**
    * Reads and parses a Pyth price feed account from the Solana blockchain.
    */
-  async getOnChainPrice(shardId: number, feedIdHex: string): Promise<PythPriceData | null> {
+  async getOnChainPrice(
+    shardId: number,
+    feedIdHex: string,
+  ): Promise<PythPriceData | null> {
     try {
       const pda = this.getPriceFeedAccountAddress(shardId, feedIdHex);
       const accountInfo = await this.connection.getAccountInfo(pda);
-      if (!accountInfo || !accountInfo.data || accountInfo.data.length < 64) {
+      if (
+        !accountInfo ||
+        !accountInfo.owner.equals(PYTH_RECEIVER_PROGRAM_ID) ||
+        accountInfo.executable
+      )
         return null;
-      }
-
-      // Pyth PriceFeed account binary layout:
-      // Offset 8: header / discriminator
-      // PriceMessage starts with feedId (32 bytes), price (i64), conf (u64), exponent (i32), publishTime (i64)
       const data = accountInfo.data;
-      const priceOffset = 8 + 32; // after 8-byte discriminator + 32-byte feedId
-      if (data.length < priceOffset + 24) return null;
-
+      // Anchor PriceUpdateV2: discriminator + write_authority + Full enum tag
+      // + PriceFeedMessage + posted_slot. Partial updates are never accepted.
+      if (
+        data.length < 133 ||
+        !data
+          .subarray(0, 8)
+          .equals(Buffer.from([34, 241, 35, 99, 157, 126, 244, 205])) ||
+        data[40] !== 1
+      )
+        return null;
+      const cleanHex = feedIdHex.replace(/^0x/, "").toLowerCase();
+      if (data.subarray(41, 73).toString("hex") !== cleanHex) return null;
+      const priceOffset = 73;
       const rawPriceBigInt = data.readBigInt64LE(priceOffset);
       const rawConfBigInt = data.readBigUInt64LE(priceOffset + 8);
       const expo = data.readInt32LE(priceOffset + 16);
       const publishTimeBigInt = data.readBigInt64LE(priceOffset + 20);
-
+      const publishTime = Number(publishTimeBigInt);
+      const age = Date.now() / 1000 - publishTime;
       const factor = Math.pow(10, expo);
       const price = Number(rawPriceBigInt) * factor;
       const confidence = Number(rawConfBigInt) * factor;
+      if (
+        !Number.isSafeInteger(publishTime) ||
+        age < -30 ||
+        age > 60 ||
+        !Number.isFinite(price) ||
+        price <= 0 ||
+        !Number.isFinite(confidence)
+      )
+        return null;
 
       return {
-        feedId: feedIdHex.startsWith('0x') ? feedIdHex : `0x${feedIdHex}`,
+        feedId: feedIdHex.startsWith("0x") ? feedIdHex : `0x${feedIdHex}`,
         price,
         confidence,
         expo,
         rawPrice: rawPriceBigInt.toString(),
         rawConfidence: rawConfBigInt.toString(),
         publishTime: Number(publishTimeBigInt),
-        status: 'trading',
+        status: "unknown", // A fresh price does not establish market trading hours.
       };
     } catch {
       return null;
@@ -291,51 +378,43 @@ export class PythSolanaClient {
 // ---------------------------------------------------------------------------
 
 /**
- * Known endpoints for xStocks / Backed Finance oracle configuration route.
+ * Read an explicitly configured issuer oracle endpoint. No default endpoint has
+ * been verified for this legacy adapter; absence/failure returns no observations.
+ * Static Pyth identities must not masquerade as a live issuer oracle registry.
  */
-const XSTOCKS_ORACLE_URLS = [
-  'https://api.xstocks.fi/public/oracles',
-  'https://xstocks.fi/api/public/oracles',
-  'https://app.xstocks.fi/api/public/oracles',
-];
-
-/**
- * Fetches the reference oracle registry from xStocks `/public/oracles` route.
- * Pair this with Pyth Network feeds when you need reference pricing for
- * tokenized equities (AAPLx, TSLAx, NVDAx, SPYx).
- *
- * If the remote route is unreachable, returns fallback entries from the built-in
- * XSTOCKS_PYTH_FEEDS registry.
- *
- * @param customUrl Optional custom API URL to override the default endpoints.
- * @returns Array of XStocksOracleInfo records.
- */
-export async function fetchXStocksOracles(customUrl?: string): Promise<XStocksOracleInfo[]> {
-  const endpoints = customUrl ? [customUrl] : XSTOCKS_ORACLE_URLS;
-
-  for (const endpoint of endpoints) {
-    try {
-      const res = await fetch(endpoint, {
-        headers: { 'Accept': 'application/json' },
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) return data;
-        if (data && Array.isArray(data.oracles)) return data.oracles;
-      }
-    } catch {
-      // Try next endpoint
-    }
+export async function fetchXStocksOracles(
+  customUrl?: string,
+): Promise<XStocksOracleInfo[]> {
+  if (!customUrl) return [];
+  try {
+    const url = new URL(customUrl);
+    if (url.protocol !== "https:" || url.username || url.password) return [];
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) return [];
+    const payload: unknown = await response.json();
+    const records = Array.isArray(payload)
+      ? payload
+      : payload && typeof payload === "object" && "oracles" in payload
+        ? payload.oracles
+        : null;
+    if (!Array.isArray(records)) return [];
+    return records.filter((item): item is XStocksOracleInfo =>
+      Boolean(
+        item &&
+        typeof item === "object" &&
+        typeof item.symbol === "string" &&
+        (item.feedId === undefined ||
+          /^(0x)?[a-fA-F0-9]{64}$/.test(item.feedId)) &&
+        (item.price === undefined ||
+          (typeof item.price === "number" &&
+            Number.isFinite(item.price) &&
+            item.price > 0)),
+      ),
+    );
+  } catch {
+    return [];
   }
-
-  // Graceful fallback to built-in xStocks registry
-  return Object.values(XSTOCKS_PYTH_FEEDS).map((stock) => ({
-    symbol: `${stock.symbol}x`,
-    name: stock.name,
-    oracleType: 'pyth',
-    feedId: stock.xStockFeedId,
-    maxStalenessSeconds: 60,
-    confidenceThresholdPct: 0.5,
-  }));
 }

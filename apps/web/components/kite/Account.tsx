@@ -18,11 +18,13 @@ import {
 } from "lucide-react";
 import type { PaperFrequency } from "@kite/sdk";
 import { useKite } from "./State";
-import { PageIntro, ModeSwitch } from "./Shell";
+import { PageIntro } from "./Shell";
 import { MarketStatus } from "./Discover";
 import { AssetName, Change, Empty, money } from "./MarketUI";
 import { OrbitArt } from "./Brand";
 import { useTradingAuth } from "../trading/TradingAuth";
+import { RecurringPaymentsPanel } from "../trading/RecurringPaymentsPanel";
+import { RecurringInvestingPanel } from "../trading/RecurringInvestingPanel";
 import { ActualPortfolio } from "../trading/ActualPortfolio";
 const WalletButton = dynamic(
   () =>
@@ -293,7 +295,9 @@ export function Activity() {
                 <td className="num hide-mobile">{o.quantity.toFixed(6)}</td>
                 <td className="num">{money(o.totalUsd)}</td>
                 <td className="num">
-                  <span className="badge lime">{o.swapId ? "PAPER SWAP" : "PAPER FILL"}</span>
+                  <span className="badge lime">
+                    {o.swapId ? "PAPER SWAP" : "PAPER FILL"}
+                  </span>
                 </td>
               </tr>
             ))}
@@ -332,9 +336,15 @@ export function Plans() {
   const [frequency, setFrequency] = useState<PaperFrequency>("weekly");
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    const basket = new URLSearchParams(window.location.search).get("basket");
+    const params = new URLSearchParams(window.location.search);
+    const basket = params.get("basket"),
+      stock = params.get("stock");
     if (basket) setTarget(`basket:${basket}`);
-  }, []);
+    else if (stock) setTarget(`asset:${stock}`);
+    const requestedMode = params.get("mode");
+    if (requestedMode === "paper" || requestedMode === "actual")
+      setMode(requestedMode);
+  }, [setMode]);
   const targets = [
     ...(snapshot?.baskets ?? []).map((b) => ({
       value: `basket:${b.id}`,
@@ -373,22 +383,25 @@ export function Plans() {
       <PageIntro
         eyebrow="A habit of possibility"
         title="Little by little. On purpose."
-        description="Choose an idea, set an amount, and build a recurring paper investing habit."
+        description={
+          mode === "paper"
+            ? "Choose an idea, set an amount, and build a recurring paper investing habit."
+            : "Choose a basket or stock, decide your schedule, and set a limit for future investments."
+        }
       />
       <MarketStatus />
       {mode === "actual" ? (
-        <div className="panel">
-          <Empty
-            icon={Repeat2}
-            title="Automated mainnet plans are not connected"
-            description="Actual swaps currently require a wallet approval for each trade. You can explore recurring investments safely with a paper plan."
-            action={
-              <button className="btn" onClick={() => setMode("paper")}>
-                Explore paper plans <ArrowUpRight size={14} />
-              </button>
-            }
-          />
-        </div>
+        <>
+          <RecurringInvestingPanel />
+          <details className="investing-advanced">
+            <summary>Advanced: direct token payment permissions</summary>
+            <p className="fineprint">
+              These permissions authorize a buyer you choose to collect tokens.
+              They do not create a stock or basket investment plan.
+            </p>
+            <RecurringPaymentsPanel />
+          </details>
+        </>
       ) : (
         <div className="plan-layout">
           <div className="stack">
@@ -640,7 +653,7 @@ export function Settings() {
                   : "You’re viewing actual trading. Transactions require your wallet approval."}
               </p>
             </div>
-            <ModeSwitch />
+            <span className="muted">Change mode in the header</span>
           </div>
           <div className="settings-row">
             <div>
@@ -686,9 +699,6 @@ export function Settings() {
               <h3>Network</h3>
               <p>All market discovery and actual trades use Solana mainnet.</p>
             </div>
-            <span className="badge lime">
-              <span className="status-dot" /> MAINNET
-            </span>
           </div>
           <div className="settings-row">
             <div>

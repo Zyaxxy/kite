@@ -20,9 +20,9 @@ import {
   Empty,
   money,
 } from "./MarketUI";
-import { ModeSwitch } from "./Shell";
 import { MarketStatus } from "./Discover";
 import { OrbitArt } from "./Brand";
+import { ActualBasketPanel } from "../trading/ActualBasketPanel";
 import { ActualTradePanel } from "../trading/ActualTradePanel";
 import { useBaskets } from "./useBaskets";
 import { StockResearchPanel } from "./StockResearch";
@@ -394,7 +394,6 @@ export function StockDetail({ symbol }: { symbol: string }) {
             <p className="muted" style={{ fontSize: 11 }}>
               Invest in {asset.symbol} on your terms.
             </p>
-            <ModeSwitch />
             {mode === "paper" ? (
               <PaperTrade asset={asset} />
             ) : asset.tradingHalted ? (
@@ -405,6 +404,16 @@ export function StockDetail({ symbol }: { symbol: string }) {
             ) : (
               <ActualTradePanel asset={asset} />
             )}
+            <div className="divider" />
+            <Link
+              href={`/sip?stock=${asset.mint}&mode=${mode}`}
+              className="text-link"
+            >
+              {mode === "paper"
+                ? "Create a recurring paper plan"
+                : "Set up recurring investment"}
+              <ArrowUpRight size={13} />
+            </Link>
             <div
               className="data-source"
               style={{
@@ -489,7 +498,7 @@ export function BasketDetail({ id }: { id: string }) {
             <div className="hero-copy">
               <p className="eyebrow">The composition</p>
               <h2>
-                {basket.assets.length} companies.
+                {basket.assets.length} assets.
                 <br />A shared direction.
               </h2>
               <p>Equal allocations. Individual ownership.</p>
@@ -556,7 +565,6 @@ export function BasketDetail({ id }: { id: string }) {
             <p className="muted" style={{ fontSize: 11, marginTop: 5 }}>
               Allocate across this basket’s components.
             </p>
-            <ModeSwitch />
             {mode === "paper" ? (
               <>
                 <label className="field-label" htmlFor="basket-amount">
@@ -627,29 +635,14 @@ export function BasketDetail({ id }: { id: string }) {
                 </p>
               </>
             ) : (
-              <>
-                <div className="notice">
-                  <Info size={15} />
-                  Mainnet baskets are held as individual assets. Review and
-                  approve each swap separately.
-                </div>
-                <div className="stack" style={{ marginTop: 18, gap: 9 }}>
-                  {basket.assets.map((asset) => (
-                    <Link
-                      key={asset.mint}
-                      className="btn secondary full"
-                      href={`/stock/${asset.mint}?mode=actual`}
-                    >
-                      Trade {asset.symbol}
-                      <ArrowUpRight size={13} />
-                    </Link>
-                  ))}
-                </div>
-              </>
+              <ActualBasketPanel basket={basket.source} />
             )}
             <div className="divider" />
-            <Link href={`/sip?basket=${id}`} className="text-link">
-              Create a recurring paper plan <ArrowUpRight size={13} />
+            <Link href={`/sip?basket=${id}&mode=${mode}`} className="text-link">
+              {mode === "paper"
+                ? "Create a recurring paper plan"
+                : "Set up recurring investment"}{" "}
+              <ArrowUpRight size={13} />
             </Link>
           </div>
         </aside>

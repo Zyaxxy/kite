@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import { Keypair } from "@solana/web3.js";
+import { readLimitedJson } from "../lib/server/request-policy.ts";
 
 const require = createRequire(import.meta.url);
 const sdk = require("../../../packages/sdk/dist/index.js");
@@ -31,6 +32,9 @@ function createRoute({
   haltedMint = null,
   unknownToken = false,
   incompleteCatalog = false,
+  simulationStatus = "passed",
+  supportsV1 = true,
+  tradeSecret = "test-only-trade-secret-with-32-characters",
 } = {}) {
   const calls = {
     precision: [],
@@ -38,6 +42,7 @@ function createRoute({
     discovery: [],
     catalog: 0,
     prices: 0,
+    simulations: 0,
   };
   const exports = {};
   const dependencies = {
@@ -111,8 +116,37 @@ function createRoute({
                 : chainDecimals;
       },
     },
-    "@/lib/server/trade-authorization": {
-      authorizeTrade: () => "test-authorization",
+    "@/lib/server/composed-transactions": {
+      assertMainnetV1Ready: async (versions) => {
+        if (!versions.includes(1))
+          throw new Error("This wallet does not advertise V1 signing.");
+      },
+    },
+    "@/lib/server/request-policy": { readLimitedJson },
+    "@/lib/server/basket-order": {
+      prepareTokenSwapOrder: async (input, outputToken) => {
+        calls.quotes.push(input);
+        calls.simulations++;
+        if (simulationStatus !== "passed")
+          throw new Error("Simulation unavailable or failed.");
+        return {
+          transactionVersion: 1,
+          requestId: "test-order",
+          transaction: "test-unsigned-transaction",
+          authorization: "test-authorization",
+          serializedBytes: 400,
+          lastValidBlockHeight: 100,
+          expiresAt: Date.now() + 45000,
+          slippageBps: input.slippageBps,
+          outputs: [
+            {
+              outAmount: "100000000",
+              minimumAmount: "99000000",
+              symbol: outputToken.symbol,
+            },
+          ],
+        };
+      },
     },
   };
   runInNewContext(compiled, {
@@ -122,26 +156,16 @@ function createRoute({
         throw new Error(`Unexpected route dependency: ${name}`);
       return dependencies[name];
     },
-    process: { env: { JUPITER_API_KEY: "test-only-api-key" } },
+    process: {
+      env: {
+        JUPITER_API_KEY: "test-only-api-key",
+        KITE_TRADE_SECRET: tradeSecret,
+      },
+    },
     console: { warn: () => {} },
     URLSearchParams,
     AbortSignal,
     Error,
-    fetch: async (input) => {
-      const params = new URL(input).searchParams;
-      calls.quotes.push(params);
-      return Response.json({
-        requestId: "test-order",
-        transaction: "test-unsigned-transaction",
-        inputMint: params.get("inputMint"),
-        outputMint: params.get("outputMint"),
-        inAmount: params.get("amount"),
-        outAmount: "100000000",
-        slippageBps: 50,
-        feeBps: 0,
-        router: "test-only-router",
-      });
-    },
   });
   return {
     calls,
@@ -150,7 +174,13 @@ function createRoute({
         new Request("http://localhost/api/trade/order", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mint, taker: wallet, side, amount }),
+          body: JSON.stringify({
+            mint,
+            taker: wallet,
+            side,
+            amount,
+            supportedTransactionVersions: supportsV1 ? [1] : [0],
+          }),
         }),
       ),
     swap: (inputMint, outputMint, amount = "1.25") =>
@@ -163,6 +193,7 @@ function createRoute({
             outputMint,
             amount,
             taker: wallet,
+            supportedTransactionVersions: supportsV1 ? [1] : [0],
           }),
         }),
       ),
@@ -291,4 +322,35 @@ test("unverified mint precision fails closed before requesting a swap quote", as
   assert.equal(response.status, 503);
   assert.match((await response.json()).error, /RPC configuration/);
   assert.equal(route.calls.quotes.length, 0);
+});
+
+test("a failed or unavailable preflight never produces a signable order", async () => {
+  for (const [simulationStatus, status] of [
+    ["failed", 400],
+    ["unavailable", 400],
+  ]) {
+    const route = createRoute({ simulationStatus });
+    const response = await route.swap(mint, secondMint);
+    assert.equal(response.status, status);
+    const result = await response.json();
+    assert.equal(result.transaction, undefined);
+    assert.equal(route.calls.simulations, 1);
+  }
+  const response = await createRoute().swap(mint, secondMint);
+  assert.equal((await response.json()).simulation.status, "passed");
+});
+
+test("new swaps use capped V1 composition and unsupported wallets fail before routing", async () => {
+  const route = createRoute();
+  const order = await (await route.swap(mint, secondMint)).json();
+  assert.equal(route.calls.quotes[0].slippageBps, 100);
+  assert.equal(order.transactionVersion, 1);
+  assert.equal(order.otherAmountThreshold, "99000000");
+  const incompatible = createRoute({ supportsV1: false });
+  assert.equal((await incompatible.swap(mint, secondMint)).status, 400);
+  assert.equal(incompatible.calls.quotes.length, 0);
+  assert.equal(incompatible.calls.catalog, 0);
+  const missingSecret = createRoute({ tradeSecret: "" });
+  assert.equal((await missingSecret.swap(mint, secondMint)).status, 503);
+  assert.equal(missingSecret.calls.quotes.length, 0);
 });

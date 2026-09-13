@@ -34,7 +34,6 @@ export function Header({ onNavigate, current }: { onNavigate: (screen: Screen) =
       <View style={styles.brandMark} /><Text style={styles.wordmark}>kite</Text>
     </Pressable>
     <View style={styles.right}>
-      <View style={styles.mode}><View style={styles.modeDot} /><Text style={styles.modeText}>PAPER</Text></View>
       <Pressable accessibilityRole="button" accessibilityLabel="Open settings" accessibilityState={{ selected: current === 'settings' }} onPress={() => onNavigate('settings')} style={styles.avatar}>
         <Text style={styles.avatarText}>K</Text>
       </Pressable>
@@ -44,16 +43,14 @@ export function Header({ onNavigate, current }: { onNavigate: (screen: Screen) =
 
 const styles = StyleSheet.create({
   header: { paddingHorizontal: 22, paddingVertical: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderColor: colors.line },
-  brand: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  brand: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 10 },
   brandMark: { height: 17, width: 17, backgroundColor: colors.accent, transform: [{ rotate: '45deg' }, { skewX: '-15deg' }, { skewY: '-15deg' }] },
   wordmark: { fontSize: 29, fontWeight: '600', letterSpacing: -1.5, color: colors.ink },
   right: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  mode: { flexDirection: 'row', alignItems: 'center', gap: 6 }, modeDot: { width: 5, height: 5, borderRadius: 4, backgroundColor: colors.accent },
-  modeText: { color: colors.accent, fontSize: 9, letterSpacing: 1.6, fontWeight: '700' },
-  avatar: { width: 35, height: 35, borderRadius: 18, backgroundColor: colors.raised, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
+  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.raised, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: colors.ink, fontSize: 12, fontWeight: '600' },
   nav: { flexDirection: 'row', backgroundColor: colors.surface, borderTopWidth: 1, borderColor: colors.line, paddingTop: 12, paddingBottom: 10 },
-  tab: { flex: 1, alignItems: 'center', gap: 6, minHeight: 46 }, tabLabel: { color: colors.muted, fontSize: 10, fontWeight: '600' },
+  tab: { flex: 1, alignItems: 'center', gap: 6, minHeight: 46 }, tabLabel: { color: colors.muted, fontSize: 12, fontWeight: '600' },
   iconBox: { height: 22, width: 24, alignItems: 'center', justifyContent: 'center' },
   diamond: { width: 14, height: 14, borderWidth: 1.5, transform: [{ rotate: '45deg' }] },
   search: { width: 16, height: 16, borderRadius: 8, borderWidth: 1.5, position: 'absolute', top: 1, left: 2 },

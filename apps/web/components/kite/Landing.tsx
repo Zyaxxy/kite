@@ -11,7 +11,10 @@ import {
 import { Brand, OrbitArt } from "./Brand";
 import { useKite } from "./State";
 import { useBaskets } from "./useBaskets";
-import { BasketCard, WatchRow } from "./MarketUI";
+import { WatchRow } from "./MarketUI";
+import { BasketMarquee } from "./BasketMarquee";
+import { TradingModeSwitch } from "./TradingModeSwitch";
+
 export function Landing() {
   const { snapshot, loading } = useKite();
   const baskets = useBaskets();
@@ -27,6 +30,7 @@ export function Landing() {
           <Link href="/baskets">Thematic baskets</Link>
           <Link href="/sip">Recurring plans</Link>
         </nav>
+        <TradingModeSwitch />
         <Link href="/app" className="btn small">
           Open Kite <ArrowUpRight size={15} />
         </Link>
@@ -45,26 +49,24 @@ export function Landing() {
               <span>Limitless you.</span>
             </h1>
             <p>
-              The companies you follow. The future you believe in. Discover
-              tokenized equities and thematic baskets on Solana, with ownership
-              that stays yours.
+              Explore thematic stock baskets. Practice with virtual funds, then
+              review a purchase from your own wallet.
             </p>
             <div className="landing-actions">
-              <Link href="/app" className="btn">
-                Find your next idea <ArrowUpRight size={16} />
+              <Link href="/baskets" className="btn">
+                Explore baskets <ArrowUpRight size={16} />
               </Link>
-              <Link href="/settings" className="btn secondary">
+              <Link href="/settings" className="text-link">
                 Sign in with Privy
               </Link>
             </div>
             <small>
-              Start with paper trading. Real market prices. Virtual funds.
+              Start with paper trading. Choose your own investing rhythm.
             </small>
           </div>
           <div className="landing-art">
             <div className="landing-art-label">
               <span className="eyebrow">THE WORLD IS OPEN</span>
-              <span className="badge lime">SOLANA MAINNET</span>
             </div>
             <OrbitArt />
             <div className="landing-live-list">
@@ -101,30 +103,32 @@ export function Landing() {
           </span>
           <span>
             <Globe2 />
-            Mainnet tokenized equities
+            Tokenized equities
           </span>
           <span>
             <Repeat2 />
             Build an investing habit
           </span>
         </div>
-        <section className="landing-section">
+        <section
+          className="landing-section landing-baskets"
+          aria-labelledby="featured-baskets-heading"
+        >
           <div className="section-head">
             <div>
               <p className="eyebrow" style={{ marginBottom: 13 }}>
                 INVEST IN A POINT OF VIEW
               </p>
-              <h2>Themes worth exploring.</h2>
+              <h2 id="featured-baskets-heading">Themes worth exploring.</h2>
+              <p className="landing-section-intro">
+                Find your perspective. Explore the full collection.
+              </p>
             </div>
             <Link className="text-link" href="/baskets">
               All baskets <ArrowUpRight size={15} />
             </Link>
           </div>
-          <div className="basket-grid">
-            {baskets.map((b, i) => (
-              <BasketCard key={b.id} basket={b} index={i} />
-            ))}
-          </div>
+          <BasketMarquee baskets={baskets} />
         </section>
         <section className="landing-section" style={{ paddingTop: 15 }}>
           <p className="eyebrow" style={{ marginBottom: 14 }}>
@@ -152,8 +156,8 @@ export function Landing() {
               <span>03 / OWN</span>
               <h3>Make it yours.</h3>
               <p>
-                Sign in with Privy or connect your wallet. Review a Jupiter
-                swap, approve it, and hold the assets in your own wallet.
+                Review a basket purchase with one wallet approval when supported
+                routes are available. Each asset stays in your wallet.
               </p>
             </div>
           </div>
@@ -162,11 +166,11 @@ export function Landing() {
           <div>
             <h2>Your next idea is waiting.</h2>
             <p>
-              Explore the market. Build a point of view. Let it take flight.
+              Look inside a basket, choose an amount, and take your first step.
             </p>
           </div>
-          <Link href="/app" className="btn">
-            Open your world <ArrowUpRight size={16} />
+          <Link href="/baskets" className="btn">
+            Explore baskets <ArrowUpRight size={16} />
           </Link>
         </section>
       </main>

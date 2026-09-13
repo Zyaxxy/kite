@@ -1,0 +1,32 @@
+{
+  "cli": {
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "preview": {
+      "distribution": "internal",
+      "environment": "preview",
+      "node": "24.12.0",
+      "pnpm": "10.31.0",
+      "env": {
+        "KITE_REQUIRE_RELEASE_CONFIG": "true"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "production": {
+      "distribution": "store",
+      "environment": "production",
+      "node": "24.12.0",
+      "pnpm": "10.31.0",
+      "autoIncrement": true,
+      "env": {
+        "KITE_REQUIRE_RELEASE_CONFIG": "true"
+      },
+      "android": {
+        "buildType": "app-bundle"
+      }
+    }
+  }
+}

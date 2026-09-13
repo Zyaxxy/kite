@@ -9,12 +9,14 @@
     "dev:mobile:tunnel": "pnpm --filter @kite/mobile tunnel",
     "build:web": "pnpm --filter @kite/web build",
     "build:sdk": "pnpm --filter @kite/sdk build",
-    "build:anchor": "cd packages/anchor && anchor build",
-    "test:anchor": "cd packages/anchor && anchor test",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "pnpm build:sdk && pnpm --filter @kite/web exec next typegen && pnpm --filter @kite/web exec tsc --noEmit && pnpm --filter @kite/mobile exec tsc --noEmit",
-    "test:sdk": "pnpm build:sdk && node --test packages/sdk/test/*.test.cjs"
+    "test:sdk": "pnpm build:sdk && node --test packages/sdk/test/*.test.cjs",
+    "dev:api-tunnel": "node scripts/dev-api-tunnel.mjs",
+    "collect:recurring": "node scripts/collect-recurring-payment.cjs",
+    "run:recurring": "node scripts/run-recurring-investments.cjs",
+    "test:recurring-worker": "node --test scripts/test/recurring-investments.test.cjs"
   },
   "devDependencies": {
     "turbo": "^2.4.4",
@@ -25,7 +27,15 @@
     "overrides": {
       "react-native": "0.76.5",
       "metro": "0.81.5",
-      "metro-core": "0.81.5"
+      "metro-core": "0.81.5",
+      "tar@>=6 <7.5.21": "7.5.21",
+      "@xmldom/xmldom@<0.8.15": "0.8.15",
+      "postcss@>=8 <8.5.23": "8.5.28",
+      "viem@2>ws@>=8 <8.21.0": "8.21.3",
+      "axios@>=1 <1.18.0": "1.18.0"
+    },
+    "patchedDependencies": {
+      "@expo/cli@0.22.28": "patches/@expo__cli@0.22.28.patch"
     }
   }
 }

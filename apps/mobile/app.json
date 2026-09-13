@@ -17,6 +17,23 @@
         "backgroundColor": "#101311"
       },
       "package": "com.kite.solana"
-    }
+    },
+    "scheme": "kite",
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
+    "web": {
+      "bundler": "metro",
+      "name": "Kite \u2014 Tokenized equities",
+      "shortName": "Kite",
+      "description": "Explore live tokenized equities, practice with paper funds and trade from your own wallet.",
+      "backgroundColor": "#101311",
+      "themeColor": "#101311"
+    },
+    "plugins": [
+      "expo-secure-store"
+    ]
   }
 }
