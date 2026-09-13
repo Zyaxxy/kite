@@ -40,8 +40,17 @@ const readPaths = new Set([
   "/api/research",
   "/api/tokens",
   "/api/portfolio",
+  "/api/recurring",
 ]);
-const writePaths = new Set(["/api/trade/order", "/api/trade/execute"]);
+const writePaths = new Set([
+  "/api/trade/order",
+  "/api/trade/execute",
+  "/api/buy-basket",
+  "/api/transaction/execute",
+  "/api/recurring",
+  "/api/recurring/revoke",
+  "/api/recurring/collect",
+]);
 const allowedHeaders = [
   "content-type",
   "cache-control",
