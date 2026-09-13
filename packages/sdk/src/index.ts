@@ -5,6 +5,12 @@ export * from "./mint-precision";
 export * from "./research";
 export * from "./research-client";
 export * from "./market-pulse";
+export * from "./simulation";
+export * from "./subscriptions/delegation";
+export * from "./subscriptions/crank";
+export * from "./basket/atomic-swap";
+export * from "./rebalance";
+export * from "./pyth-streaming";
 // Preserve upstream adapter imports; frontend prices use the markets pipeline.
 export * from "./meteora";
 export * from "./jupiter";
