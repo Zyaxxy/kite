@@ -1,11 +1,5 @@
 import { Buffer } from 'buffer';
 
-if (typeof globalThis.Buffer === 'undefined') {
-  globalThis.Buffer = Buffer;
-}
-if (typeof window !== 'undefined' && typeof (window as any).Buffer === 'undefined') {
-  (window as any).Buffer = Buffer;
-}
-if (typeof global !== 'undefined' && typeof (global as any).Buffer === 'undefined') {
-  (global as any).Buffer = Buffer;
-}
+// Run before the SDK: Solana's byte codecs depend on Buffer on Hermes and browsers.
+const runtime = globalThis as typeof globalThis & { Buffer?: typeof Buffer };
+if (!runtime.Buffer) runtime.Buffer = Buffer;

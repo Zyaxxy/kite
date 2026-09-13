@@ -11,6 +11,8 @@ import { SipScreen, type PlanTarget } from './src/screens/SipScreen';
 import { AssetScreen } from './src/screens/AssetScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { colors } from './src/theme';
+import { AppErrorBoundary } from './src/components/AppErrorBoundary';
+import { MobileTradingProvider } from './src/state/MobileTradingProvider';
 
 function KiteApp() {
   const { market, resetAccount } = useKite();
@@ -53,6 +55,6 @@ function KiteApp() {
   </SafeAreaView>;
 }
 
-export default function App() { return <KiteProvider><KiteApp /></KiteProvider>; }
+export default function App() { return <AppErrorBoundary><KiteProvider><MobileTradingProvider><KiteApp /></MobileTradingProvider></KiteProvider></AppErrorBoundary>; }
 
-const styles = StyleSheet.create({ safeArea: { flex: 1, backgroundColor: colors.background }, container: { flex: 1, backgroundColor: colors.background } });
+const styles = StyleSheet.create({ safeArea: { flex: 1, minHeight: 0, width: '100%', maxWidth: 920, alignSelf: 'center', backgroundColor: colors.background }, container: { flex: 1, minHeight: 0, backgroundColor: colors.background } });

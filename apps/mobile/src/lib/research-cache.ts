@@ -1,12 +1,6 @@
-import { createResearchClient, type StockResearch } from "@kite/sdk";
-import { apiGet } from "./config";
+import { createResearchClient } from '@kite/sdk';
+import { kiteClient } from './config';
 
-const researchClient = createResearchClient((mint, signal) =>
-  apiGet<StockResearch>(
-    `/api/research?mint=${encodeURIComponent(mint)}`,
-    signal,
-  ),
-);
-
+const researchClient = createResearchClient((mint, signal) => kiteClient.getResearch(mint, signal));
 export const cachedResearch = researchClient.peek;
 export const loadResearch = researchClient.load;
