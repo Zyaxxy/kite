@@ -498,7 +498,7 @@ export function BasketDetail({ id }: { id: string }) {
             <div className="hero-copy">
               <p className="eyebrow">The composition</p>
               <h2>
-                {basket.assets.length} companies.
+                {basket.assets.length} assets.
                 <br />A shared direction.
               </h2>
               <p>Equal allocations. Individual ownership.</p>

@@ -49,20 +49,19 @@ export function Landing() {
               <span>Limitless you.</span>
             </h1>
             <p>
-              The companies you follow. The future you believe in. Discover
-              tokenized equities and thematic baskets on Solana, with ownership
-              that stays yours.
+              Explore thematic stock baskets. Practice with virtual funds, then
+              review a purchase from your own wallet.
             </p>
             <div className="landing-actions">
-              <Link href="/app" className="btn">
-                Find your next idea <ArrowUpRight size={16} />
+              <Link href="/baskets" className="btn">
+                Explore baskets <ArrowUpRight size={16} />
               </Link>
               <Link href="/settings" className="text-link">
                 Sign in with Privy
               </Link>
             </div>
             <small>
-              Start with paper trading. Real market prices. Virtual funds.
+              Start with paper trading. Choose your own investing rhythm.
             </small>
           </div>
           <div className="landing-art">
@@ -157,8 +156,8 @@ export function Landing() {
               <span>03 / OWN</span>
               <h3>Make it yours.</h3>
               <p>
-                Sign in with Privy or connect your wallet. Review a Jupiter
-                swap, approve it, and hold the assets in your own wallet.
+                Review a basket purchase with one wallet approval when supported
+                routes are available. Each asset stays in your wallet.
               </p>
             </div>
           </div>
@@ -167,11 +166,11 @@ export function Landing() {
           <div>
             <h2>Your next idea is waiting.</h2>
             <p>
-              Explore the market. Build a point of view. Let it take flight.
+              Look inside a basket, choose an amount, and take your first step.
             </p>
           </div>
-          <Link href="/app" className="btn">
-            Open your world <ArrowUpRight size={16} />
+          <Link href="/baskets" className="btn">
+            Explore baskets <ArrowUpRight size={16} />
           </Link>
         </section>
       </main>

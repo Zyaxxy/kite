@@ -124,7 +124,7 @@ export function PaperAccountCard() {
   );
 }
 export function Discover() {
-  const { snapshot, watchlist, toggleWatch, loading } = useKite();
+  const { snapshot, watchlist, toggleWatch, loading, mode } = useKite();
   const baskets = useBaskets();
   const assets = snapshot?.assets ?? [];
   const watched = assets.filter((a) => watchlist.includes(a.mint));
@@ -138,12 +138,11 @@ export function Discover() {
             <br className="hide-desktop" /> <em>Your next move.</em>
           </>
         }
-        description="Find the companies and themes you believe in. Make them part of your world."
+        description="Explore a basket for your next investment, or choose a daily, weekly or monthly rhythm."
       />
       <MarketStatus />
       <div className="discover-grid">
         <div className="discover-primary">
-          <MarketPulse />
           <section className="discovery-hero">
             <div className="hero-copy">
               <p className="eyebrow">Ideas, brought together</p>
@@ -153,12 +152,17 @@ export function Discover() {
                 One place to start.
               </h2>
               <p>
-                Explore curated baskets of tokenized equities. Built for
-                conviction, held on your terms.
+                Look inside a basket, see every holding, and choose how you want
+                to invest. Practice first with virtual funds.
               </p>
-              <Link href="/baskets" className="btn small">
-                Explore baskets <ArrowUpRight size={14} />
-              </Link>
+              <div className="landing-actions">
+                <Link href="/baskets" className="btn small">
+                  Explore baskets <ArrowUpRight size={14} />
+                </Link>
+                <Link href={`/sip?mode=${mode}`} className="text-link">
+                  Recurring plans <ArrowUpRight size={14} />
+                </Link>
+              </div>
             </div>
             <OrbitArt />
             <span className="hero-tag">
@@ -178,6 +182,7 @@ export function Discover() {
               ))}
             </div>
           </section>
+          <MarketPulse />
           <section>
             <div className="section-head">
               <div>
@@ -209,11 +214,12 @@ export function Discover() {
               Long-term thinking.
             </h3>
             <p>
-              Build a recurring paper plan and explore what a regular investing
-              habit could look like.
+              {mode === "paper"
+                ? "Practice a recurring investment with virtual funds. Choose daily, weekly or monthly installments."
+                : "Choose a basket or stock, set your schedule, and review the limits before authorizing future investments."}
             </p>
-            <Link className="text-link" href="/sip">
-              Create a plan <ArrowUpRight size={13} />
+            <Link className="text-link" href={`/sip?mode=${mode}`}>
+              Explore recurring plans <ArrowUpRight size={13} />
             </Link>
           </div>
           <div className="panel watch-card">
@@ -300,7 +306,7 @@ export function Baskets() {
       <PageIntro
         eyebrow="Curated on Kite"
         title="An idea worth owning."
-        description="A collection of companies behind a shared conviction. Explore the composition, then practice an allocation at live prices."
+        description="A collection of assets behind a shared conviction. Explore the composition, then practice an allocation at live prices."
       />
       <MarketStatus />
       <div
@@ -342,12 +348,12 @@ export function Baskets() {
         >
           Baskets are curated allocations into individual assets. Paper
           purchases record each component in your demo portfolio. In actual
-          trading, each asset is held by your wallet and each swap requires your
-          approval. Kite does not mint a basket token or take custody of your
-          funds.
+          trading, supported routes let you review one approval for the whole
+          basket, with each asset delivered to your wallet. Kite does not mint a
+          basket token or take custody of your funds.
         </p>
         <Link href="/sip" className="text-link" style={{ marginTop: 17 }}>
-          Turn a theme into a recurring paper plan <ChevronRight size={14} />
+          Explore recurring investments <ChevronRight size={14} />
         </Link>
       </div>
     </>
