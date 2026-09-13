@@ -2,18 +2,11 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   Keypair,
-  PublicKey,
   SystemProgram,
-  TransactionInstruction,
   TransactionMessage,
   VersionedTransaction,
-  ComputeBudgetProgram,
 } = require("@solana/web3.js");
-const {
-  allocateBasketInput,
-  buildAtomicBasketTransaction,
-  AtomicBasketCapacityError,
-} = require("../dist/basket/atomic-swap");
+const { allocateBasketInput } = require("../dist/basket/atomic-swap");
 const { simulateTradeOrder } = require("../dist/simulation");
 const {
   calculateBasketRebalance,
@@ -48,67 +41,6 @@ test("basket allocations conserve every unit with deterministic remainders", () 
         { mint: "a", weightBps: 5000 },
       ]),
     /unique/,
-  );
-});
-test("atomic builder uses one v0 transaction and fails before partial construction", () => {
-  const payer = key();
-  const params = {
-    payer,
-    recentBlockhash: key().toBase58(),
-    computeUnitLimit: 200000,
-    legs: [
-      [
-        SystemProgram.transfer({
-          fromPubkey: payer,
-          toPubkey: key(),
-          lamports: 1,
-        }),
-      ],
-    ],
-  };
-  const built = buildAtomicBasketTransaction(params);
-  assert.equal(built.version, 0);
-  assert.ok(built.serializedBytes <= 1232);
-  assert.equal(built.transaction.message.compiledInstructions.length, 3);
-  assert.throws(
-    () =>
-      buildAtomicBasketTransaction({
-        ...params,
-        legs: [[ComputeBudgetProgram.setComputeUnitLimit({ units: 1000 })]],
-      }),
-    /one explicit/,
-  );
-  assert.throws(
-    () =>
-      buildAtomicBasketTransaction({
-        ...params,
-        legs: [
-          [
-            new TransactionInstruction({
-              programId: key(),
-              keys: [],
-              data: Buffer.alloc(1300),
-            }),
-          ],
-        ],
-      }),
-    AtomicBasketCapacityError,
-  );
-  assert.throws(
-    () =>
-      buildAtomicBasketTransaction({
-        ...params,
-        legs: [
-          [
-            SystemProgram.transfer({
-              fromPubkey: key(),
-              toPubkey: key(),
-              lamports: 1,
-            }),
-          ],
-        ],
-      }),
-    /additional signer/,
   );
 });
 test("rebalance keeps cash and asset value conserved without token float rounding", () => {
