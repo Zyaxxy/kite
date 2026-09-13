@@ -39,7 +39,7 @@ Expo web is a browser: its exact origin (for example `http://localhost:8081`) mu
 - MWA authorization tokens are kept in Expo SecureStore, bound to the configured HTTPS identity origin. Later sessions reauthorize. Disconnect forgets the local session and attempts wallet-side deauthorization. MWA base64 account addresses are converted to base58 before API requests.
 - Before sending a signed transaction, Kite saves the attempt identity to AsyncStorage. It never saves a signed transaction. An execution/confirmation timeout produces **confirmation unknown** and blocks another swap until the user checks wallet activity. Restarting the app preserves this guard.
 - MWA is loaded only by the Android module and only when requested. Expo Go lacks the native wallet module. iOS and Expo web offer the existing Privy flow on Kite web; native Privy is not represented as configured.
-- No mainnet vault or custody deposit is involved. Actual recurring plans and atomic basket transactions remain gated by their separately reviewed protocol implementation.
+- No mainnet vault or custody deposit is involved. Actual basket buys and recurring payment setup/revocation now use the shared mainnet APIs. Android advertises v0 only; wallets requiring v1 for larger baskets can use the web flow with a compatible Wallet Standard wallet. Recurring permissions authorize buyer withdrawals, not guaranteed stock delivery.
 
 ## Android build profiles
 

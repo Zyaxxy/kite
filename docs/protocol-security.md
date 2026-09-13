@@ -1,52 +1,40 @@
-# Protocol security review — 13 September 2026
+# Mainnet transaction integration review
 
-Scope: the Anchor prototype and new shared protocol helpers. This is an implementation review with recorded checks, not an independent audit, a deployment approval, or a legal-compliance statement. The program remains separate from the app's mainnet single-token Jupiter trading.
+Updated 13 September 2026. Scope: composed basket purchases and the official Solana Subscriptions integration. This is an implementation review, not an independent audit. The old custom Anchor prototype and its tests were removed; historical evidence for it remains in git history and is not evidence for this integration.
 
-## Corrected findings
+## Basket controls
 
-| Severity | Evidence in the prior source | Resolution |
-| --- | --- | --- |
-| Critical if deployed | `deposit_basket` accepted a numeric input, collected no input tokens, and minted the same number of receipt units. | Removed the synthetic receipt/deposit interface entirely. No basket token is minted by the replacement. |
-| High if deployed | `redeem_basket` burned receipts without transferring any underlying asset. | Removed the redemption interface; current holdings are direct wallet assets. |
-| High | `execute_sip` only incremented a counter and emitted a success log, despite never executing a transfer. | Replaced with an atomic, bounded counterparty settlement that checks token deltas. Failed transfers roll back both plan state and transfers. |
-| High | The roadmap represented V1/4KB transactions as an available mainnet dependency and plain token allowance as compliant automated DCA. | Corrected the roadmap; v0/1232-byte assembly fails on capacity limits. Delegated settlement is an undeployed prototype, with no legal or best-execution guarantee. |
-| Medium | The direct Rust dependency `solana-program >=1.18` resolved a second incompatible generation alongside Anchor's 1.18 types. | Removed the redundant dependency and use Anchor's re-export; pruned orphaned lockfile dependencies. |
-| Medium | Anchor defaulted to devnet and a different developer's absolute wallet path. | Localnet default and a standard configurable wallet path; no mainnet program registration. |
+- Full issuer catalog and non-halted, verified basket components are required. Token decimals come from initialized mainnet mint accounts, never ticker guesses.
+- Integer allocations preserve the total budget. A retained input-token component still requires the full reviewed funding balance.
+- Jupiter `/build` responses must match input/output mints, integer allocations, ExactIn mode and slippage. Nonzero platform fees and unrecognized extra instructions are rejected.
+- Swap instructions target the known Jupiter swap program. Setup is limited to idempotent wallet-owned ATAs and bounded SOL wrapping into the user's own wrapped-SOL ATA. Cleanup returns wrapped SOL to that same wallet. Arbitrary delegates, token transfers and extra signers are rejected.
+- Address lookup tables are resolved through mainnet RPC. A single explicit compute/priority budget is applied. V0 byte/account limits and V1 byte/account/native-config limits are enforced; there is no partial basket fallback.
+- Exact assembled transactions must pass simulation. Destination token balances must increase by at least every quoted minimum, and the token funding debit cannot exceed the allocation. Live chain changes after simulation can still make a transaction fail.
 
-## Replacement program controls
+## Authorization and broadcast
 
-- **Authorization:** typed owner signer on creation/cancellation; typed executor signer on settlement. The program has no admin spending key.
-- **Account identity:** canonical plan PDA binds the owner's public key and plan ID. All token accounts pin addresses, mints and owners. Typed SPL accounts reject foreign token programs. Buyer and executor must differ, and input and output mints must differ, preventing transfer-to-self aliasing.
-- **Allowance:** checked `installment × max_cycles`, never unlimited. Creation refuses an existing delegate. Every execution rechecks live plan delegation and remaining allowance. Cancellation only revokes this plan's delegate, preserving an unrelated allowance the owner may have substituted.
-- **Timing:** positive intervals of at least 60 seconds, fixed expiry, finite cycle cap. An overdue installment schedules the next one from its actual execution time; a crank cannot collect missed cycles in a burst. Timestamp and cycle arithmetic is checked.
-- **Settlement:** the executor supplies at least the owner-signed minimum output. The exact input installment and minimum received output are checked against reloaded balances. Both legs and state updates are inside one transaction.
-- **CPI authority:** PDA signatures are provided only to the fixed legacy SPL Token program. No arbitrary target programs, token hooks or remaining-account route forwarding exist.
-- **Replay:** cancelled/completed plan IDs retain account state. A cancelled plan cannot be reinitialized through the same PDA. State rent is retained; there is no account-close path.
-- **Price limits:** the owner signs a fixed minimum and expiry. No invented oracle value or executor-provided market-price claim is trusted. This is a limit-settlement primitive; its floor can become economically stale and is not best execution.
+The server HMAC binds the exact message, taker, expiration and last valid block height. Execution verifies the original message digest and the payer's Ed25519 signature. The mainnet genesis is checked before submission. V1 additionally requires a live activated feature account and explicitly advertised wallet capabilities. Neither a future rollout date nor a successful unit test bypasses these conditions.
 
-## SDK controls
+The server has no owner signing key. Preparation endpoints can return unsigned transactions to callers, but those callers cannot submit them for another wallet without that wallet's signature. Execution errors after a broadcast attempt are Unknown until a reliable onchain outcome is observed. Browser/native pending intent persists before submission. The web client derives the explorer signature before dispatch so a lost HTTP response does not hide its transaction ID.
 
-`simulation.ts` refuses mismatched takers, missing required signers and unsupported transaction size. It observes the original blockhash and does not modify a sponsored transaction. A missing/erroring RPC yields `unavailable`, not success. A successful preflight can still be invalidated by later state changes.
+The existing origin policy, streamed request-body limits and per-process request throttling cover the new endpoints. Public deployments still need gateway-level distributed quotas and reliable RPC capacity. The API tunnel exposes only the explicitly listed new routes.
 
-`basket/atomic-swap.ts` uses exact integer allocation, enforces a single explicit compute budget, rejects additional signers and enforces v0 byte/account capacity before returning a transaction. It accepts trusted route instructions; it does not audit arbitrary instruction economics or assert that every seven-stock basket can fit.
+## Recurring permission controls and limits
 
-The Pyth SSE helper validates feed IDs, endpoint transport, message size, timestamp ordering, staleness and confidence. It reports status `unknown` rather than pretending an update proves a market is open. Rebalance results are value-allocation proposals; they are not token quotes or fabricated performance history.
+Kite uses the existing mainnet program `De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`. Creation checks mint/program identity, the owner account, existing delegate and Subscription Authority identity. It refuses unrelated delegates and refuses to restore disabled authorities implicitly. Grants are finite, with one-year maximum duration in this interface. Revoke requires the owner; collection requires the grant's buyer. Both use the live official record and pass simulation.
 
-## Evidence
+The shared authority has an SPL delegate allowance. Per-buyer constraints live in the official program's recurring records. A permission does **not** enforce stock delivery, a minimum stock output, recipient identity or best execution. The buyer can collect within its allowance, and the UI requires explicit consent to this trust relationship. Multiple permissions have additive caps. The provided collector uses only the buyer's own destination ATA.
 
-- TypeScript SDK compilation passed.
-- Seven protocol SDK suites passed, including a 998-amount allocation conservation loop; capacity, signer and compute-budget rejection; finite allowance/overflow/discriminator checks; rebalance conservation; failed/unavailable preflight; SSE stale, unrequested, future, duplicate and wide-confidence ticks.
-- `cargo test` with Rust 1.85.1 compiled the program and passed all five host tests (four schedule/allowance/overflow tests plus the program ID test). Existing Anchor 0.30 macro `unexpected_cfgs` warnings are toolchain diagnostics, not proof of a tested SBF artifact.
-- SBF compilation passed with official platform-tools v1.57 (Rust 1.95), targeting `sbpf-solana-solana`. The build reported no stack-frame errors. The stripped local artifact is 241 KiB; SHA-256 `c34663b009a7ebc78dae09ad47577e47f483bfe9749fc6930b75a90f2e7ff80a`. No generated artifact or test key is committed.
-- All five integration cases passed on an isolated Agave 2.1.21 local validator in 33.9 seconds. They exercised real legacy-SPL transfers, exact two-sided settlement, interval gating, underpayment, wrong recipient, counterparty insolvency rollback, unauthorized cancellation and direct SPL revocation. The suite refuses non-local hosts and additionally refuses the mainnet genesis hash. It uses local fixture mints and a separately generated temporary test wallet.
-- The root agent separately reviewed signer, PDA, alias, amount, schedule and revocation controls without finding another concrete issue. This second code read is not an external security audit.
+Native SOL and transfer-hook tokens are refused by this integration. Supported Token-2022 transfers retain program checks; transfer fees can reduce receipts. The upstream program remains a dependency with its own upgrade and security assumptions. No claim is made that installing its TypeScript SDK removes smart-contract risk.
 
-## Deployment gates still open
+The buyer runner constructs instructions locally from mainnet state, uses a separately configured buyer key, verifies genesis and identity, simulates, and durably records its signed intent before sending. Exclusive local locks and period records prevent deliberate duplicate collections by that instance. Unknown outcomes stop the runner. Operators must use persistent state and must not start multiple collectors with independent state for the same grant.
 
-1. Forked-mainnet issuer-account and composed-route compatibility tests; host and local-validator evidence above does not establish compatibility with every issuer account or route.
-2. Token-2022 extension review before adding those accounts. The current program deliberately rejects them; regular app swaps remain independent.
-3. A reviewed live-pricing and Jupiter route adapter, real crank operations, monitoring and revocation UX before claiming actual automated SIPs.
-4. Independent program review, adversarial/fuzz testing, and an explicit deployment/upgrade-authority policy before any mainnet activation.
-5. Real wallet confirmation and app-switch lifecycle tests on supported mobile devices. No user's funds were spent during this review.
+## Evidence and remaining verification
 
-Official sources: [SPL Token delegation](https://solana.com/docs/tokens/basics/approve-delegate), [Solana transaction limits](https://solana.com/docs/core/transactions), [V1 activation and client support](https://solana.com/upgrades/larger-transaction-sizes). The upgrade page was checked on 13 September 2026 and listed V1 mainnet activation as pending, expected at epoch 1035 on 15 September.
+Focused SDK tests exercise V0/V1 capacity, signer constraints, signing/explorer identity, official recurring instruction construction, bounded terms, expiry and non-accumulating periods. Server tests exercise HMAC/signature/message/expiry checks and live-feature gating failures. These tests use ephemeral transaction fixtures and never submit them.
+
+A read-only Jupiter probe returned a real AAPLx `/build` route. Program executable/feature-account observations and compilation are not evidence of a completed wallet purchase. No user funds were spent, no owner or buyer signature was collected, and no keeper was activated during implementation. Connected-wallet execution, each intended issuer/token extension, mobile app switching and the actual V1 activation must be checked in the deployment before claiming those combinations have been exercised.
+
+Sources: [Jupiter build API](https://developers.jup.ag/docs/swap/build), [Solana V1 rollout](https://solana.com/upgrades/larger-transaction-sizes), [Solana recurring delegation](https://solana.com/docs/payments/subscriptions/recurring-delegation).
+
+A live MAG7 encoding probe required 98 accounts with the observed Jupiter routes and was rejected by the 64-account ceiling. V1 increases byte capacity, not this account ceiling. Route availability and composition can change; this implementation does not claim every theme fits a single transaction.

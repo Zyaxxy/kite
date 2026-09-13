@@ -1,6 +1,6 @@
 # Deployment and launch verification
 
-Recorded 13 September 2026 against `codex/deployment-mobile-upgrades`, based on original-repository main `2df5c9e`. This is a tested implementation and release guide. The Anchor program has not been deployed to mainnet, and no real wallet trade was submitted during verification.
+Recorded 13 September 2026 against `codex/deployment-mobile-upgrades`, based on original-repository main `2df5c9e`. This is a tested implementation and release guide. The custom Anchor workspace has been retired in favor of official mainnet Subscriptions. No real wallet trade was submitted during verification.
 
 ## Deploy web and API together
 
@@ -44,9 +44,19 @@ See [mobile setup and Android release profiles](../apps/mobile/README.md). Previ
 | Analytics                  | Consent-gated Plausible page categories and Web Vitals; no wallet, query, transaction or form data sent                                         | Supply an owned Plausible site matching `NEXT_PUBLIC_PLAUSIBLE_DOMAIN`; analytics is disabled until configured            |
 | Main call to action        | Public landing emphasizes entering the paper-trading workspace                                                                                  | Confirm the intended public launch destination                                                                            |
 
-## Recorded verification
+## Latest mainnet integration verification
 
-The combined Node test run passed **145/145 tests** across SDK, web API/security and mobile configuration. Two additional dependency compatibility tests passed, including actual Expo archive extraction. SDK compilation, strict mobile TypeScript checks, and the Next.js production build passed. Expo exported web, iOS and Android bundles successfully with a cleared cache. Five Rust host tests, SBF compilation and five local-validator integration cases passed; see [protocol security evidence](protocol-security.md).
+- 161 SDK, web API/security and mobile configuration checks passed. SDK, web and strict mobile TypeScript checks passed.
+- Next.js production build and cleared Expo web/Android exports passed. Metro uses a client-only SDK entry to exclude server-side Kit/Subscriptions builders on both Expo platforms.
+- 221 web/mobile client artifacts were scanned against three configured server-only values, with no literal/encoded matches.
+- Read-only mainnet API checks returned an empty real recurring-permission list for a fresh public key, rejected an unfunded basket, and rejected execution without valid authorization.
+- Live Jupiter routes for `sol-core` encoded into v0 at 1,059 bytes and 44 accounts. This was an encoding/capacity probe with an ephemeral wallet, not a funded simulation or completed purchase.
+- Browser inspection confirmed the actual basket review controls and recurring setup/consent screen. No wallet approval, real transfer or buyer-runner activation was performed.
+- The production audit remains at eight findings: zero critical, three high and five moderate, as documented in the dependency security report.
+
+## Earlier baseline verification
+
+The combined Node test run passed **145/145 tests** across SDK, web API/security and mobile configuration. Two additional dependency compatibility tests passed, including actual Expo archive extraction. SDK compilation, strict mobile TypeScript checks, and the Next.js production build passed. Expo exported web, iOS and Android bundles successfully with a cleared cache. Historical checks of the retired Rust prototype are preserved in git history; they are not evidence for the current mainnet payment integration.
 
 Browser verification covered Expo web boot, real API markets, filters, stock research, basket details and responsive layouts at 390, 768 and 1280 pixels. Public web pages, stock research and disconnected wallet-first swap selection were checked. An actual connected-wallet signature and Android app switching were not exercised. API tunnel checks observed health/markets success, forbidden-route rejection and body/content-type rejection. Temporary test tunnels were closed.
 
@@ -82,7 +92,7 @@ pnpm audit --prod
 
 The production audit fell from 57 findings to 8 (zero critical, three high, five moderate). Dependency auditing and the compatible patch decisions are recorded in [dependency security](dependency-security.md). Remaining advisories require the documented upstream migration or mitigation work; passing application tests does not clear those findings.
 
-The replacement Anchor SIP program changes its account and instruction interface. It accepts bounded legacy-SPL delegation and inventory-backed settlement, with no custody vault or receipt token. It is a local prototype: do not reuse the old program identity/account layout for a mainnet upgrade. Actual automated SIPs, Jupiter multi-leg basket routing, Token-2022 extension support and independent program review remain gated. See [architecture and remaining capabilities](sdk-architecture-and-improvements.md).
+The actual basket API and recurring permission APIs are connected to web and Android. Configure a buyer-controlled signer and persistent collection runner to operate recurring payments; the web server does not hold that key. V1 remains gated on live mainnet activation and wallet capabilities, and oversized baskets fail atomically. Token-extension compatibility and connected-wallet/device checks remain deployment validation, not claims derived from unit tests. See [current architecture](sdk-architecture-and-improvements.md) and [recurring payments](mainnet-recurring-payments.md).
 
 Before distributing an Android release, verify connection, reauthorization, account changes, rejected signatures, expiry, background/resume during approval, timeout recovery and restart recovery on a real supported wallet. Use an appropriately scoped test plan before risking mainnet funds. Configure production RPC capacity, provider keys, a stable HTTPS API/frontend, monitoring and distributed abuse controls.
 
@@ -106,3 +116,17 @@ Each row is a separate commit in chronological order. Later client commits depen
 | `49b2145` | Policy pages, privacy choices and metadata                     | Optional operator/analytics configuration                              |
 
 `6a4573b` follows with scoped dependency patches, the Expo archive compatibility fix, smoke tests and residual advisory notes. This evidence document follows in the documentation commit. Reverting package overrides must also revert their matching lockfile and pnpm patch changes.
+
+## Mainnet integration commit order
+
+| Commit    | Change                                                                                | Rollback dependency                                                                                             |
+| --------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `8cff615` | Shared basket/V1 and official Subscriptions builders, client contracts                | Base for the following changes                                                                                  |
+| `f2189a4` | Remove custom Anchor ABI and dependencies; add buyer runner and mobile SDK entry      | Breaking removal of prototype imports/build scripts; preserve any onchain grants independently of code rollback |
+| `bb5469a` | Mainnet basket, recurring, revoke, collect and composed-execution APIs; tunnel routes | Client screens require these APIs                                                                               |
+| `c1c6399` | Web review, one-approval purchase and recurring consent/revocation                    | Requires SDK and API commits                                                                                    |
+| `370be64` | Android MWA basket and recurring UI, unsupported-platform web handoff                 | Requires SDK, Metro entry and APIs                                                                              |
+
+Revert clients before their APIs and SDK. Removing application code does not revoke an onchain delegation: owners must revoke permissions, and buyer operators must stop scheduled collection separately.
+
+A live MAG7 encoding probe required 98 accounts with the observed Jupiter routes and was rejected by the 64-account ceiling. V1 increases byte capacity, not this account ceiling. Route availability and composition can change; this implementation does not claim every theme fits a single transaction.

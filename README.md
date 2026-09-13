@@ -7,7 +7,7 @@ A self-custody interface for tokenized equities on Solana, with a paper-trading 
 - `apps/web`: Next.js 15.5 — landing, discovery, full markets, thematic baskets, asset details, portfolio, watchlist, activity, recurring paper plans and account settings.
 - `apps/mobile`: Expo / React Native — the same forest-and-lime visual system, shared market data and paper trading. Supported Android builds sign through MWA; iOS and Expo web offer the configured Privy web flow.
 - `packages/sdk`: typed issuer discovery, research, quotes, shared API transport/state, paper accounting, wallet execution and guarded protocol utilities.
-- `packages/anchor`: local-only bounded SIP settlement prototype, with no custody vault or receipt token. It is not connected to frontend mainnet trading.
+- Official Solana Subscriptions handles recurring payment permissions; no custom Anchor workspace is required.
 
 The previous static brokerage UI, fabricated market insights, fake holdings and devnet minting endpoints have been retired. The full live issuer catalogs are queried; a missing price is shown as unavailable. No charts, sentiment or news are manufactured.
 
@@ -36,15 +36,15 @@ See [deployment and rollback verification](docs/deployment-readiness.md), [mainn
 3. Review and confirm a paper buy. The shared SDK records an order, adjusts virtual cash and creates a holding at a freshly observed reference price.
 4. Inspect portfolio and activity, save a watchlist, or set a recurring paper plan.
 5. Paper plans run due installments only while the app is open and fresh prices are available. Missed intervals are not backfilled. They are not unattended mainnet mandates.
-6. Switch to **Actual trading**, sign in with Privy or connect a Solana wallet, request a Jupiter quote and approve it in the wallet. No actual transaction is sent without the user signing.
+6. Switch to **Actual trading**, sign in with Privy or connect a Solana wallet, request a Jupiter quote and approve it in the wallet. Purchases require a wallet signature. Recurring withdrawals require prior owner authorization and a signature from the approved buyer.
 
 Paper orders simulate reference-price execution only; they exclude fees, slippage and corporate-action/scaled-token effects. Their results are not an execution forecast. Web and mobile paper histories are device-local and do not sync. Some PreStocks and xStocks products may be paused or reference-only; the issuer status disables new trades.
 
 ## Mainnet architecture
 
-There is no Kite vault in the active product. Thematic baskets are allocations across individual issuer tokens. Paper basket orders validate every component before committing the next ledger state. Actual basket components are reviewed as separate wallet-approved swaps. Actual recurring DCA is explicitly unavailable until a supported mainnet execution service is integrated.
+There is no Kite vault in the active product. Thematic baskets are allocations across individual issuer tokens. Paper basket orders validate every component before committing the next ledger state. Actual baskets use one wallet-approved atomic transaction when their routes fit the supported network and wallet limits. Actual recurring token payments use bounded buyer delegation through the official Subscriptions program. Payment delegation does not enforce stock delivery.
 
-`GET /api/markets` discovers and prices tokens. `GET /api/portfolio` reads wallet balances. `POST /api/trade/order` obtains a validated unsigned Jupiter transaction. `POST /api/trade/execute` requires the exact quoted transaction and a valid wallet signature. The old `/api/faucet` and `/api/buy-basket` return HTTP 410.
+`GET /api/markets` discovers and prices tokens. `GET /api/portfolio` reads wallet balances. `POST /api/trade/order` obtains a validated unsigned Jupiter transaction. `POST /api/trade/execute` requires the exact quoted transaction and a valid wallet signature. `POST /api/buy-basket` prepares a complete atomic basket. `/api/recurring` creates and lists payment permissions, with revoke and buyer-collection routes. `/api/transaction/execute` verifies and broadcasts composed wallet-signed transactions. Only the retired `/api/faucet` returns HTTP 410. See [recurring payment setup](docs/mainnet-recurring-payments.md).
 
 ## Checks
 

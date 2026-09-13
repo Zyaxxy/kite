@@ -1,6 +1,6 @@
 # Mainnet wallet integration
 
-Kite's actual trading path uses a user-controlled Solana wallet and Jupiter Swap V2. It does not deposit into an Anchor vault, mint replacement stocks, use a server signing key, or execute unattended trades. Paper mode is an independent, local simulation using observed market prices.
+Kite's actual trading path uses a user-controlled Solana wallet and Jupiter Swap V2. It does not deposit into an Anchor vault, mint replacement stocks, use a server signing key, or hold a user signing key. Recurring collections are signed by a separately configured buyer service. Paper mode is an independent, local simulation using observed market prices.
 
 ## Configure the deployment
 
@@ -14,7 +14,7 @@ Copy `apps/web/.env.example` to the deployment environment. Never commit populat
 - `JUPITER_API_KEY`: server-only Jupiter key. Without it actual order preparation and execution return HTTP 503 with an explicit configuration message.
 - `KITE_TRADE_SECRET`: required independent server-only HMAC key of at least 32 characters, shared by all deployment instances. It must differ from `JUPITER_API_KEY`. Rotating it invalidates outstanding quotes.
 
-No private wallet key is required. The retired `/api/faucet` and `/api/buy-basket` routes return HTTP 410 and no longer load a local authority key or issue tokens.
+No private wallet key is required. The retired `/api/faucet` returns HTTP 410. `/api/buy-basket` now builds atomic wallet-approved purchases and does not issue synthetic tokens.
 
 ## Review, approve, execute
 
@@ -36,7 +36,7 @@ Transaction quantities are exact raw token units divided by the mint's decimals;
 
 The portfolio reads every standard SPL and Token-2022 account owned by the wallet, aggregates with exact integers, excludes frozen amounts from spending and keeps the RPC's adjusted UI quantities separate from raw transaction units. Wallet balances load independently of issuer catalogs and token-search metadata; enrichment failure preserves the real mint and balance with unavailable metadata. An RPC failure remains an error rather than an empty wallet. This preserves Token-2022 scaled balances after dividends or stock splits. Jupiter Tokens V2 does not establish its scaled-versus-raw price basis in its public schema, so the actual portfolio deliberately leaves xStocks fiat valuation unavailable instead of multiplying incompatible quantities and prices. Non-scaled holdings with verified prices may contribute a clearly labeled subtotal; a total is unavailable when any holding is unpriced. Cost basis and realized profit are unavailable from balances alone.
 
-Actual recurring investments and atomic basket execution are not connected. The interface offers individual wallet-approved swaps; recurring plans and basket allocation demonstrations use paper mode. Mainnet token availability is determined by the issuer and the live router, not by a static demo token list.
+Atomic baskets use Jupiter `/swap/v2/build`, exact integer allocation, wallet-owned output accounts and full-transaction simulation. The SDK selects v0 or capability-gated v1 and never silently splits a basket. Recurring token payments use the official Subscriptions program and buyer-side collection; they do not enforce stock delivery. See [execution architecture](sdk-architecture-and-improvements.md) and [buyer setup](mainnet-recurring-payments.md). Mainnet token availability is determined by the issuer and the live router, not by a static demo token list.
 
 See [wallet-first swaps](wallet-swaps.md) for balance selection, exact Max behavior and pending execution guards, and [mobile setup](../apps/mobile/README.md) for Android MWA.
 
