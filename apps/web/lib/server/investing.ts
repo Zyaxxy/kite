@@ -2,6 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 import {
   allocateBasketInput,
+  BASE_SWAP_TOKENS,
   composeMainnetTransaction,
   deriveRecurringPermissionWindow,
   dueScheduleOccurrence,
@@ -177,7 +178,9 @@ export async function createInvestmentPlan(input: CreateInvestmentPlanRequest) {
     delegation: "",
     fundingMint,
     fundingSymbol:
-      market.assets.find((a) => a.mint === fundingMint)?.symbol ?? "tokens",
+      market.assets.find((a) => a.mint === fundingMint)?.symbol ??
+      BASE_SWAP_TOKENS.find((token) => token.mint === fundingMint)?.symbol ??
+      `${fundingMint.slice(0, 5)}…${fundingMint.slice(-4)}`,
     fundingDecimals,
     amountUnits,
     target: input.target,
@@ -326,7 +329,6 @@ async function reconcile(record: InvestmentRecord) {
     status &&
     ["confirmed", "finalized"].includes(status.confirmationStatus)
   ) {
-    entry.status = "success";
     // Record actual chain balance deltas, never substitute quoted amounts for receipts.
     const transaction = await mainnetRpc<{
       meta: {
@@ -373,9 +375,9 @@ async function reconcile(record: InvestmentRecord) {
           };
         });
     } else {
-      entry.status = "pending";
       return record;
     }
+    entry.status = "success";
     delete record.pending;
   }
   // A missing status is never proof of failure. Keep it pending even after blockhash expiry.
@@ -488,11 +490,6 @@ export async function dueInvestments() {
         const runId = `${id}:${due.index}`;
         const prior = receipt(record, runId);
         if (prior && prior.status !== "prepared") return;
-        if (
-          record.prepared?.runId === runId &&
-          record.prepared.order.expiresAt > Date.now()
-        )
-          return;
         runs.push({ planId: id, runId, scheduledAt: due.scheduledAt });
       });
     } catch {
@@ -536,8 +533,6 @@ export async function prepareInvestmentRun(planId: string, runId: string) {
       throw new Error("This investment occurrence was already processed.");
     // Do not replace a prepared message behind a worker that may have signed it.
     // An expired, never-recorded preparation is explicitly discarded under this lock.
-    if (record.prepared?.runId === runId)
-      return { ...record.prepared.order, planId, runId };
     const built = await prepareRecurringInvestmentOrder(record.plan, runId);
     const entry: RecurringInvestmentReceipt = {
       planId,
@@ -579,6 +574,54 @@ export async function recordInvestmentRun(
         );
       record = await reconcile(record);
       await writeInvestment(record);
+      const pending = record.pending;
+      // A crash can happen after persisting intent but before the first RPC send.
+      // Retry only that same signed message while its original review and blockhash
+      // remain valid. Missing metadata on older records is not permission to retry.
+      if (
+        pending &&
+        pending.authorization === authorization &&
+        pending.expiresAt !== undefined &&
+        pending.expiresAt > Date.now()
+      ) {
+        const verified = await verifyComposed(authorization, signedTransaction);
+        if (
+          verified.taker !== record.plan.buyer ||
+          verified.version !== 1 ||
+          verified.investmentRun?.planId !== planId ||
+          verified.investmentRun?.runId !== runId ||
+          verified.lastValidBlockHeight !== pending.lastValidBlockHeight
+        )
+          throw new Error(
+            "The retry differs from the approved investment occurrence.",
+          );
+        await assertMainnetV1Ready([1]);
+        const blockHeight = await mainnetRpc<number>("getBlockHeight", [
+          { commitment: "confirmed" },
+        ]);
+        if (
+          blockHeight <= pending.lastValidBlockHeight &&
+          pending.expiresAt > Date.now()
+        ) {
+          try {
+            const returned = await mainnetRpc<string>("sendTransaction", [
+              pending.signedTransaction,
+              {
+                encoding: "base64",
+                skipPreflight: false,
+                preflightCommitment: "confirmed",
+                maxRetries: 2,
+              },
+            ]);
+            if (returned !== pending.signature)
+              throw new Error("Unexpected transaction signature.");
+            record = await reconcile(record);
+            await writeInvestment(record);
+          } catch {
+            // Keep the same pending intent; a transport failure is not proof of failure.
+          }
+        }
+      }
       return {
         status: receipt(record, runId)!.status,
         signature: entry.signature,
@@ -630,6 +673,8 @@ export async function recordInvestmentRun(
       signature,
       signedTransaction,
       lastValidBlockHeight: verified.lastValidBlockHeight,
+      authorization,
+      expiresAt: record.prepared.order.expiresAt,
     };
     delete record.prepared;
     await writeInvestment(record); // Durable signed intent BEFORE broadcasting; no replacement on ambiguity.

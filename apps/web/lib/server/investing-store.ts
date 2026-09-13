@@ -16,6 +16,9 @@ export interface InvestmentRecord {
     signature: string;
     signedTransaction: string;
     lastValidBlockHeight: number;
+    /** Older ledger records omit these fields and remain reconciliation-only. */
+    authorization?: string;
+    expiresAt?: number;
   };
 }
 const validId = /^[a-f0-9]{32}$/;

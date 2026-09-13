@@ -592,6 +592,8 @@ function service() {
     now: nowSeconds * 1000,
     status: null,
     failBroadcast: false,
+    failTransactionRead: false,
+    blockHeight: 99,
     outputAmount: "1002345",
     verificationRun: null,
   };
@@ -750,7 +752,10 @@ function service() {
           }
           if (method === "getSignatureStatuses")
             return { value: [state.status] };
-          if (method === "getTransaction")
+          if (method === "getBlockHeight") return state.blockHeight;
+          if (method === "getTransaction") {
+            if (state.failTransactionRead)
+              throw new Error("Transaction metadata unavailable");
             return {
               meta: {
                 fee: 7000,
@@ -765,6 +770,7 @@ function service() {
                 ],
               },
             };
+          }
           throw new Error(`Unexpected RPC ${method}`);
         },
       },
@@ -825,7 +831,7 @@ test("preparing an investment plan does not persist unsigned drafts and signed s
   assert.equal(s.records.get(review.plan.id).plan.schedule.unit, "month");
 });
 
-test("executor persists before broadcasting and a lost response never triggers a replacement or second send", async () => {
+test("executor persists before broadcasting and expired ambiguity never triggers a replacement or second send", async () => {
   const s = service(),
     runId = `${plan.id}:0`;
   const order = await s.prepareInvestmentRun(plan.id, runId);
@@ -979,4 +985,165 @@ test("run authorizations cannot be replayed across periods and a stale lock does
   const { runs } = await s.dueInvestments();
   assert.equal(runs.length, 1);
   assert.equal(runs[0].planId, other.id);
+});
+
+test("recovery submits identical durable intent after a crash before the first RPC send", async () => {
+  const s = service(),
+    runId = `${plan.id}:0`;
+  const order = await s.prepareInvestmentRun(plan.id, runId);
+  // Simulate the exact persisted boundary before any sendTransaction call.
+  const interrupted = s.records.get(plan.id);
+  interrupted.receipts[0].status = "pending";
+  interrupted.receipts[0].signature = "signature";
+  interrupted.pending = {
+    runId,
+    signature: "signature",
+    signedTransaction: "signed-transaction",
+    lastValidBlockHeight: order.lastValidBlockHeight,
+    authorization: order.authorization,
+    expiresAt: order.expiresAt,
+  };
+  delete interrupted.prepared;
+  assert.equal(s.calls.broadcasts, 0);
+  s.state.now += 1000;
+  const recovered = await s.recordInvestmentRun(
+    plan.id,
+    runId,
+    "signed-transaction",
+    order.authorization,
+  );
+  assert.equal(recovered.status, "pending");
+  assert.equal(recovered.signature, "signature");
+  assert.equal(s.calls.broadcasts, 1);
+  assert.equal(s.calls.prepares, 1);
+  assert.equal(
+    s.records.get(plan.id).pending.signedTransaction,
+    "signed-transaction",
+  );
+  s.state.status = { err: null, confirmationStatus: "confirmed" };
+  assert.equal(
+    (
+      await s.recordInvestmentRun(
+        plan.id,
+        runId,
+        "signed-transaction",
+        order.authorization,
+      )
+    ).status,
+    "success",
+  );
+  assert.equal(
+    s.calls.broadcasts,
+    1,
+    "Confirmed transactions must not be sent again",
+  );
+});
+
+test("pending retries require the same original authorization, valid blockhash and occurrence scope", async () => {
+  const s = service(),
+    runId = `${plan.id}:0`;
+  const order = await s.prepareInvestmentRun(plan.id, runId);
+  s.state.failBroadcast = true;
+  await s.recordInvestmentRun(
+    plan.id,
+    runId,
+    "signed-transaction",
+    order.authorization,
+  );
+  assert.equal(
+    s.records.get(plan.id).pending.authorization,
+    order.authorization,
+  );
+  assert.equal(s.records.get(plan.id).pending.expiresAt, order.expiresAt);
+  s.state.failBroadcast = false;
+  await s.recordInvestmentRun(
+    plan.id,
+    runId,
+    "signed-transaction",
+    "different-authorization",
+  );
+  assert.equal(s.calls.broadcasts, 1);
+  s.state.verificationRun = { planId: plan.id, runId: `${plan.id}:1` };
+  await assert.rejects(
+    s.recordInvestmentRun(
+      plan.id,
+      runId,
+      "signed-transaction",
+      order.authorization,
+    ),
+    /differs from the approved/,
+  );
+  assert.equal(s.calls.broadcasts, 1);
+  s.state.verificationRun = null;
+  s.state.blockHeight = order.lastValidBlockHeight + 1;
+  assert.equal(
+    (
+      await s.recordInvestmentRun(
+        plan.id,
+        runId,
+        "signed-transaction",
+        order.authorization,
+      )
+    ).status,
+    "pending",
+  );
+  assert.equal(
+    s.calls.broadcasts,
+    1,
+    "Expired blockhashes remain reconciliation-only",
+  );
+  s.state.blockHeight = order.lastValidBlockHeight;
+  const legacy = s.records.get(plan.id);
+  delete legacy.pending.authorization;
+  delete legacy.pending.expiresAt;
+  assert.equal(
+    (
+      await s.recordInvestmentRun(
+        plan.id,
+        runId,
+        "signed-transaction",
+        order.authorization,
+      )
+    ).status,
+    "pending",
+  );
+  assert.equal(
+    s.calls.broadcasts,
+    1,
+    "Older records cannot invent missing retry authorization",
+  );
+});
+
+test("confirmed signature cannot report success before actual transaction metadata and delivery verify", async () => {
+  for (const failure of ["metadata", "delivery"]) {
+    const s = service(),
+      runId = `${plan.id}:0`;
+    const order = await s.prepareInvestmentRun(plan.id, runId);
+    s.state.status = { err: null, confirmationStatus: "confirmed" };
+    s.state.failTransactionRead = failure === "metadata";
+    s.state.outputAmount = failure === "delivery" ? "0" : "1002345";
+    const result = await s.recordInvestmentRun(
+      plan.id,
+      runId,
+      "signed-transaction",
+      order.authorization,
+    );
+    assert.equal(
+      result.status,
+      "pending",
+      `${failure} failure must not report success`,
+    );
+    assert.equal(s.records.get(plan.id).receipts[0].status, "pending");
+    assert.ok(s.records.get(plan.id).pending);
+    s.state.failTransactionRead = false;
+    s.state.outputAmount = "1002345";
+    assert.equal(
+      (await s.reconcileInvestmentRun(plan.id, runId)).status,
+      "success",
+    );
+    assert.equal(
+      s.records.get(plan.id).receipts[0].outputs[0].amountUnits,
+      "1002345",
+    );
+  }
 });
