@@ -21,3 +21,5 @@ apps/mobile/android/
 apps/mobile/ios/
 
 .kite-collections/
+.kite-investment-worker/
+.kite-investments/

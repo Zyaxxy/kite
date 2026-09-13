@@ -98,6 +98,9 @@ export async function buildRecurringPaymentInstructions(params: {
   nowSeconds: number;
   initializeAuthority: boolean;
   expectedInitId?: bigint;
+  /** Explicit UTC schedule start/expiry, bounded independently of fixed period count. */
+  startsAt?: number;
+  expiresAt?: number;
 }) {
   validateRecurringTerms(params.amount, params.periodSeconds, params.periods);
   if (
@@ -142,7 +145,19 @@ export async function buildRecurringPaymentInstructions(params: {
       ),
     );
   // Start at landing, expiry fixed before review. Landing delays cannot extend the grant.
-  const expiresAt = params.nowSeconds + params.periodSeconds * params.periods;
+  const startsAt = params.startsAt ?? 0;
+  const expiresAt =
+    params.expiresAt ??
+    params.nowSeconds + params.periodSeconds * params.periods;
+  if (
+    !Number.isSafeInteger(startsAt) ||
+    startsAt < 0 ||
+    (startsAt !== 0 && startsAt < params.nowSeconds) ||
+    !Number.isSafeInteger(expiresAt) ||
+    expiresAt <= (startsAt || params.nowSeconds) ||
+    expiresAt - params.nowSeconds > 31_536_000
+  )
+    throw new Error("Choose a future schedule that ends within one year.");
   instructions.push(
     kitInstructionToWeb3(
       await s.getCreateRecurringDelegationOverlayInstructionAsync({
@@ -152,7 +167,7 @@ export async function buildRecurringPaymentInstructions(params: {
         nonce: params.nonce,
         amountPerPeriod: params.amount,
         periodLengthS: BigInt(params.periodSeconds),
-        startTs: 0n,
+        startTs: BigInt(startsAt),
         expiryTs: BigInt(expiresAt),
         expectedSubscriptionAuthorityInitId: params.initializeAuthority
           ? s.UNKNOWN_INIT_ID
@@ -170,10 +185,10 @@ export async function buildRecurringPaymentInstructions(params: {
       mint: params.mint,
       amountPerPeriod: params.amount.toString(),
       periodSeconds: params.periodSeconds,
-      startsAt: 0,
+      startsAt,
       expiresAt,
       pulledInPeriod: "0",
-      currentPeriodStartedAt: 0,
+      currentPeriodStartedAt: startsAt,
     } satisfies RecurringPayment,
   };
 }

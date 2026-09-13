@@ -84,6 +84,7 @@ export function RecurringPaymentsPanel() {
         const order = await kiteClient.revokeRecurringPayment(
           auth.walletAddress,
           delegation,
+          auth.supportedTransactionVersions,
         );
         if (current === generation.current)
           setReview({ order, action: "revoke" });
@@ -95,6 +96,7 @@ export function RecurringPaymentsPanel() {
           amount,
           periodSeconds: Number(period),
           periods: Number(periods),
+          supportedTransactionVersions: auth.supportedTransactionVersions,
         });
         if (current === generation.current)
           setReview({
@@ -193,7 +195,7 @@ export function RecurringPaymentsPanel() {
                   </a>
                   <button
                     className="btn secondary"
-                    disabled={disabled || !auth.canSign}
+                    disabled={disabled || !auth.canSignV1}
                     onClick={() => prepare(p.address)}
                   >
                     Revoke
@@ -345,7 +347,7 @@ export function RecurringPaymentsPanel() {
           <button
             className="btn secondary full"
             disabled={
-              disabled || !auth.canSign || !amount || !buyer || !consent
+              disabled || !auth.canSignV1 || !amount || !buyer || !consent
             }
             onClick={() => prepare()}
           >

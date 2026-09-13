@@ -124,6 +124,8 @@ function secret() {
 }
 export async function authorizeComposed(
   input: Omit<WalletTransactionOrder, "requestId" | "authorization">,
+  investmentRun?: { planId: string; runId: string },
+  investmentSetupHash?: string,
 ): Promise<WalletTransactionOrder> {
   const { transaction: tx, message } = await inspectWalletTransaction(
     input.transaction,
@@ -149,6 +151,8 @@ export async function authorizeComposed(
       .update(Buffer.from(tx.messageBytes))
       .digest("hex"),
     lastValidBlockHeight: input.lastValidBlockHeight,
+    ...(investmentRun ? { investmentRun } : {}),
+    ...(investmentSetupHash ? { investmentSetupHash } : {}),
   };
   const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
   return {
@@ -160,7 +164,11 @@ export async function authorizeComposed(
       createHmac("sha256", secret()).update(encoded).digest("base64url"),
   };
 }
-export async function verifyComposed(authorization: string, signed: string) {
+export async function verifyComposed(
+  authorization: string,
+  signed: string,
+  recovery?: { acceptExpired: true },
+) {
   const [encoded, mac, ...extra] = authorization.split(".");
   if (!encoded || !mac || extra.length)
     throw new Error("Invalid transaction authorization.");
@@ -175,7 +183,7 @@ export async function verifyComposed(authorization: string, signed: string) {
   if (
     p.kind !== "kite-composed-v1" ||
     !Number.isSafeInteger(p.expiresAt) ||
-    p.expiresAt <= Date.now()
+    (p.expiresAt <= Date.now() && !recovery?.acceptExpired)
   )
     throw new Error("This transaction authorization has expired.");
   const { transaction: tx, message } = await inspectWalletTransaction(signed);
@@ -203,6 +211,9 @@ export async function verifyComposed(authorization: string, signed: string) {
   )
     throw new Error("A valid wallet signature is required.");
   return {
+    investmentRun: p.investmentRun as
+      { planId: string; runId: string } | undefined,
+    investmentSetupHash: p.investmentSetupHash as string | undefined,
     version: message.version,
     taker: p.taker as string,
     messageHash: p.messageHash as string,

@@ -5,11 +5,12 @@ import {
   type MainnetTradeOrder,
   type MainnetTradeResult,
 } from "./trading";
+import type { RecurringInvestmentPlan } from "./recurring-investing";
 
 export type SignableWalletOrder = Pick<
   MainnetTradeOrder,
   "taker" | "transaction" | "expiresAt" | "authorization" | "requestId"
-> & { transactionVersion?: 0 | 1 };
+> & { transactionVersion?: 0 | 1; investmentSetup?: RecurringInvestmentPlan };
 
 export interface MobileOrderSigner {
   getAddress(): string | null;
@@ -20,6 +21,7 @@ export interface MobileExecutionClient {
   executeTrade(request: {
     signedTransaction: string;
     authorization: string;
+    investmentSetup?: RecurringInvestmentPlan;
   }): Promise<MainnetTradeResult>;
 }
 export interface MobileExecutionOptions {
@@ -67,6 +69,9 @@ export async function signAndExecuteMobileOrder(
       await client.executeTrade({
         signedTransaction,
         authorization: order.authorization,
+        ...(order.investmentSetup
+          ? { investmentSetup: order.investmentSetup }
+          : {}),
       }),
     );
   } catch {

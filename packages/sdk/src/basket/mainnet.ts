@@ -6,6 +6,8 @@ import {
 } from "@solana/web3.js";
 
 export interface WalletTransactionOrder {
+  /** Bound by the server authorization hash; stored only after a valid owner signature. */
+  investmentSetup?: import("../recurring-investing").RecurringInvestmentPlan;
   requestId: string;
   transaction: string;
   authorization: string;

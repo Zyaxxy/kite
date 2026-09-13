@@ -10,11 +10,16 @@ export async function POST(request: NextRequest) {
     const b = (await readLimitedJson(request, 2048)) as {
       taker: string;
       delegation: string;
+      supportedTransactionVersions?: number[];
     };
     if (!b || typeof b.taker !== "string" || typeof b.delegation !== "string")
       throw new Error("Choose a wallet and delegation address.");
     return NextResponse.json(
-      await collectRecurringPayment(b.taker, b.delegation),
+      await collectRecurringPayment(
+        b.taker,
+        b.delegation,
+        b.supportedTransactionVersions,
+      ),
       { headers },
     );
   } catch (e) {

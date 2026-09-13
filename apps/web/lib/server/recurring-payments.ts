@@ -25,6 +25,7 @@ import {
 } from "@kite/sdk";
 import {
   assertMainnet,
+  assertMainnetV1Ready,
   authorizeComposed,
   latestBlockhash,
   mainnetRpc,
@@ -54,7 +55,7 @@ async function ready() {
       "The official Subscriptions program is unavailable on this RPC.",
     );
 }
-async function mintProgram(mint: string) {
+export async function mintProgram(mint: string) {
   if (mint === MAINNET_SOL_MINT)
     throw new Error(
       "Recurring payments require an SPL token balance. Choose USDC or another token; native SOL is not delegated.",
@@ -78,7 +79,7 @@ async function mintProgram(mint: string) {
     );
   return value.owner;
 }
-async function readDelegation(delegation: string) {
+export async function readDelegation(delegation: string) {
   const value = await account(delegation);
   if (!value || value.owner !== MAINNET_SUBSCRIPTIONS_PROGRAM)
     throw new Error("The delegation does not exist or was revoked.");
@@ -87,13 +88,18 @@ async function readDelegation(delegation: string) {
     Buffer.from(value.data[0], "base64"),
   );
 }
-async function order(taker: string, instructions: TransactionInstruction[]) {
+async function order(
+  taker: string,
+  instructions: TransactionInstruction[],
+  versions?: number[],
+) {
+  await assertMainnetV1Ready(versions);
   const lifetime = await latestBlockhash();
   const built = await composeMainnetTransaction({
     payer: taker,
     ...lifetime,
     instructions,
-    allowV1: false,
+    allowV1: true,
     computeUnitLimit: 300_000,
   });
   await simulateComposed(built.transaction);
@@ -134,7 +140,10 @@ export async function listRecurringPayments(wallet: string) {
     }),
   );
 }
-export async function createRecurringPayment(input: RecurringPaymentRequest) {
+export async function prepareRecurringPayment(
+  input: RecurringPaymentRequest,
+  timing?: { startsAt: number; expiresAt: number },
+) {
   const owner = new PublicKey(input.taker).toBase58(),
     buyer = new PublicKey(input.buyer).toBase58(),
     mint = new PublicKey(input.mint).toBase58();
@@ -204,16 +213,32 @@ export async function createRecurringPayment(input: RecurringPaymentRequest) {
     nowSeconds: Math.floor(Date.now() / 1000),
     initializeAuthority: !authorityAccount,
     expectedInitId,
+    startsAt: timing?.startsAt,
+    expiresAt: timing?.expiresAt,
   });
   return {
-    ...(await order(owner, built.instructions)),
+    instructions: built.instructions,
     payment: built.payment,
     decimals,
+  };
+}
+export async function createRecurringPayment(input: RecurringPaymentRequest) {
+  await assertMainnetV1Ready(input.supportedTransactionVersions);
+  const built = await prepareRecurringPayment(input);
+  return {
+    ...(await order(
+      input.taker,
+      built.instructions,
+      input.supportedTransactionVersions,
+    )),
+    payment: built.payment,
+    decimals: built.decimals,
   };
 }
 export async function revokeRecurringPayment(
   taker: string,
   delegation: string,
+  supportedTransactionVersions?: number[],
 ) {
   new PublicKey(taker);
   new PublicKey(delegation);
@@ -221,13 +246,16 @@ export async function revokeRecurringPayment(
   const state = await readDelegation(delegation);
   if (state.payment.owner !== taker)
     throw new Error("Only the permission owner can revoke it here.");
-  return order(taker, [
-    await buildRevokeRecurringInstruction(taker, delegation, state.payer),
-  ]);
+  return order(
+    taker,
+    [await buildRevokeRecurringInstruction(taker, delegation, state.payer)],
+    supportedTransactionVersions,
+  );
 }
 export async function collectRecurringPayment(
   taker: string,
   delegation: string,
+  supportedTransactionVersions?: number[],
 ) {
   new PublicKey(taker);
   new PublicKey(delegation);
@@ -247,6 +275,7 @@ export async function collectRecurringPayment(
         remaining.amount,
         tokenProgram,
       ),
+      supportedTransactionVersions,
     )),
     amount: remaining.amount.toString(),
     periodStartedAt: remaining.periodStartedAt,

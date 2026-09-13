@@ -93,6 +93,7 @@ export function useComposedTransaction() {
       const result = await kiteClient.executeTransaction({
         signedTransaction,
         authorization: order.authorization,
+        investmentSetup: order.investmentSetup,
       });
       if (result.signature) setSignature(result.signature);
       if (result.status === "Unknown") {

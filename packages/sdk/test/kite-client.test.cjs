@@ -108,6 +108,7 @@ test("trade responses must preserve the requested amount and contain usable quot
   };
   const order = {
     ...request,
+    transactionVersion: 1,
     requestId: "request",
     transaction: "unsigned",
     authorization: "proof",
@@ -131,6 +132,8 @@ test("trade responses must preserve the requested amount and contain usable quot
     "1250000",
   );
   for (const changes of [
+    { transactionVersion: 0 },
+    { transactionVersion: undefined },
     { inAmount: "12500000" },
     { inputDecimals: 19 },
     { outAmount: "-1" },
