@@ -747,25 +747,25 @@ input::-webkit-inner-spin-button {
 }
 .mini-assets {
   display: flex;
+  align-items: center;
+  min-height: 28px;
   margin: 15px 0 0;
 }
-.mini-asset {
-  width: 25px;
-  height: 25px;
+.mini-assets .asset-avatar.small {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
   border-radius: 50%;
   background: var(--raised);
   border: 2px solid var(--surface);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 8px;
-  margin-right: -5px;
+  margin-right: -8px;
+  overflow: hidden;
 }
-.mini-asset img {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  object-fit: contain;
+.mini-asset-count {
+  margin-left: 12px;
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
 }
 .market-controls {
   display: flex;

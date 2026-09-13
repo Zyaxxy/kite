@@ -9,9 +9,11 @@ import {
   Bookmark,
   Search,
   Layers3,
+  Building2,
 } from "lucide-react";
 import type { MarketAsset, MarketBasket } from "@kite/sdk";
 import { OrbitArt } from "./Brand";
+import { getCompanyLogo } from "../../lib/company-logos";
 
 export const money = (value: number | null | undefined, digits = 2) =>
   value == null || !Number.isFinite(value)
@@ -41,32 +43,48 @@ export function Change({ value }: { value: number | null | undefined }) {
 export function AssetAvatar({
   asset,
   large = false,
+  small = false,
+  label,
 }: {
-  asset: Pick<MarketAsset, "symbol" | "logoUrl">;
+  asset: Pick<MarketAsset, "symbol" | "logoUrl"> &
+    Partial<Pick<MarketAsset, "underlyingSymbol" | "issuer" | "mint">>;
   large?: boolean;
+  small?: boolean;
+  label?: string;
 }) {
-  const [failed, setFailed] = useState(false);
+  const [failedLogo, setFailedLogo] = useState<string | null>(null);
+  const localLogo = getCompanyLogo(asset);
+  const logoUrl = localLogo ?? asset.logoUrl;
   let optimizable = false;
   try {
-    const url = new URL(asset.logoUrl ?? "");
+    const url = new URL(logoUrl ?? "");
     optimizable =
       url.protocol === "https:" &&
       ["xstocks-metadata.backed.fi", "prestocks.com"].includes(url.hostname);
   } catch {
-    /* Missing logos use the symbol fallback. */
+    /* Local logos are already compressed; remote logos use the allowed optimizer. */
   }
   return (
-    <span className={`asset-avatar ${large ? "large" : ""}`}>
-      {asset.logoUrl && !failed ? (
+    <span
+      className={`asset-avatar ${large ? "large" : small ? "small" : ""}`}
+      title={label}
+    >
+      {logoUrl && failedLogo !== logoUrl ? (
         <Image
           width={64}
           height={64}
           unoptimized={!optimizable}
-          sizes="64px"
-          src={asset.logoUrl}
-          alt=""
-          onError={() => setFailed(true)}
+          sizes={small ? "32px" : "64px"}
+          src={logoUrl}
+          alt={label ?? ""}
+          onError={() => setFailedLogo(logoUrl)}
           loading="lazy"
+        />
+      ) : small ? (
+        <Building2
+          size={14}
+          role="img"
+          aria-label={label ?? "Company logo unavailable"}
         />
       ) : (
         asset.symbol.slice(0, 3).toUpperCase()
@@ -318,10 +336,16 @@ export function BasketCard({
         <p>{basket.description}</p>
         <div className="mini-assets">
           {basket.assets.slice(0, 6).map((a) => (
-            <span key={a.mint} className="mini-asset">
-              {a.symbol.slice(0, 2)}
-            </span>
+            <AssetAvatar key={a.mint} asset={a} small label={a.name} />
           ))}
+          {basket.assets.length > 6 && (
+            <span
+              className="mini-asset-count"
+              aria-label={`${basket.assets.length - 6} more ${basket.assets.length === 7 ? "asset" : "assets"}`}
+            >
+              +{basket.assets.length - 6}
+            </span>
+          )}
         </div>
         <div className="basket-meta">
           <span>
