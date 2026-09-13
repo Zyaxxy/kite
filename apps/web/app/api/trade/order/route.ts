@@ -5,6 +5,7 @@ import {
   BASE_SWAP_TOKENS,
   hasCompleteIssuerCatalogs,
   toTokenAmount,
+  MAX_SWAP_SLIPPAGE_BPS,
   type MainnetTradeOrder,
   type SwapToken,
   type TradeSide,
@@ -13,22 +14,26 @@ import { getServerMarketCatalog } from "@/lib/server/markets";
 import { authorizeTrade } from "@/lib/server/trade-authorization";
 import { getTradeMintDecimals } from "@/lib/server/mint-precision";
 import { searchJupiterSwapTokens } from "@/lib/server/swap-tokens";
+import { preflightMainnetOrder } from "@/lib/server/trade-simulation";
+import { readLimitedJson } from "@/lib/server/request-policy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   const apiKey = process.env.JUPITER_API_KEY;
-  if (!apiKey)
+  const tradeSecret = process.env.KITE_TRADE_SECRET;
+  if (!apiKey || !tradeSecret || tradeSecret.length < 32)
     return NextResponse.json(
       {
         error:
-          "Actual trading is unavailable: this deployment needs a server-side Jupiter API key.",
+          "Actual trading is unavailable: this deployment needs a server-side Jupiter API key and trade authorization secret.",
       },
       { status: 503 },
     );
   try {
-    const body: unknown = await request.json();
+    const body: unknown = await readLimitedJson(request, 4_096);
     if (!body || typeof body !== "object")
       throw new Error("Invalid trade request.");
     const values = body as Record<string, unknown>;
@@ -161,6 +166,7 @@ export async function POST(request: NextRequest) {
       signal: AbortSignal.timeout(20_000),
     });
     const data = (await response.json()) as Record<string, unknown>;
+    const quotedAt = Date.now();
     if (!response.ok)
       return NextResponse.json(
         { error: "Jupiter could not provide a live order. Try again shortly." },
@@ -193,7 +199,7 @@ export async function POST(request: NextRequest) {
       typeof data.slippageBps !== "number" ||
       !Number.isFinite(data.slippageBps) ||
       data.slippageBps < 0 ||
-      data.slippageBps > 10_000 ||
+      !Number.isInteger(data.slippageBps) ||
       typeof data.feeBps !== "number" ||
       !Number.isFinite(data.feeBps) ||
       data.feeBps < 0 ||
@@ -202,10 +208,27 @@ export async function POST(request: NextRequest) {
       throw new Error(
         "The route did not return its slippage and fee information.",
       );
+    if (data.slippageBps > MAX_SWAP_SLIPPAGE_BPS)
+      return NextResponse.json(
+        {
+          error:
+            "This route exceeds Kite’s 3% slippage limit. Try a smaller amount or a more liquid pair.",
+        },
+        { status: 422 },
+      );
+    const simulation = await preflightMainnetOrder({
+      transaction: data.transaction,
+      taker,
+    });
+    if (simulation.status !== "passed")
+      return NextResponse.json(
+        { error: simulation.error },
+        { status: simulation.status === "failed" ? 422 : 503 },
+      );
     const upstreamExpiry =
       typeof data.expireAt === "string" ? Date.parse(data.expireAt) : NaN;
     const expiresAt = Math.min(
-      Date.now() + 45_000,
+      quotedAt + 45_000,
       Number.isFinite(upstreamExpiry) ? upstreamExpiry : Infinity,
     );
     if (expiresAt <= Date.now())
@@ -233,7 +256,7 @@ export async function POST(request: NextRequest) {
         data.requestId,
         taker,
         expiresAt,
-        process.env.KITE_TRADE_SECRET || apiKey,
+        tradeSecret,
       ),
       taker,
       inputSymbol: inputToken.symbol,
@@ -241,6 +264,11 @@ export async function POST(request: NextRequest) {
       inputDecimals,
       outputDecimals,
       side,
+      simulation: {
+        status: "passed",
+        simulatedAt: new Date().toISOString(),
+        unitsConsumed: simulation.unitsConsumed,
+      },
     };
     return NextResponse.json(order, {
       headers: { "Cache-Control": "no-store" },

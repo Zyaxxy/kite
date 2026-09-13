@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import { Keypair } from "@solana/web3.js";
+import { readLimitedJson } from "../lib/server/request-policy.ts";
 
 const require = createRequire(import.meta.url);
 const sdk = require("../../../packages/sdk/dist/index.js");
@@ -31,6 +32,9 @@ function createRoute({
   haltedMint = null,
   unknownToken = false,
   incompleteCatalog = false,
+  simulationStatus = "passed",
+  slippageBps = 50,
+  tradeSecret = "test-only-trade-secret-with-32-characters",
 } = {}) {
   const calls = {
     precision: [],
@@ -38,6 +42,7 @@ function createRoute({
     discovery: [],
     catalog: 0,
     prices: 0,
+    simulations: 0,
   };
   const exports = {};
   const dependencies = {
@@ -114,6 +119,20 @@ function createRoute({
     "@/lib/server/trade-authorization": {
       authorizeTrade: () => "test-authorization",
     },
+    "@/lib/server/request-policy": { readLimitedJson },
+    "@/lib/server/trade-simulation": {
+      preflightMainnetOrder: async () => {
+        calls.simulations++;
+        return {
+          status: simulationStatus,
+          unitsConsumed: 25000,
+          error:
+            simulationStatus === "passed"
+              ? null
+              : "Simulation unavailable or failed.",
+        };
+      },
+    },
   };
   runInNewContext(compiled, {
     exports,
@@ -122,7 +141,12 @@ function createRoute({
         throw new Error(`Unexpected route dependency: ${name}`);
       return dependencies[name];
     },
-    process: { env: { JUPITER_API_KEY: "test-only-api-key" } },
+    process: {
+      env: {
+        JUPITER_API_KEY: "test-only-api-key",
+        KITE_TRADE_SECRET: tradeSecret,
+      },
+    },
     console: { warn: () => {} },
     URLSearchParams,
     AbortSignal,
@@ -137,7 +161,7 @@ function createRoute({
         outputMint: params.get("outputMint"),
         inAmount: params.get("amount"),
         outAmount: "100000000",
-        slippageBps: 50,
+        slippageBps,
         feeBps: 0,
         router: "test-only-router",
       });
@@ -291,4 +315,29 @@ test("unverified mint precision fails closed before requesting a swap quote", as
   assert.equal(response.status, 503);
   assert.match((await response.json()).error, /RPC configuration/);
   assert.equal(route.calls.quotes.length, 0);
+});
+
+test("a failed or unavailable preflight never produces a signable order", async () => {
+  for (const [simulationStatus, status] of [
+    ["failed", 422],
+    ["unavailable", 503],
+  ]) {
+    const route = createRoute({ simulationStatus });
+    const response = await route.swap(mint, secondMint);
+    assert.equal(response.status, status);
+    const result = await response.json();
+    assert.equal(result.transaction, undefined);
+    assert.equal(route.calls.simulations, 1);
+  }
+  const response = await createRoute().swap(mint, secondMint);
+  assert.equal((await response.json()).simulation.status, "passed");
+});
+
+test("slippage above the policy cap and missing authorization secrets fail closed", async () => {
+  const highSlippage = createRoute({ slippageBps: 301 });
+  assert.equal((await highSlippage.swap(mint, secondMint)).status, 422);
+  assert.equal(highSlippage.calls.simulations, 0);
+  const missingSecret = createRoute({ tradeSecret: "" });
+  assert.equal((await missingSecret.swap(mint, secondMint)).status, 503);
+  assert.equal(missingSecret.calls.quotes.length, 0);
 });
