@@ -16,7 +16,6 @@ kite/
   │   ├── web/                     # Next.js 15 App Router dApp (Wallet Adapter, Tailwind CSS)
   │   └── mobile/                  # React Native / Expo dApp (Solana Mobile Wallet Adapter)
   ├── packages/
-  │   ├── anchor/                  # Anchor Framework workspace (`kite-vault` program)
   │   └── sdk/                     # Shared TypeScript SDK (@kite/sdk)
   ├── package.json                 # Monorepo workspaces root (Turborepo)
   └── turbo.json                   # Build orchestrator
@@ -27,14 +26,7 @@ kite/
 ## Environment & Tooling
 
 - **Node.js**: v24.12.0
-- **Solana CLI**: `solana-cli 3.1.10 (Agave)` (located in `~/.local/share/solana/install/active_release/bin`)
-- **Anchor CLI**: `anchor-cli 1.1.2` (located in `~/.cargo/bin`)
-- **Rust**: `rustc` / `cargo` (located in `~/.cargo/bin`)
-
-When running shell commands involving `solana` or `anchor`, ensure the PATH includes:
-```bash
-export PATH="$HOME/.cargo/bin:$HOME/.local/share/solana/install/active_release/bin:$PATH"
-```
+- Mainnet transactions use the TypeScript SDK: Kit 8 for V1 composition and official Solana Subscriptions for recurring payments. No custom Anchor program or vault deployment is required.
 
 ---
 
@@ -50,26 +42,11 @@ pnpm dev:mobile
 # Build shared SDK
 pnpm build:sdk
 
-# Compile Anchor program
-pnpm build:anchor
-# or inside packages/anchor:
-anchor build
-
-# Run Anchor tests
-pnpm test:anchor
-# or inside packages/anchor:
-anchor test
 ```
 
 ---
 
 ## Code Guidelines & Standards
-
-### Rust / Anchor (`packages/anchor`)
-- Use Anchor 0.30+ conventions.
-- Always use `checked_add`, `checked_sub`, `checked_mul` for mathematical calculations or return custom `KiteError::MathOverflow`.
-- Strictly validate PDAs with `seeds` and `bump` constraints in account contexts.
-- Enforce token mint constraints on all token account inputs.
 
 ### TypeScript / Frontend (`apps/web`, `apps/mobile`, `packages/sdk`)
 - Write modular, strictly-typed TypeScript without `any` where possible.
@@ -81,5 +58,6 @@ anchor test
 
 ## Primitives & Protocols
 - **Pyth Network:** Real-time equity oracle feeds (`@pythnetwork/pyth-solana-receiver`).
-- **Jupiter:** Atomic multi-leg swaps and onchain DCA / SIP routing.
-- **SPL Token / Token-2022:** Non-custodial index basket token minting and transfer hooks.
+- **Jupiter:** Atomic multi-leg swaps using the Swap V2 build API.
+- **Solana Subscriptions:** The official deployed shared program bounds recurring buyer withdrawals. A buyer-controlled keeper signs collections. It does not enforce stock delivery.
+- **SPL Token / Token-2022:** Direct wallet holdings and delegated token payments. No synthetic basket mint or Kite vault. Reject unsupported extensions rather than bypassing their checks.

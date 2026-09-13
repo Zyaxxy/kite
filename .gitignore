@@ -19,3 +19,5 @@ target
 .expo/
 apps/mobile/android/
 apps/mobile/ios/
+
+.kite-collections/
