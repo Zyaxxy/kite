@@ -139,6 +139,82 @@ test("an ambiguous expired transaction blocks new occurrences without catching u
   assert.equal(ledger.pending().length, 1);
 });
 
+test("an expired signed intent that never reached the server is recorded for definitive recovery", async (t) => {
+  const { ledger } = fixture(t);
+  ledger.write({ ...pending, expiresAt: 1000 });
+  const calls = [];
+  await runWorkerCycle({
+    ledger,
+    buyer: "buyer",
+    signOrder: () => assert.fail("Never replace persisted signed bytes"),
+    now: () => 2000,
+    log: () => {},
+    api: async (input) => {
+      calls.push(input?.action ?? "due");
+      if (input?.action === "reconcile") return { status: "prepared" };
+      if (input?.action === "record") {
+        assert.equal(input.signedTransaction, signedTransaction);
+        return { status: "failed", signature };
+      }
+      if (!input) return { runs: [] };
+      assert.fail("Only the existing signed intent can be recovered");
+    },
+  });
+  assert.deepEqual(calls, ["reconcile", "record", "due"]);
+  assert.equal(ledger.read(run.planId, run.runId).status, "failed");
+});
+
+test("a review that expires before signing is discarded under the server lock", async (t) => {
+  const { ledger } = fixture(t);
+  const calls = [];
+  await runWorkerCycle({
+    ledger,
+    buyer: "buyer",
+    signOrder: () => assert.fail("An expired review cannot be signed"),
+    now: () => 2000,
+    log: () => {},
+    api: async (input) => {
+      calls.push(input?.action ?? "due");
+      if (!input) return { runs: [run] };
+      if (input.action === "prepare") return { ...order, expiresAt: 1000 };
+      if (input.action === "discard") {
+        assert.equal(input.authorization, order.authorization);
+        return { status: "failed" };
+      }
+      assert.fail("An unsigned order must never enter the broadcast path");
+    },
+  });
+  assert.deepEqual(calls, ["due", "prepare", "discard"]);
+  assert.equal(ledger.read(run.planId, run.runId).status, "failed");
+  assert.equal(ledger.read(run.planId, run.runId).signature, undefined);
+});
+
+test("one unresolved plan does not block an independent investor's due purchase", async (t) => {
+  const { ledger } = fixture(t);
+  ledger.write({ ...pending, expiresAt: 1000 });
+  const independent = { ...run, planId: "plan-2", runId: "plan-2:0" };
+  await runWorkerCycle({
+    ledger,
+    buyer: "buyer",
+    signOrder: signed,
+    now: () => 2000,
+    log: () => {},
+    api: async (input) => {
+      if (input?.action === "reconcile")
+        return { status: "pending", signature };
+      if (!input) return { runs: [{ ...run, runId: "plan-1:1" }, independent] };
+      assert.equal(input.planId, independent.planId);
+      if (input.action === "prepare") return { ...order, ...independent };
+      if (input.action === "record") return { status: "success", signature };
+    },
+  });
+  assert.equal(ledger.read(run.planId, run.runId).status, "pending");
+  assert.equal(
+    ledger.read(independent.planId, independent.runId).status,
+    "success",
+  );
+});
+
 test("definitive onchain failure permits a later scheduled occurrence, without retrying the failed one", async (t) => {
   const { ledger } = fixture(t);
   ledger.write(pending);
@@ -173,7 +249,6 @@ test("invalid signer, V0 response, or changed signature cannot advance the ledge
     { taker: "someone-else" },
     { transactionVersion: 0 },
     { runId: "different-run" },
-    { expiresAt: 999 },
   ]) {
     await runWorkerCycle({
       ledger,

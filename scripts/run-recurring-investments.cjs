@@ -198,7 +198,7 @@ async function runWorkerCycle({
       if (updateOutcome(ledger, entry, outcome)) {
         blockedPlans.delete(entry.planId);
         log(`Investment ${outcome.status}: ${entry.signature}`);
-      } else if (entry.expiresAt > now()) {
+      } else if (outcome.status === "prepared" || entry.expiresAt > now()) {
         // Only identical signed bytes may be retried. The server persists intent before broadcasting.
         const recorded = await api({
           action: "record",
@@ -236,12 +236,34 @@ async function runWorkerCycle({
         order.runId !== run.runId ||
         order.taker !== buyer ||
         order.transactionVersion !== 1 ||
-        !Number.isFinite(order.expiresAt) ||
-        order.expiresAt <= now()
+        !Number.isFinite(order.expiresAt)
       )
         throw new WorkerError(
           "The executor returned an incompatible or expired investment order.",
         );
+      if (order.expiresAt <= now()) {
+        const outcome = await api({
+          action: "discard",
+          planId: run.planId,
+          runId: run.runId,
+          authorization: order.authorization,
+        });
+        if (outcome.status !== "failed")
+          throw new WorkerError(
+            "The expired investment order could not be safely discarded.",
+          );
+        ledger.write({
+          planId: run.planId,
+          runId: run.runId,
+          status: "failed",
+          createdAt: now(),
+          reason: "The unsigned order expired before signing.",
+        });
+        log(
+          `The unsigned investment order expired for run ${run.runId}; no transaction was submitted.`,
+        );
+        continue;
+      }
       const { signedTransaction, signature } = await signOrder(order);
       const entry = {
         planId: run.planId,
@@ -268,7 +290,7 @@ async function runWorkerCycle({
       log(`Investment ${outcome.status}: ${signature}`);
     } catch {
       log(
-        `Investment run ${run.runId} could not finish. Its persisted intent will be reconciled before retrying.`,
+        `Investment run ${run.runId} could not finish. Its transaction status will be checked before another attempt.`,
       );
     }
   }
