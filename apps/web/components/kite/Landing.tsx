@@ -12,9 +12,16 @@ import { Brand, OrbitArt } from "./Brand";
 import { useKite } from "./State";
 import { useBaskets } from "./useBaskets";
 import { BasketCard, WatchRow } from "./MarketUI";
+
+const featuredBasketIds = ["sol-mag7", "sol-chips", "sol-pre-stocks"];
+
 export function Landing() {
   const { snapshot, loading } = useKite();
   const baskets = useBaskets();
+  const featuredBaskets = featuredBasketIds.flatMap((id) => {
+    const basket = baskets.find((item) => item.id === id);
+    return basket ? [basket] : [];
+  });
   const assets = (snapshot?.assets ?? [])
     .filter((a) => a.priceUsd !== null)
     .slice(0, 2);
@@ -108,23 +115,50 @@ export function Landing() {
             Build an investing habit
           </span>
         </div>
-        <section className="landing-section">
+        <section
+          className="landing-section landing-baskets"
+          aria-labelledby="featured-baskets-heading"
+        >
           <div className="section-head">
             <div>
               <p className="eyebrow" style={{ marginBottom: 13 }}>
                 INVEST IN A POINT OF VIEW
               </p>
-              <h2>Themes worth exploring.</h2>
+              <h2 id="featured-baskets-heading">Themes worth exploring.</h2>
+              <p className="landing-section-intro">
+                Three starting points. A whole collection to discover.
+              </p>
             </div>
             <Link className="text-link" href="/baskets">
               All baskets <ArrowUpRight size={15} />
             </Link>
           </div>
-          <div className="basket-grid">
-            {baskets.map((b, i) => (
+          <div
+            className="basket-grid landing-basket-showcase"
+            role="group"
+            aria-label="Featured baskets"
+            onFocus={(event) => {
+              if (
+                event.currentTarget.scrollWidth <=
+                event.currentTarget.clientWidth
+              )
+                return;
+              const card = event.target.closest<HTMLElement>(".basket-card");
+              card?.scrollIntoView({
+                block: "nearest",
+                inline: "start",
+                behavior: "auto",
+              });
+            }}
+          >
+            {featuredBaskets.map((b, i) => (
               <BasketCard key={b.id} basket={b} index={i} />
             ))}
           </div>
+          <p className="landing-swipe-hint">
+            Swipe to explore the featured baskets{" "}
+            <ArrowRight size={14} aria-hidden="true" />
+          </p>
         </section>
         <section className="landing-section" style={{ paddingTop: 15 }}>
           <p className="eyebrow" style={{ marginBottom: 14 }}>
