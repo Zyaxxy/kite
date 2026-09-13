@@ -1,49 +1,39 @@
 "use client";
-
-import React, { useMemo } from "react";
-import { KiteProvider } from "../components/kite/State";
 import dynamic from "next/dynamic";
-import {
-  ConnectionProvider,
-  WalletProvider,
-} from "@solana/wallet-adapter-react";
-import { clusterApiUrl } from "@solana/web3.js";
-import "@solana/wallet-adapter-react-ui/styles.css";
-
-const WalletModalProvider = dynamic(
-  () =>
-    import("@solana/wallet-adapter-react-ui").then(
-      (module) => module.WalletModalProvider,
-    ),
-  { ssr: false },
-);
-const PrivyAuthProvider = dynamic(
-  () => import("../components/auth/PrivyAuthProvider"),
-  { ssr: false },
-);
-
+import { usePathname } from "next/navigation";
+import { KiteProvider } from "../components/kite/State";
+const WalletProviders = dynamic(() => import("./wallet-providers"), {
+  ssr: false,
+  loading: () => (
+    <main className="system-screen" aria-busy="true">
+      <section>
+        <p className="eyebrow">KITE</p>
+        <h1>Opening your workspace.</h1>
+        <p className="muted">Connecting your market and wallet tools.</p>
+      </section>
+    </main>
+  ),
+});
 export function Providers({ children }: { children: React.ReactNode }) {
-  const endpoint =
-    process.env.NEXT_PUBLIC_SOLANA_RPC_URL || clusterApiUrl("mainnet-beta");
-  const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
-  // Modern Wallet Standard auto-discovers Phantom, Solflare, Backpack, etc.
-  const wallets = useMemo(() => [], []);
-
+  const path = usePathname();
+  const workspace =
+    [
+      "/app",
+      "/markets",
+      "/baskets",
+      "/sip",
+      "/portfolio",
+      "/orders",
+      "/watchlist",
+      "/settings",
+    ].includes(path) ||
+    path.startsWith("/stock/") ||
+    path.startsWith("/basket/");
+  if (!workspace && path !== "/" && path !== "/landing") return <>{children}</>;
+  const publicPage = path === "/" || path === "/landing";
   return (
-    <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider wallets={wallets} autoConnect>
-        <WalletModalProvider>
-          <KiteProvider>
-            {privyAppId ? (
-              <PrivyAuthProvider appId={privyAppId} endpoint={endpoint}>
-                {children}
-              </PrivyAuthProvider>
-            ) : (
-              children
-            )}
-          </KiteProvider>
-        </WalletModalProvider>
-      </WalletProvider>
-    </ConnectionProvider>
+    <KiteProvider>
+      {publicPage ? children : <WalletProviders>{children}</WalletProviders>}
+    </KiteProvider>
   );
 }

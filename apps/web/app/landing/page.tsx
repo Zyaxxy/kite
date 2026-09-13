@@ -1,4 +1,4 @@
-import { KiteApp } from "../../components/kite/KiteApp";
+import { Landing } from "../../components/kite/Landing";
 export default function Page() {
-  return <KiteApp page="landing" />;
+  return <Landing />;
 }

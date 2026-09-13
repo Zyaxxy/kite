@@ -53,7 +53,7 @@ export function Landing() {
               <Link href="/app" className="btn">
                 Find your next idea <ArrowUpRight size={16} />
               </Link>
-              <Link href="/settings" className="btn secondary">
+              <Link href="/settings" className="text-link">
                 Sign in with Privy
               </Link>
             </div>

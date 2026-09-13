@@ -46,13 +46,23 @@ export function AssetAvatar({
   large?: boolean;
 }) {
   const [failed, setFailed] = useState(false);
+  let optimizable = false;
+  try {
+    const url = new URL(asset.logoUrl ?? "");
+    optimizable =
+      url.protocol === "https:" &&
+      ["xstocks-metadata.backed.fi", "prestocks.com"].includes(url.hostname);
+  } catch {
+    /* Missing logos use the symbol fallback. */
+  }
   return (
     <span className={`asset-avatar ${large ? "large" : ""}`}>
       {asset.logoUrl && !failed ? (
         <Image
           width={64}
           height={64}
-          unoptimized
+          unoptimized={!optimizable}
+          sizes="64px"
           src={asset.logoUrl}
           alt=""
           onError={() => setFailed(true)}
