@@ -14,7 +14,8 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "pnpm build:sdk && pnpm --filter @kite/web exec next typegen && pnpm --filter @kite/web exec tsc --noEmit && pnpm --filter @kite/mobile exec tsc --noEmit",
-    "test:sdk": "pnpm build:sdk && node --test packages/sdk/test/*.test.cjs"
+    "test:sdk": "pnpm build:sdk && node --test packages/sdk/test/*.test.cjs",
+    "dev:api-tunnel": "node scripts/dev-api-tunnel.mjs"
   },
   "devDependencies": {
     "turbo": "^2.4.4",
