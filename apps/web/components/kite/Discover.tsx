@@ -155,7 +155,7 @@ export function Discover() {
                 Look inside a basket, see every holding, and choose how you want
                 to invest. Practice first with virtual funds.
               </p>
-              <div className="landing-actions">
+              <div className="landing-actions" style={{ flexWrap: "wrap" }}>
                 <Link href="/baskets" className="btn small">
                   Explore baskets <ArrowUpRight size={14} />
                 </Link>
