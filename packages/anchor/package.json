@@ -15,6 +15,7 @@
     "chai": "^4.3.7",
     "mocha": "^10.2.0",
     "ts-mocha": "^10.0.0",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "@solana/spl-token": "^0.4.12"
   }
 }
