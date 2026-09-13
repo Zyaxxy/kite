@@ -13,6 +13,7 @@ import { useKite } from "./State";
 import { useBaskets } from "./useBaskets";
 import { WatchRow } from "./MarketUI";
 import { BasketMarquee } from "./BasketMarquee";
+import { TradingModeSwitch } from "./TradingModeSwitch";
 
 export function Landing() {
   const { snapshot, loading } = useKite();
@@ -29,6 +30,7 @@ export function Landing() {
           <Link href="/baskets">Thematic baskets</Link>
           <Link href="/sip">Recurring plans</Link>
         </nav>
+        <TradingModeSwitch />
         <Link href="/app" className="btn small">
           Open Kite <ArrowUpRight size={15} />
         </Link>
@@ -66,7 +68,6 @@ export function Landing() {
           <div className="landing-art">
             <div className="landing-art-label">
               <span className="eyebrow">THE WORLD IS OPEN</span>
-              <span className="badge lime">SOLANA MAINNET</span>
             </div>
             <OrbitArt />
             <div className="landing-live-list">
@@ -103,7 +104,7 @@ export function Landing() {
           </span>
           <span>
             <Globe2 />
-            Mainnet tokenized equities
+            Tokenized equities
           </span>
           <span>
             <Repeat2 />

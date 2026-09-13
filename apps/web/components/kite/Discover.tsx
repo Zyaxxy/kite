@@ -257,7 +257,7 @@ export function Markets() {
   return (
     <>
       <PageIntro
-        eyebrow="Explore / Mainnet"
+        eyebrow="Explore / Markets"
         title="Your world of possibilities."
         description="Browse the full available xStocks and PreStocks catalogs. Search by company, ticker or mint address."
       />
@@ -267,7 +267,6 @@ export function Markets() {
           <span className="badge lime">
             {snapshot ? `${snapshot.assets.length} ASSETS` : "LOADING CATALOG"}
           </span>
-          <span className="eyebrow">Solana mainnet</span>
         </div>
         <button className="btn secondary small" onClick={() => void refresh()}>
           <RefreshCw size={13} />

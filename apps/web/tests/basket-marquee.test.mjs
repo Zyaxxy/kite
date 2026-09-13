@@ -190,11 +190,6 @@ async function fixture(
         Object.defineProperty(event, key, { value });
       target.dispatchEvent(event);
     },
-    async toggle() {
-      await act(async () =>
-        window.document.querySelector(".basket-motion-toggle").click(),
-      );
-    },
   };
 }
 
@@ -242,7 +237,7 @@ test("marquee accumulates fractional motion and wraps across the measured inter-
   );
 });
 
-test("hover, touch, wheel, focus and the explicit pause control preserve the user's position", async (t) => {
+test("hover, touch, wheel and focus preserve the user's position", async (t) => {
   const view = await fixture(t);
   view.visible();
   view.advance();
@@ -275,23 +270,10 @@ test("hover, touch, wheel, focus and the explicit pause control preserve the use
   view.window.document.getElementById("outside").focus();
   view.advance(1700);
   assert.ok(view.viewport.scrollLeft > focused);
-  await view.toggle();
-  const paused = view.viewport.scrollLeft;
   assert.equal(
-    view.window.document
-      .querySelector("button.basket-motion-toggle")
-      .getAttribute("aria-pressed"),
-    "true",
+    view.window.document.querySelector(".basket-motion-toggle"),
+    null,
   );
-  view.visible();
-  view.advance(3000);
-  assert.equal(view.viewport.scrollLeft, paused);
-  assert.equal(view.frames.size, 0);
-  await view.toggle();
-  view.visible();
-  view.advance();
-  view.advance();
-  assert.ok(view.viewport.scrollLeft > paused);
 });
 
 test("reduced motion avoids duplicate content and reacts to preference changes", async (t) => {

@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import type { PaperFrequency } from "@kite/sdk";
 import { useKite } from "./State";
-import { PageIntro, ModeSwitch } from "./Shell";
+import { PageIntro } from "./Shell";
 import { MarketStatus } from "./Discover";
 import { AssetName, Change, Empty, money } from "./MarketUI";
 import { OrbitArt } from "./Brand";
@@ -640,7 +640,7 @@ export function Settings() {
                   : "You’re viewing actual trading. Transactions require your wallet approval."}
               </p>
             </div>
-            <ModeSwitch />
+            <span className="muted">Change mode in the header</span>
           </div>
           <div className="settings-row">
             <div>
@@ -686,9 +686,6 @@ export function Settings() {
               <h3>Network</h3>
               <p>All market discovery and actual trades use Solana mainnet.</p>
             </div>
-            <span className="badge lime">
-              <span className="status-dot" /> MAINNET
-            </span>
           </div>
           <div className="settings-row">
             <div>

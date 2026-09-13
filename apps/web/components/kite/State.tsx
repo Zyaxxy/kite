@@ -4,7 +4,7 @@ import { createKiteCore, executePaperOrder, executePaperSwap, valuePaperAccount,
 import type { MarketAsset, MarketSnapshot, PaperAccount, MarketBasket, PaperPlan } from "@kite/sdk";
 import { kiteClient } from "./api-client";
 
-type Mode = "paper" | "actual";
+import { useTradingMode, type TradingMode as Mode } from "./useTradingMode";
 type Portfolio = ReturnType<typeof valuePaperAccount>;
 interface KiteState {
   snapshot: MarketSnapshot | null;
@@ -47,7 +47,7 @@ export function KiteProvider({ children }: { children: React.ReactNode }) {
     accountKey: "kite.paper.mainnet.v1", watchlistKey: "kite.watchlist.mainnet.v1",
   }));
   const state = useSyncExternalStore(core.subscribe, core.getSnapshot, core.getSnapshot);
-  const [mode, setMode] = useState<Mode>("paper");
+  const [mode, setMode] = useTradingMode();
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => {
     const visibility = () => core.setActive(document.visibilityState === "visible");

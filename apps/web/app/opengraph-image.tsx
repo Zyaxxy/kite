@@ -31,7 +31,7 @@ export default function OpenGraphImage() {
         />
         <span style={{ fontSize: 38 }}>Kite</span>
         <span style={{ fontSize: 18, marginLeft: "auto", color: "#d5f478" }}>
-          SOLANA MAINNET
+          YOUR WORLD, ONCHAIN
         </span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>

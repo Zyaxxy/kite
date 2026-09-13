@@ -54,8 +54,7 @@ export function ActualPortfolio() {
         <div>
           <h2>Actual holdings</h2>
           <p className="fineprint">
-            {auth.walletAddress.slice(0, 6)}…{auth.walletAddress.slice(-4)} ·
-            Solana mainnet
+            {auth.walletAddress.slice(0, 6)}…{auth.walletAddress.slice(-4)}
           </p>
         </div>
         <button className="btn secondary" disabled={loading} onClick={refresh}>

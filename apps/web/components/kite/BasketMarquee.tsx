@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Pause, Play } from "lucide-react";
 import { BasketCard, type BasketDisplay } from "./MarketUI";
 
 // One row → steady movement → identical repeat boundary. Interaction pauses in place.
@@ -11,7 +10,6 @@ export function BasketMarquee({ baskets }: { baskets: BasketDisplay[] }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const originalsRef = useRef<HTMLDivElement>(null);
   const copyRef = useRef<HTMLDivElement>(null);
-  const [paused, setPaused] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(true);
   const loop = !reducedMotion && baskets.length > 1;
   const basketKey = baskets.map((basket) => basket.id).join(",");
@@ -113,12 +111,12 @@ export function BasketMarquee({ baskets }: { baskets: BasketDisplay[] }) {
     viewport.addEventListener("focusout", blur);
 
     function wake() {
-      if (!frame && visible && !document.hidden && !paused)
+      if (!frame && visible && !document.hidden)
         frame = requestAnimationFrame(tick);
     }
     const tick = (time: number) => {
       frame = 0;
-      if (!visible || document.hidden || paused) {
+      if (!visible || document.hidden) {
         previousTime = 0;
         return;
       }
@@ -129,7 +127,6 @@ export function BasketMarquee({ baskets }: { baskets: BasketDisplay[] }) {
       if (
         visible &&
         !document.hidden &&
-        !paused &&
         !hovered &&
         !touching &&
         !focused &&
@@ -161,7 +158,7 @@ export function BasketMarquee({ baskets }: { baskets: BasketDisplay[] }) {
       viewport.removeEventListener("focusin", focus);
       viewport.removeEventListener("focusout", blur);
     };
-  }, [loop, paused, basketKey]);
+  }, [loop, basketKey]);
 
   return (
     <div className="basket-marquee">
@@ -209,28 +206,6 @@ export function BasketMarquee({ baskets }: { baskets: BasketDisplay[] }) {
             </div>
           )}
         </div>
-      </div>
-      <div className="basket-marquee-controls">
-        <p>
-          {reducedMotion
-            ? "Browse every theme at your pace."
-            : "A world of ideas, always in view."}
-        </p>
-        {!reducedMotion && baskets.length > 1 && (
-          <button
-            type="button"
-            className="basket-motion-toggle"
-            aria-pressed={paused}
-            onClick={() => setPaused((value) => !value)}
-          >
-            {paused ? (
-              <Play size={14} aria-hidden="true" />
-            ) : (
-              <Pause size={14} aria-hidden="true" />
-            )}
-            {paused ? "Play animation" : "Pause animation"}
-          </button>
-        )}
       </div>
     </div>
   );

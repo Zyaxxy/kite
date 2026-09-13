@@ -307,7 +307,7 @@ export function ActualTradePanel({
     >
       <div className={styles.swapHeading}>
         <div>
-          <p className="eyebrow">SOLANA MAINNET</p>
+          <p className="eyebrow">Actual trading</p>
           <h3>Swap</h3>
         </div>
         {auth.walletAddress && (
@@ -341,8 +341,7 @@ export function ActualTradePanel({
       )}
       {auth.walletAddress && (
         <p className="fineprint">
-          Wallet {auth.walletAddress.slice(0, 6)}…{auth.walletAddress.slice(-4)}{" "}
-          · Solana mainnet
+          Wallet {auth.walletAddress.slice(0, 6)}…{auth.walletAddress.slice(-4)}
         </p>
       )}
       {balancesError && (

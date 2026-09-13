@@ -452,18 +452,6 @@ input::-webkit-inner-spin-button {
 .sidebar-note .eyebrow {
   color: var(--accent);
 }
-.network-label {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 10px;
-  color: var(--muted);
-  padding: 15px 14px 0;
-  border-top: 1px solid var(--line);
-}
-.network-label .status-dot {
-  color: var(--accent);
-}
 .topbar {
   height: 83px;
   display: flex;
@@ -541,26 +529,77 @@ input::-webkit-inner-spin-button {
   font-style: normal;
   color: var(--accent);
 }
-.mode-switch {
+/* One shared track; the selected surface slides without moving its labels. */
+.header-mode {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
+}
+.header-mode-caption {
+  display: none;
+  color: var(--muted);
+  font-size: 11px;
+}
+.trading-mode {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  width: 164px;
   padding: 4px;
   border: 1px solid var(--line);
+  border-radius: 999px;
   background: var(--surface);
-  border-radius: 11px;
-  gap: 4px;
 }
-.mode-switch button {
-  padding: 8px 13px;
-  font-size: 11px;
-  background: transparent;
-  border-radius: 7px;
-  color: var(--muted);
-  white-space: nowrap;
-}
-.mode-switch button.active {
-  color: var(--accent-ink);
+.trading-mode-indicator {
+  position: absolute;
+  z-index: -1;
+  inset: 4px auto 4px 4px;
+  width: calc((100% - 8px) / 2);
+  border-radius: inherit;
   background: var(--accent);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 25%),
+    0 2px 6px rgb(0 0 0 / 16%);
+  pointer-events: none;
+}
+.trading-mode[data-mode="actual"] .trading-mode-indicator {
+  transform: translateX(100%);
+}
+.trading-mode-option {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 36px;
+  border-radius: 999px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.trading-mode-option input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.trading-mode-option:has(input:checked) {
+  color: var(--accent-ink);
+}
+.trading-mode-option:has(input:focus-visible) {
+  outline: 2px solid var(--ink);
+  outline-offset: 5px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .trading-mode-indicator {
+    transition: transform 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .trading-mode-option {
+    transition: color 150ms ease-out;
+  }
 }
 .page-footer {
   display: flex;
@@ -1137,8 +1176,8 @@ input::-webkit-inner-spin-button {
   font-size: 22px;
   margin-bottom: 5px;
 }
-.trade-panel .mode-switch {
-  margin: 22px 0;
+.trade-panel > p.muted {
+  margin-bottom: 22px;
 }
 .trade-panel .field-label {
   display: flex;
@@ -1610,33 +1649,6 @@ input::-webkit-inner-spin-button {
   flex: 0 0 var(--basket-card-width);
   width: var(--basket-card-width);
 }
-.basket-marquee-controls {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  margin-top: 12px;
-  color: var(--muted);
-  font-size: 12px;
-  min-height: 44px;
-}
-.basket-motion-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 44px;
-  flex-shrink: 0;
-  padding: 0 12px;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  background: var(--surface);
-  color: var(--ink);
-  font-size: 11px;
-}
-.basket-motion-toggle:hover {
-  border-color: var(--accent);
-}
 .landing-section .basket-art {
   height: 136px;
 }
@@ -1870,9 +1882,44 @@ input::-webkit-inner-spin-button {
     display: none;
   }
   .topbar {
-    height: 76px;
-    padding: 0 20px;
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    height: auto;
+    padding: 12px 20px;
+    gap: 10px;
+  }
+  .topbar .top-actions {
+    display: contents;
+  }
+  .topbar .mobile-brand {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .topbar .search-trigger {
+    grid-column: 2;
+    grid-row: 1;
+    min-height: 44px;
+    min-width: 44px;
+    justify-content: center;
+  }
+  .topbar .top-actions > .btn {
+    grid-column: 3;
+    grid-row: 1;
+    min-height: 44px;
+  }
+  .topbar .header-mode,
+  .landing-nav .header-mode {
+    grid-column: 1 / -1;
+    grid-row: 2;
     justify-content: space-between;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
+  }
+  .header-mode-caption {
+    display: block;
+  }
+  .trading-mode-option {
+    min-height: 40px;
   }
   .mobile-brand {
     display: block;
@@ -1896,9 +1943,6 @@ input::-webkit-inner-spin-button {
   .search-trigger kbd {
     display: none;
   }
-  .top-actions > .badge {
-    display: none;
-  }
   .top-actions .btn {
     font-size: 11px;
     padding: 9px 12px;
@@ -1913,9 +1957,6 @@ input::-webkit-inner-spin-button {
   }
   .page-intro p:not(.eyebrow) {
     font-size: 12px;
-  }
-  .page-intro .mode-switch {
-    display: none;
   }
   .page-intro h1 {
     font-size: 35px;
@@ -2129,7 +2170,15 @@ input::-webkit-inner-spin-button {
     padding: 0 22px;
   }
   .landing-nav {
-    height: 82px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    height: auto;
+    padding: 16px 0;
+    gap: 12px;
+  }
+  .landing-nav > .btn {
+    grid-column: 2;
+    grid-row: 1;
   }
   .landing-nav nav {
     display: none;
@@ -2170,10 +2219,6 @@ input::-webkit-inner-spin-button {
   .basket-marquee {
     --basket-card-width: min(320px, 76vw);
     --basket-gap: 16px;
-  }
-  .basket-marquee-controls {
-    font-size: 11px;
-    gap: 12px;
   }
   .landing-section .basket-art {
     height: 120px;

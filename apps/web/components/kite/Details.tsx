@@ -20,7 +20,6 @@ import {
   Empty,
   money,
 } from "./MarketUI";
-import { ModeSwitch } from "./Shell";
 import { MarketStatus } from "./Discover";
 import { OrbitArt } from "./Brand";
 import { ActualTradePanel } from "../trading/ActualTradePanel";
@@ -394,7 +393,6 @@ export function StockDetail({ symbol }: { symbol: string }) {
             <p className="muted" style={{ fontSize: 11 }}>
               Invest in {asset.symbol} on your terms.
             </p>
-            <ModeSwitch />
             {mode === "paper" ? (
               <PaperTrade asset={asset} />
             ) : asset.tradingHalted ? (
@@ -556,7 +554,6 @@ export function BasketDetail({ id }: { id: string }) {
             <p className="muted" style={{ fontSize: 11, marginTop: 5 }}>
               Allocate across this basket’s components.
             </p>
-            <ModeSwitch />
             {mode === "paper" ? (
               <>
                 <label className="field-label" htmlFor="basket-amount">
