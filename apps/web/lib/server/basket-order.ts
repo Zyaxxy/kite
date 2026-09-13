@@ -12,6 +12,7 @@ import {
 } from "@solana/spl-token";
 import {
   allocateBasketInput,
+  validateJupiterExactInInstruction,
   composeMainnetTransaction,
   hasCompleteIssuerCatalogs,
   toTokenAmount,
@@ -320,6 +321,25 @@ async function prepareAllocationOrder(
         (r.otherInstructions?.length ?? 0) > 0
       )
         throw new Error("Unsupported basket router instructions.");
+      validateJupiterExactInInstruction({
+        instruction: {
+          ...r.swapInstruction,
+          data: Buffer.from(r.swapInstruction.data, "base64"),
+        },
+        inputAmount: a.amount,
+        quotedOutputAmount: BigInt(r.outAmount),
+        minimumOutputAmount: BigInt(r.otherAmountThreshold),
+        slippageBps: input.slippageBps,
+        settlement: {
+          signer: taker,
+          sourceTokenAccount: inputAta,
+          destinationTokenAccount: destinations[i],
+          inputMint,
+          outputMint: a.mint,
+          inputTokenProgram: programs[0].toBase58(),
+          outputTokenProgram: programs[i + 1].toBase58(),
+        },
+      });
       return r;
     }),
   );

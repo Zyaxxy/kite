@@ -18,6 +18,8 @@ import {
 } from "@solana/spl-token";
 import {
   allocateBasketInput,
+  validateJupiterExactInInstruction,
+  type JupiterExactInTerms,
   buildCollectRecurringInstructions,
   composeMainnetTransaction,
   recurringRemaining,
@@ -116,6 +118,7 @@ export function validateInvestmentRoute(
   amount: bigint,
   output: string,
   plan: RecurringInvestmentPlan,
+  settlement?: JupiterExactInTerms["settlement"],
 ) {
   const positive = (v: unknown): v is string =>
     typeof v === "string" &&
@@ -149,6 +152,17 @@ export function validateInvestmentRoute(
     throw new Error(
       "The investment route exceeded its allocation, slippage or 1% price-impact policy.",
     );
+  validateJupiterExactInInstruction({
+    instruction: {
+      ...route.swapInstruction,
+      data: Buffer.from(route.swapInstruction.data, "base64"),
+    },
+    inputAmount: amount,
+    quotedOutputAmount: BigInt(route.outAmount),
+    minimumOutputAmount: BigInt(route.otherAmountThreshold),
+    slippageBps: plan.slippageBps,
+    settlement,
+  });
 }
 function instruction(value: ApiInstruction, buyer: string) {
   if (
@@ -312,7 +326,15 @@ export async function prepareRecurringInvestmentOrder(
         `No executable investment route for ${plan.allocations[i].symbol}.`,
       );
     const route = (await response.json()) as Route;
-    validateInvestmentRoute(route, a.amount, a.mint, plan);
+    validateInvestmentRoute(route, a.amount, a.mint, plan, {
+      signer: plan.buyer,
+      sourceTokenAccount: staging.toBase58(),
+      destinationTokenAccount: destination.toBase58(),
+      inputMint: plan.fundingMint,
+      outputMint: a.mint,
+      inputTokenProgram: mintPrograms[0].toBase58(),
+      outputTokenProgram: mintPrograms[i + 1].toBase58(),
+    });
     for (const setup of route.setupInstructions ?? []) {
       const ix = instruction(setup, plan.buyer),
         keys = ix.keys.map((k) => k.pubkey.toBase58());

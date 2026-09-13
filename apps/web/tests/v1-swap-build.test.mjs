@@ -5,6 +5,9 @@ import { createRequire } from "node:module";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
 const require = createRequire(import.meta.url);
+const {
+  testJupiterInstruction,
+} = require("../../../packages/sdk/test/fixtures/jupiter.cjs");
 const sdk = require("../../../packages/sdk/dist/index.js");
 const web3 = require("@solana/web3.js");
 const spl = require("@solana/spl-token");
@@ -94,15 +97,14 @@ function builder({
           cleanupInstruction: null,
           otherInstructions: [],
           addressesByLookupTableAddress: { [key()]: [key()] },
-          swapInstruction: {
-            programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
-            data: Buffer.from([1]).toString("base64"),
-            accounts: [
-              { pubkey: wallet, isSigner: true, isWritable: true },
-              { pubkey: inputAta, isSigner: false, isWritable: true },
-              { pubkey: outputAta, isSigner: false, isWritable: true },
-            ],
-          },
+          swapInstruction: testJupiterInstruction({
+            signer: wallet,
+            source: inputAta,
+            destination: outputAta,
+            inputMint,
+            outputMint,
+            amount: params.get("amount"),
+          }),
         };
         routeChange(route);
         return Response.json(route);
@@ -268,7 +270,14 @@ test("new single-token routes also respect the V1 account and byte limits", asyn
   await assert.rejects(
     builder({
       routeChange: (r) => {
-        r.swapInstruction.data = Buffer.alloc(4096).toString("base64");
+        r.swapInstruction = testJupiterInstruction({
+          signer: wallet,
+          source: inputAta,
+          destination: outputAta,
+          inputMint,
+          outputMint,
+          swap: { variant: "JupiterRfqV2", fill_data: Array(3800).fill(0) },
+        });
       },
     }).prepare(),
     /size limit/,
