@@ -19,6 +19,9 @@ const require = createRequire(import.meta.url);
 const sdk = require("../../../packages/sdk/dist/index.js");
 const web3 = require("@solana/web3.js");
 const spl = require("@solana/spl-token");
+const {
+  testJupiterInstruction,
+} = require("../../../packages/sdk/test/fixtures/jupiter.cjs");
 const key = () => web3.Keypair.generate().publicKey.toBase58();
 const nowSeconds = 1_790_000_000;
 const owner = key(),
@@ -145,15 +148,13 @@ function stockRoute() {
     setupInstructions: [],
     otherInstructions: [],
     cleanupInstruction: null,
-    swapInstruction: {
-      programId: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
-      data: Buffer.from([1]).toString("base64"),
-      accounts: [
-        { pubkey: buyer, isSigner: true, isWritable: true },
-        { pubkey: staging, isSigner: false, isWritable: true },
-        { pubkey: destination, isSigner: false, isWritable: true },
-      ],
-    },
+    swapInstruction: testJupiterInstruction({
+      signer: buyer,
+      source: staging,
+      destination,
+      inputMint: fundingMint,
+      outputMint: stockMint,
+    }),
   };
 }
 function builder({
@@ -407,6 +408,44 @@ test("a recurring route cannot add permissions, signers, unrelated programs or w
   const failure = builder({ simulationFailure: true });
   await assert.rejects(failure.prepare(), /failed simulation/);
   assert.equal(failure.calls.simulations, 1);
+});
+
+test("encoded Jupiter terms and destinations must match the review even when its JSON fields are correct", async () => {
+  const base = {
+    signer: buyer,
+    source: staging,
+    destination,
+    inputMint: fundingMint,
+    outputMint: stockMint,
+  };
+  for (const changes of [
+    { amount: "2000000" },
+    { out: "2000000" },
+    { slippage: 900 },
+    { destination: key() },
+  ]) {
+    const run = builder({
+      routeChange: (route) => {
+        route.swapInstruction = testJupiterInstruction({ ...base, ...changes });
+      },
+    });
+    await assert.rejects(run.prepare(), /Encoded Jupiter/);
+    assert.equal(
+      run.calls.simulations,
+      0,
+      "Malformed instructions must fail before simulation",
+    );
+  }
+  const trailing = builder({
+    routeChange: (route) => {
+      route.swapInstruction.data = Buffer.concat([
+        Buffer.from(route.swapInstruction.data, "base64"),
+        Buffer.from([0]),
+      ]).toString("base64");
+    },
+  });
+  await assert.rejects(trailing.prepare(), /Trailing bytes/);
+  assert.equal(trailing.calls.simulations, 0);
 });
 
 function store(t, extraEnv = {}) {
