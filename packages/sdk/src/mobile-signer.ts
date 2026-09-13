@@ -6,10 +6,15 @@ import {
   type MainnetTradeResult,
 } from "./trading";
 
+export type SignableWalletOrder = Pick<
+  MainnetTradeOrder,
+  "taker" | "transaction" | "expiresAt" | "authorization" | "requestId"
+> & { transactionVersion?: 0 | 1 };
+
 export interface MobileOrderSigner {
   getAddress(): string | null;
   /** User-initiated wallet signing only. This method must not broadcast. */
-  signTransaction(order: MainnetTradeOrder): Promise<string>;
+  signTransaction(order: SignableWalletOrder): Promise<string>;
 }
 export interface MobileExecutionClient {
   executeTrade(request: {
@@ -28,7 +33,7 @@ export interface MobileExecutionOptions {
 
 /** Headless native workflow: wallet signs locally; the authenticated web API broadcasts. */
 export async function signAndExecuteMobileOrder(
-  order: MainnetTradeOrder,
+  order: SignableWalletOrder,
   client: MobileExecutionClient,
   signer: MobileOrderSigner,
   options: MobileExecutionOptions = {},

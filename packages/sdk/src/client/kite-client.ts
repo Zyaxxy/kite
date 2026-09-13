@@ -1,3 +1,10 @@
+import type {
+  BasketOrder,
+  BasketOrderRequest,
+  WalletTransactionOrder,
+  RecurringPayment,
+  RecurringPaymentRequest,
+} from "../basket/mainnet";
 import type { MarketSnapshot } from "../markets";
 import type { StockResearch } from "../research";
 import {
@@ -288,6 +295,104 @@ export class KiteClient {
       matchesOrder(value, request),
     );
   }
+  async requestBasketOrder(
+    input: BasketOrderRequest,
+    signal?: AbortSignal,
+  ): Promise<BasketOrder> {
+    const { data } = await this.request("/api/buy-basket", {
+      body: input,
+      signal,
+    });
+    return verified<BasketOrder>(
+      data,
+      (v) =>
+        validWalletOrder(v, input.taker) &&
+        v.basketId === input.basketId &&
+        v.inputMint === input.inputMint &&
+        Number.isInteger(v.inputDecimals) &&
+        v.inAmount === toTokenAmount(input.amount, v.inputDecimals as number) &&
+        v.slippageBps === input.slippageBps &&
+        validBasketOutputs(v.outputs, v.inAmount as string),
+    );
+  }
+  async getRecurringPayments(
+    wallet: string,
+    signal?: AbortSignal,
+  ): Promise<RecurringPayment[]> {
+    const { data } = await this.request(
+      `/api/recurring?wallet=${encodeURIComponent(wallet)}`,
+      { signal },
+    );
+    return verified<{ payments: RecurringPayment[] }>(
+      data,
+      (v) =>
+        Array.isArray(v.payments) &&
+        v.payments.every((p) => record(p) && p.owner === wallet),
+    ).payments;
+  }
+  async requestRecurringPayment(
+    input: RecurringPaymentRequest,
+  ): Promise<
+    WalletTransactionOrder & { payment: RecurringPayment; decimals: number }
+  > {
+    const { data } = await this.request("/api/recurring", { body: input });
+    return verified(
+      data,
+      (v) =>
+        validWalletOrder(v, input.taker) &&
+        record(v.payment) &&
+        v.payment.owner === input.taker &&
+        v.payment.buyer === input.buyer &&
+        v.payment.mint === input.mint &&
+        v.payment.periodSeconds === input.periodSeconds &&
+        Number.isInteger(v.decimals) &&
+        v.payment.amountPerPeriod ===
+          toTokenAmount(input.amount, v.decimals as number),
+    );
+  }
+  async revokeRecurringPayment(
+    taker: string,
+    delegation: string,
+  ): Promise<WalletTransactionOrder> {
+    const { data } = await this.request("/api/recurring/revoke", {
+      body: { taker, delegation },
+    });
+    return verified(data, (v) => validWalletOrder(v, taker));
+  }
+  async collectRecurringPayment(
+    taker: string,
+    delegation: string,
+  ): Promise<
+    WalletTransactionOrder & {
+      amount: string;
+      periodStartedAt: number;
+      mint: string;
+    }
+  > {
+    const { data } = await this.request("/api/recurring/collect", {
+      body: { taker, delegation },
+    });
+    return verified(
+      data,
+      (v) =>
+        validWalletOrder(v, taker) &&
+        typeof v.amount === "string" &&
+        typeof v.periodStartedAt === "number",
+    );
+  }
+  async executeTransaction(
+    input: ExecuteTradeRequest,
+  ): Promise<MainnetTradeResult> {
+    try {
+      const { data } = await this.request("/api/transaction/execute", {
+        body: input,
+        acceptExecutionResult: true,
+      });
+      return classifyTradeExecution(data);
+    } catch {
+      return classifyTradeExecution(null);
+    }
+  }
   async executeTrade(
     input: ExecuteTradeRequest,
     signal?: AbortSignal,
@@ -304,4 +409,54 @@ export class KiteClient {
       return classifyTradeExecution(null);
     }
   }
+}
+
+function validWalletOrder(v: Record<string, unknown>, taker: string) {
+  return (
+    v.taker === taker &&
+    typeof v.requestId === "string" &&
+    typeof v.transaction === "string" &&
+    v.transaction.length <= 8000 &&
+    typeof v.authorization === "string" &&
+    v.authorization.length <= 4000 &&
+    typeof v.expiresAt === "number" &&
+    Number.isFinite(v.expiresAt) &&
+    (v.transactionVersion === 0 || v.transactionVersion === 1)
+  );
+}
+
+function validBasketOutputs(outputs: unknown, input: string): boolean {
+  const raw = (v: unknown): v is string =>
+    typeof v === "string" &&
+    /^\d{1,20}$/.test(v) &&
+    BigInt(v) > BigInt(0) &&
+    BigInt(v) < BigInt(2) ** BigInt(64);
+  if (
+    !Array.isArray(outputs) ||
+    !outputs.length ||
+    outputs.length > 12 ||
+    !outputs.every(
+      (o) =>
+        record(o) &&
+        typeof o.mint === "string" &&
+        typeof o.symbol === "string" &&
+        typeof o.decimals === "number" &&
+        Number.isInteger(o.decimals) &&
+        o.decimals >= 0 &&
+        o.decimals <= 18 &&
+        raw(o.inputAmount) &&
+        raw(o.outAmount) &&
+        raw(o.minimumAmount) &&
+        BigInt(o.minimumAmount) <= BigInt(o.outAmount) &&
+        Number.isSafeInteger(o.weightBps) &&
+        Number(o.weightBps) > 0,
+    )
+  )
+    return false;
+  return (
+    new Set(outputs.map((o) => o.mint)).size === outputs.length &&
+    outputs.reduce((s, o) => s + o.weightBps, 0) === 10000 &&
+    outputs.reduce((s, o) => s + BigInt(o.inputAmount), BigInt(0)) ===
+      BigInt(input)
+  );
 }

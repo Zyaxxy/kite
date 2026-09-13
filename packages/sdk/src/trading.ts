@@ -385,7 +385,7 @@ export function fromTokenAmount(rawAmount: string, decimals: number): string {
   );
 }
 export function canApproveTrade(
-  order: MainnetTradeOrder,
+  order: Pick<MainnetTradeOrder, "taker" | "transaction" | "expiresAt">,
   walletAddress: string | null,
   now = Date.now(),
 ): boolean {
