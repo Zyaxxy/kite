@@ -15,3 +15,6 @@ export * from "./pyth-streaming";
 export * from "./meteora";
 export * from "./jupiter";
 export * from "./pyth-oracle";
+export * from "./client/kite-client";
+export * from "./state/kite-core";
+export * from "./mobile-signer";

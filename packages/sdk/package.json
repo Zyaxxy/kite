@@ -15,5 +15,8 @@
     "@types/node": "^20.14.0",
     "buffer": "^6.0.3",
     "typescript": "^5.7.3"
-  }
+  },
+  "module": "src/index.ts",
+  "react-native": "src/index.ts",
+  "sideEffects": false
 }
