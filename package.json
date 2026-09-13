@@ -14,7 +14,9 @@
     "typecheck": "pnpm build:sdk && pnpm --filter @kite/web exec next typegen && pnpm --filter @kite/web exec tsc --noEmit && pnpm --filter @kite/mobile exec tsc --noEmit",
     "test:sdk": "pnpm build:sdk && node --test packages/sdk/test/*.test.cjs",
     "dev:api-tunnel": "node scripts/dev-api-tunnel.mjs",
-    "collect:recurring": "node scripts/collect-recurring-payment.cjs"
+    "collect:recurring": "node scripts/collect-recurring-payment.cjs",
+    "run:recurring": "node scripts/run-recurring-investments.cjs",
+    "test:recurring-worker": "node --test scripts/test/recurring-investments.test.cjs"
   },
   "devDependencies": {
     "turbo": "^2.4.4",
