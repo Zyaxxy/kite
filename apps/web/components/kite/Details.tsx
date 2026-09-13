@@ -404,6 +404,16 @@ export function StockDetail({ symbol }: { symbol: string }) {
             ) : (
               <ActualTradePanel asset={asset} />
             )}
+            <div className="divider" />
+            <Link
+              href={`/sip?stock=${asset.mint}&mode=${mode}`}
+              className="text-link"
+            >
+              {mode === "paper"
+                ? "Create a recurring paper plan"
+                : "Set up recurring investment"}
+              <ArrowUpRight size={13} />
+            </Link>
             <div
               className="data-source"
               style={{
@@ -628,10 +638,10 @@ export function BasketDetail({ id }: { id: string }) {
               <ActualBasketPanel basket={basket.source} />
             )}
             <div className="divider" />
-            <Link href={`/sip?basket=${id}`} className="text-link">
+            <Link href={`/sip?basket=${id}&mode=${mode}`} className="text-link">
               {mode === "paper"
                 ? "Create a recurring paper plan"
-                : "Manage recurring payments"}{" "}
+                : "Set up recurring investment"}{" "}
               <ArrowUpRight size={13} />
             </Link>
           </div>

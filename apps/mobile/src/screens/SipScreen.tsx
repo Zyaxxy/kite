@@ -17,12 +17,14 @@ import {
 import { Button, Chip, EmptyState, FilterRow } from "../components/Primitives";
 import { useKite } from "../state/KiteProvider";
 import { NativeComposedPanel } from "../components/NativeComposedPanel";
+import { NativeInvestingPanel } from "../components/NativeInvestingPanel";
 import { colors, money, ui } from "../theme";
 
 export type PlanTarget = {
   targetId: string;
   targetType: "asset" | "basket";
   name: string;
+  mode?: "Paper" | "Actual";
 };
 const FREQUENCIES: { label: string; value: PaperFrequency }[] = [
   { label: "Daily", value: "daily" },
@@ -37,7 +39,8 @@ export function SipScreen({
   initialTarget: PlanTarget | null;
 }) {
   const { account, market, ready, updateAccount } = useKite();
-  const [mode, setMode] = useState("Paper");
+  const [mode, setMode] = useState(initialTarget?.mode ?? "Paper");
+  const [advanced, setAdvanced] = useState(false);
   const [target, setTarget] = useState<PlanTarget | null>(initialTarget);
   const [frequency, setFrequency] = useState<PaperFrequency>("weekly");
   const [amount, setAmount] = useState("");
@@ -109,16 +112,36 @@ export function SipScreen({
           <Text style={ui.body}>
             {mode === "Paper"
               ? "Put a recurring paper investment behind the ideas you believe in."
-              : "Authorize recurring token payments with a buyer, a spending limit and an expiry."}
+              : "Choose a basket or a stock and invest on your own schedule."}
           </Text>
         </View>
         <FilterRow
           options={["Paper", "Actual"]}
           selected={mode}
-          onSelect={setMode}
+          onSelect={(value) => setMode(value === "Actual" ? "Actual" : "Paper")}
         />
         {mode === "Actual" ? (
-          <NativeComposedPanel />
+          <>
+            <NativeInvestingPanel initialTarget={initialTarget} />
+            <Button
+              secondary
+              label={
+                advanced
+                  ? "Close direct payment permissions"
+                  : "Advanced: direct token payment permissions"
+              }
+              onPress={() => setAdvanced((value) => !value)}
+            />
+            {advanced ? (
+              <>
+                <Text style={ui.small}>
+                  Direct payment permissions authorize your chosen buyer to
+                  collect tokens. They do not create an investment plan.
+                </Text>
+                <NativeComposedPanel />
+              </>
+            ) : null}
+          </>
         ) : (
           <>
             <View style={ui.card}>

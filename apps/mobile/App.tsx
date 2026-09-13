@@ -25,8 +25,8 @@ function KiteApp() {
     if (next !== 'plans') setPlanTarget(null);
     setScreen(next);
   }
-  function planAsset(asset: MarketAsset) { setPlanTarget({ targetId: asset.mint, targetType: 'asset', name: asset.name }); setSelectedAsset(null); setScreen('plans'); }
-  function planBasket(basket: MarketBasket) { setPlanTarget({ targetId: basket.id, targetType: 'basket', name: basket.name }); setScreen('plans'); }
+  function planAsset(asset: MarketAsset, mode: "Paper" | "Actual" = "Paper") { setPlanTarget({ targetId: asset.mint, targetType: 'asset', name: asset.name, mode }); setSelectedAsset(null); setScreen('plans'); }
+  function planBasket(basket: MarketBasket, mode: "Paper" | "Actual" = "Paper") { setPlanTarget({ targetId: basket.id, targetType: 'basket', name: basket.name, mode }); setScreen('plans'); }
 
   useEffect(() => {
     const listener = BackHandler.addEventListener('hardwareBackPress', () => {

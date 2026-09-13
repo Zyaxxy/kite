@@ -22,7 +22,7 @@ export function AssetScreen({
 }: {
   asset: MarketAsset;
   onClose: () => void;
-  onPlan: (asset: MarketAsset) => void;
+  onPlan: (asset: MarketAsset, mode?: "Paper" | "Actual") => void;
 }) {
   const {
     account,
@@ -251,7 +251,7 @@ export function AssetScreen({
           disabled={!canTrade}
         />
       </View>
-      </> : <NativeTradePanel asset={asset} />}
+      </> : <><NativeTradePanel asset={asset} /><Button secondary label="Set up recurring investment" onPress={() => onPlan(asset, "Actual")} /></>}
       <StockResearch asset={asset} refreshKey={researchRefresh} />
       <View style={ui.card}>
         <Text style={ui.eyebrow}>KNOW WHAT YOU OWN</Text>

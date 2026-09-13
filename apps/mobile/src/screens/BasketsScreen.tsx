@@ -25,7 +25,7 @@ import { colors, money, ui } from "../theme";
 export function BasketsScreen({
   onPlan,
 }: {
-  onPlan: (basket: MarketBasket) => void;
+  onPlan: (basket: MarketBasket, mode?: "Paper" | "Actual") => void;
 }) {
   const { market, account, updateAccount, ready, loading, refresh } = useKite();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -159,7 +159,17 @@ export function BasketsScreen({
               onSelect={setMode}
             />
             {selected && mode === "Actual" ? (
-              <NativeComposedPanel basket={selected} />
+              <>
+                <NativeComposedPanel basket={selected} />
+                <Button
+                  secondary
+                  label="Set up recurring investment"
+                  onPress={() => {
+                    setSelectedId(null);
+                    onPlan(selected, "Actual");
+                  }}
+                />
+              </>
             ) : selected ? (
               <View style={ui.card}>
                 <View style={ui.between}>

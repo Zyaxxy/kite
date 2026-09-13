@@ -34,7 +34,6 @@ export function Header({ onNavigate, current }: { onNavigate: (screen: Screen) =
       <View style={styles.brandMark} /><Text style={styles.wordmark}>kite</Text>
     </Pressable>
     <View style={styles.right}>
-      <View style={styles.mode}><View style={styles.modeDot} /><Text style={styles.modeText}>PAPER</Text></View>
       <Pressable accessibilityRole="button" accessibilityLabel="Open settings" accessibilityState={{ selected: current === 'settings' }} onPress={() => onNavigate('settings')} style={styles.avatar}>
         <Text style={styles.avatarText}>K</Text>
       </Pressable>
@@ -48,8 +47,6 @@ const styles = StyleSheet.create({
   brandMark: { height: 17, width: 17, backgroundColor: colors.accent, transform: [{ rotate: '45deg' }, { skewX: '-15deg' }, { skewY: '-15deg' }] },
   wordmark: { fontSize: 29, fontWeight: '600', letterSpacing: -1.5, color: colors.ink },
   right: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  mode: { flexDirection: 'row', alignItems: 'center', gap: 6 }, modeDot: { width: 5, height: 5, borderRadius: 4, backgroundColor: colors.accent },
-  modeText: { color: colors.accent, fontSize: 11, letterSpacing: 1.4, fontWeight: '700' },
   avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.raised, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: colors.ink, fontSize: 12, fontWeight: '600' },
   nav: { flexDirection: 'row', backgroundColor: colors.surface, borderTopWidth: 1, borderColor: colors.line, paddingTop: 12, paddingBottom: 10 },

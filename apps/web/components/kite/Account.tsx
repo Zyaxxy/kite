@@ -24,6 +24,7 @@ import { AssetName, Change, Empty, money } from "./MarketUI";
 import { OrbitArt } from "./Brand";
 import { useTradingAuth } from "../trading/TradingAuth";
 import { RecurringPaymentsPanel } from "../trading/RecurringPaymentsPanel";
+import { RecurringInvestingPanel } from "../trading/RecurringInvestingPanel";
 import { ActualPortfolio } from "../trading/ActualPortfolio";
 const WalletButton = dynamic(
   () =>
@@ -335,9 +336,15 @@ export function Plans() {
   const [frequency, setFrequency] = useState<PaperFrequency>("weekly");
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    const basket = new URLSearchParams(window.location.search).get("basket");
+    const params = new URLSearchParams(window.location.search);
+    const basket = params.get("basket"),
+      stock = params.get("stock");
     if (basket) setTarget(`basket:${basket}`);
-  }, []);
+    else if (stock) setTarget(`asset:${stock}`);
+    const requestedMode = params.get("mode");
+    if (requestedMode === "paper" || requestedMode === "actual")
+      setMode(requestedMode);
+  }, [setMode]);
   const targets = [
     ...(snapshot?.baskets ?? []).map((b) => ({
       value: `basket:${b.id}`,
@@ -379,12 +386,22 @@ export function Plans() {
         description={
           mode === "paper"
             ? "Choose an idea, set an amount, and build a recurring paper investing habit."
-            : "Authorize recurring token payments from your wallet with a buyer, a spending limit and an expiry."
+            : "Choose a basket or stock, decide your schedule, and set a limit for future investments."
         }
       />
       <MarketStatus />
       {mode === "actual" ? (
-        <RecurringPaymentsPanel />
+        <>
+          <RecurringInvestingPanel />
+          <details className="investing-advanced">
+            <summary>Advanced: direct token payment permissions</summary>
+            <p className="fineprint">
+              These permissions authorize a buyer you choose to collect tokens.
+              They do not create a stock or basket investment plan.
+            </p>
+            <RecurringPaymentsPanel />
+          </details>
+        </>
       ) : (
         <div className="plan-layout">
           <div className="stack">

@@ -3360,3 +3360,116 @@ input::-webkit-inner-spin-button {
     padding: 42px 24px;
   }
 }
+
+/* Investment setup leads the reading order on both desktop and mobile. */
+.investing-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(0, 1.1fr);
+  align-items: start;
+  gap: 25px;
+}
+.investing-layout .panel {
+  padding: 24px;
+}
+.investing-builder {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+.investing-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.investing-field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.investing-field-row input,
+.investing-field-row select {
+  width: 100%;
+  min-width: 0;
+}
+.investing-review {
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+}
+.investing-summary {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 12px;
+}
+.investing-summary div {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 20px;
+}
+.investing-summary dt {
+  color: var(--muted);
+}
+.investing-summary dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.investing-consent {
+  display: flex;
+  align-items: start;
+  gap: 12px;
+  font-size: 12px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+.investing-consent input {
+  flex-shrink: 0;
+  margin-top: 4px;
+  width: 20px;
+  height: 20px;
+}
+.investing-notice {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  gap: 12px;
+}
+.investing-notice p {
+  margin: 0;
+}
+.investing-advanced {
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.investing-advanced summary {
+  cursor: pointer;
+  min-height: 44px;
+  font-size: 13px;
+}
+.investing-layout .section-head {
+  margin-top: 0;
+}
+.investing-layout .text-link {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+}
+@media (max-width: 1000px) {
+  .investing-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 400px) {
+  .investing-field-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
