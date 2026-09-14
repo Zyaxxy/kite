@@ -802,10 +802,12 @@ checksum = "57d8d8ce877200136358e0bbff3a77965875db3af755a11e1fa6b1b3e2df13ea"
 
 [[package]]
 name = "kite_guard"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anchor-lang",
+ "anchor-lang-idl",
  "anchor-spl",
+ "serde_json",
 ]
 
 [[package]]

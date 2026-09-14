@@ -59,6 +59,7 @@ export function useTradingAuth() {
             accounts: readonly {
               address: string;
               features?: readonly string[];
+              chains?: readonly string[];
             }[];
             features: Record<string, unknown>;
           };
@@ -90,7 +91,11 @@ export function useTradingAuth() {
   const supportsV1 = supportedTransactionVersions.includes(1);
 
   const signTransaction = useCallback(
-    async (encodedTransaction: string, version: 0 | 1 = 0) => {
+    async (
+      encodedTransaction: string,
+      version: 0 | 1 = 0,
+      chain: "solana:mainnet" | "solana:devnet" = "solana:mainnet",
+    ) => {
       const bytes = Uint8Array.from(atob(encodedTransaction), (character) =>
         character.charCodeAt(0),
       );
@@ -101,14 +106,22 @@ export function useTradingAuth() {
         );
         if (!supportsV1 || !account || !rawFeature?.signTransaction)
           throw new Error("This wallet has not advertised V1 signing support.");
+        if (chain === "solana:devnet" && !account.chains?.includes(chain))
+          throw new Error(
+            "Enable devnet in your wallet before approving a recurring plan.",
+          );
         const result = await rawFeature.signTransaction({
           account,
-          chain: "solana:mainnet",
+          chain,
           transaction: bytes,
         });
         if (result.length !== 1)
           throw new Error("The wallet did not return one signed transaction.");
         signed = result[0].signedTransaction;
+      } else if (chain !== "solana:mainnet") {
+        throw new Error(
+          "Devnet recurring requires a wallet with explicit V1 and devnet signing support.",
+        );
       } else if (usePrivyWallet && privy.signTransaction) {
         signed = await privy.signTransaction(bytes);
       } else {

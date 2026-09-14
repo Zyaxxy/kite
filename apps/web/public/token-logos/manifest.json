@@ -1,0 +1,21 @@
+{
+  "source": "Solana Labs token-list artwork, exact mint identities",
+  "sourceLicense": "https://github.com/solana-labs/token-list/blob/main/LICENSE",
+  "assets": [
+    {
+      "file": "sol.png",
+      "mint": "So11111111111111111111111111111111111111112",
+      "url": "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png"
+    },
+    {
+      "file": "usdc.png",
+      "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "url": "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png"
+    },
+    {
+      "file": "usdt.svg",
+      "mint": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+      "url": "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB/logo.svg"
+    }
+  ]
+}

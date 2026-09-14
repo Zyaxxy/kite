@@ -1,0 +1,19 @@
+{
+  "network": "devnet",
+  "programs": {
+    "subscriptions": {
+      "programId": "De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44",
+      "programData": "HaYb5J9eXooZuNzN3z6TfuzVDcaTfiDdDPWCFtexFfMg",
+      "slot": "480013438",
+      "sha256": "39a71fa3ce15b50d6be23e5e38ea711dc604cd92fd0da271b6110c8bf221f65c",
+      "bytes": 133280
+    },
+    "raydium": {
+      "programId": "DRaycpLY18LhpbydsBWbVJtxpNv9oXPgjRSfpF2bWpYb",
+      "programData": "3KvTa2fYhMxMZNfHho5oX34yLQLwRauoU2JScBkugvXF",
+      "slot": "496232416",
+      "sha256": "8d479aa24b5472687ab540a6c9e4581a36095c03b3c1575b515b38d5bfced0f1",
+      "bytes": 742640
+    }
+  }
+}

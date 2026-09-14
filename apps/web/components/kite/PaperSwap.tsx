@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import { ArrowRightLeft, Check } from "lucide-react";
+import { ArrowDown, ArrowRightLeft, Check, ChevronDown } from "lucide-react";
 import {
   quotePaperSwap,
   type MarketAsset,
@@ -9,6 +9,10 @@ import {
   type PaperSwapQuote,
 } from "@kite/sdk";
 import { money } from "./MarketUI";
+import { TokenAvatar } from "../trading/SwapTokenSelector";
+import { TradeTransfer } from "../trading/TradeTransfer";
+import { NativeSelect } from "../ui/native-select";
+import styles from "../trading/swap-tokens.module.css";
 
 function decimal(value: number): string {
   const [coefficient, exponent] = value.toString().split("e");
@@ -83,7 +87,11 @@ export function PaperSwap({
   const [amount, setAmount] = useState("");
   const [review, setReview] = useState<PaperSwapQuote | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [success, setSuccess] = useState<{
+    input: MarketAsset;
+    output: MarketAsset;
+    quote: PaperSwapQuote;
+  } | null>(null);
   useEffect(() => {
     setInputMint("");
     setOutputMint(asset.mint);
@@ -155,7 +163,7 @@ export function PaperSwap({
       )
         throw new Error("Market prices changed. Review the paper swap again.");
       onSwap(input, output, quantity);
-      setSuccess(`Paper ${input.symbol} swapped for ${output.symbol}.`);
+      setSuccess({ input, output, quote: review });
       setReview(null);
       setAmount("");
     } catch (cause) {
@@ -169,17 +177,12 @@ export function PaperSwap({
   }
 
   return (
-    <details
-      style={{
-        borderTop: "1px solid var(--line)",
-        marginTop: 22,
-        paddingTop: 18,
-      }}
-    >
-      <summary className="text-link" style={{ cursor: "pointer" }}>
-        Swap paper assets
+    <details className={styles.paperDetails}>
+      <summary>
+        <ArrowRightLeft size={16} aria-hidden="true" /> Swap paper assets{" "}
+        <ChevronDown size={16} aria-hidden="true" />
       </summary>
-      <div className="stack" style={{ gap: 14, marginTop: 18 }}>
+      <div className={styles.paperContent}>
         <p className="fineprint">
           Exchange a paper holding for another market asset using observed
           token-market prices.
@@ -192,82 +195,110 @@ export function PaperSwap({
           </p>
         ) : (
           <>
-            <label className="form-field" htmlFor={`${id}-pay`}>
-              You pay
-              <select
-                id={`${id}-pay`}
-                value={input.mint}
-                disabled={disabled || Boolean(review)}
-                onChange={(event) => {
-                  setInputMint(event.target.value);
-                  setAmount("");
-                  setSuccess(null);
-                }}
-              >
-                {held.map((item) => (
-                  <option
-                    key={item.mint}
-                    value={item.mint}
-                    disabled={!canPrice(item)}
-                  >
-                    {item.symbol} · {item.name}
-                    {!canPrice(item) ? " · Unavailable" : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="form-field" htmlFor={`${id}-receive`}>
-              You receive
-              <select
-                id={`${id}-receive`}
-                value={output?.mint ?? ""}
-                disabled={disabled || Boolean(review)}
-                onChange={(event) => {
-                  setOutputMint(event.target.value);
-                  setSuccess(null);
-                }}
-              >
-                {!output && (
-                  <option value="">No priced market asset available</option>
-                )}
-                {availableOutputs.map((item) => (
-                  <option key={item.mint} value={item.mint}>
-                    {item.symbol} · {item.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field-label" htmlFor={`${id}-quantity`}>
-              <span>Paper units to swap</span>
-              <span>{input.symbol}</span>
-            </label>
-            <div className="amount-field">
-              <input
-                id={`${id}-quantity`}
-                inputMode="decimal"
-                type="text"
-                placeholder="0.00"
-                value={amount}
-                readOnly={Boolean(review)}
-                disabled={disabled}
-                onChange={(event) => {
-                  setAmount(event.target.value);
-                  setSuccess(null);
-                }}
-              />
-              <span>{input.symbol}</span>
-            </div>
-            {!review && (
-              <div className="amount-presets">
-                <button
-                  type="button"
-                  disabled={disabled || !holding}
-                  onClick={() => setAmount(decimal(holding?.quantity ?? 0))}
+            <div className={styles.swapSide}>
+              <label className={styles.label} htmlFor={`${id}-pay`}>
+                You pay
+              </label>
+              <div className={styles.paperToken}>
+                <TokenAvatar token={input} fetchMissing />
+                <NativeSelect
+                  id={`${id}-pay`}
+                  value={input.mint}
+                  disabled={disabled || Boolean(review)}
+                  onChange={(event) => {
+                    setInputMint(event.target.value);
+                    setAmount("");
+                    setSuccess(null);
+                  }}
                 >
-                  Use full holding
-                </button>
+                  {held.map((item) => (
+                    <option
+                      key={item.mint}
+                      value={item.mint}
+                      disabled={!canPrice(item)}
+                    >
+                      {item.symbol} · {item.name}
+                      {!canPrice(item) ? " · Unavailable" : ""}
+                    </option>
+                  ))}
+                </NativeSelect>
               </div>
-            )}
+              <label className={styles.amountField} htmlFor={`${id}-quantity`}>
+                <span className={styles.label}>Paper units to swap</span>
+                <input
+                  id={`${id}-quantity`}
+                  inputMode="decimal"
+                  type="text"
+                  placeholder="0.00"
+                  value={amount}
+                  readOnly={Boolean(review)}
+                  disabled={disabled}
+                  onChange={(event) => {
+                    setAmount(event.target.value);
+                    setSuccess(null);
+                  }}
+                />
+              </label>
+              <div className={styles.amountActions}>
+                <span>
+                  Available{" "}
+                  <Units
+                    value={holding?.quantity ?? null}
+                    price={input.priceUsd}
+                  />{" "}
+                  {input.symbol}
+                </span>
+                {!review && (
+                  <div>
+                    <button
+                      type="button"
+                      disabled={disabled || !holding}
+                      onClick={() => setAmount(decimal(holding?.quantity ?? 0))}
+                    >
+                      Max
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+            <span className={styles.paperArrow} aria-hidden="true">
+              <ArrowDown size={17} />
+            </span>
+            <div className={styles.swapSide}>
+              <label className={styles.label} htmlFor={`${id}-receive`}>
+                You receive
+              </label>
+              <div className={styles.paperToken}>
+                {output && <TokenAvatar token={output} fetchMissing />}
+                <NativeSelect
+                  id={`${id}-receive`}
+                  value={output?.mint ?? ""}
+                  disabled={disabled || Boolean(review)}
+                  onChange={(event) => {
+                    setOutputMint(event.target.value);
+                    setSuccess(null);
+                  }}
+                >
+                  {!output && (
+                    <option value="">No priced market asset available</option>
+                  )}
+                  {availableOutputs.map((item) => (
+                    <option key={item.mint} value={item.mint}>
+                      {item.symbol} · {item.name}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </div>
+              <div className={styles.receiveAmount}>
+                <Units
+                  value={review?.outputQuantity ?? estimatedOutput}
+                  price={output?.priceUsd ?? null}
+                />
+              </div>
+              <p className="fineprint">
+                Estimated paper units · observed token prices
+              </p>
+            </div>
             <div className="trade-summary" aria-live="polite">
               <div>
                 <span>Paper units available</span>
@@ -344,9 +375,14 @@ export function PaperSwap({
           </p>
         )}
         {success && (
-          <p className="notice" role="status">
-            {success}
-          </p>
+          <TradeTransfer
+            phase="success"
+            input={success.input}
+            output={success.output}
+            inputAmount={decimal(success.quote.inputQuantity)}
+            outputAmount={decimal(success.quote.outputQuantity)}
+            paper
+          />
         )}
         <p className="fineprint">
           This records a simulated sale and purchase together. No fees or

@@ -185,6 +185,7 @@ export function BasketMarquee({ baskets }: { baskets: BasketDisplay[] }) {
                 basket={basket}
                 index={index}
                 prefetch={false}
+                presentation="marketing"
               />
             ))}
           </div>
@@ -201,6 +202,7 @@ export function BasketMarquee({ baskets }: { baskets: BasketDisplay[] }) {
                   index={index}
                   tabIndex={-1}
                   prefetch={false}
+                  presentation="marketing"
                 />
               ))}
             </div>

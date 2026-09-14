@@ -1,6 +1,6 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { KiteClient } = require("../dist/client/kite-client.js");
+const { KiteClient, KiteApiError } = require("../dist/client/kite-client.js");
 const market = {
   assets: [],
   baskets: [],
@@ -206,4 +206,33 @@ test("explicit failure responses remain Failed while proxy errors remain Unknown
     ).status,
     "Unknown",
   );
+});
+
+test("legacy recurring client methods explain the devnet V2 migration without reading or submitting obsolete schemas", async () => {
+  let requests = 0;
+  const client = new KiteClient({
+    fetcher: async () => {
+      requests++;
+      return json({ schemaVersion: 1, network: "devnet", plans: [] });
+    },
+  });
+  const operations = [
+    () => client.getRecurringPayments("legacy-wallet"),
+    () => client.requestRecurringPayment({
+      taker: "legacy-wallet", buyer: "legacy-buyer", mint: "legacy-mint",
+      amount: "10", periodSeconds: 86400, periods: 10, supportedTransactionVersions: [1],
+    }),
+    () => client.revokeRecurringPayment("legacy-wallet", "legacy-delegation", [1]),
+    () => client.collectRecurringPayment("legacy-wallet", "legacy-delegation", [1]),
+  ];
+  for (const operation of operations) {
+    await assert.rejects(operation, (error) => {
+      assert.ok(error instanceof KiteApiError);
+      assert.equal(error.status, 410);
+      assert.match(error.message, /devnet Kite Guard V2/);
+      assert.match(error.message, /Update this client/);
+      return true;
+    });
+  }
+  assert.equal(requests, 0, "retired methods must not reach the new API with legacy schemas");
 });

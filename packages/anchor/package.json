@@ -4,7 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+    "test": "pnpm test:native && pnpm test:idl && pnpm test:runtime",
+    "test:native": "cargo test -p kite_guard",
+    "test:idl": "node scripts/sync-idl.cjs --check",
+    "test:runtime": "node --test tests/runtime.test.cjs",
+    "test:fixtures": "node scripts/fetch-runtime-programs.cjs",
+    "test:build": "cargo build-sbf --manifest-path programs/kite_guard/Cargo.toml --sbf-out-dir target/test-programs",
+    "idl:sync": "node scripts/sync-idl.cjs"
   },
   "dependencies": {
     "@anchor-lang/core": "^1.2.0",
@@ -17,6 +23,7 @@
     "@types/mocha": "^10.0.6",
     "@types/node": "^22.10.2",
     "chai": "^4.3.4",
+    "litesvm": "1.2.1",
     "mocha": "^10.2.0",
     "ts-mocha": "^10.0.0",
     "typescript": "^5.7.3"

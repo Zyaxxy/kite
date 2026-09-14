@@ -108,3 +108,52 @@ test("validatePlanTerms rejects invalid funding amount and period intervals", ()
     /Periods must be between 1 and 365/,
   );
 });
+
+test("rejects duplicate/invalid mints and non-integer allocations", () => {
+  const mint = Keypair.generate().publicKey.toBase58();
+  const other = Keypair.generate().publicKey.toBase58();
+  for (const outputs of [
+    [{ mint, weightBps: 5000 }, { mint, weightBps: 5000 }],
+    [{ mint: "placeholder-mint", weightBps: 10000 }],
+    [{ mint, weightBps: 5000.5 }, { mint: other, weightBps: 4999.5 }],
+    [{ mint, weightBps: NaN }],
+    [{ mint, weightBps: Infinity }],
+  ]) assert.equal(validatePlanAllocations(outputs).valid, false);
+});
+
+test("bounds plan arithmetic and rejects self-funded output plans", () => {
+  const owner = Keypair.generate().publicKey.toBase58();
+  const fundingMint = Keypair.generate().publicKey.toBase58();
+  const params = {
+    owner, fundingMint, subscriptionAuthority: owner,
+    fundingAmount: 1000000n, periodSeconds: 60n, periods: 10,
+    outputs: [{ mint: Keypair.generate().publicKey.toBase58(), weightBps: 10000 }],
+  };
+  assert.doesNotThrow(() => validatePlanTerms(params));
+  for (const override of [
+    { fundingAmount: 1n << 64n }, { periodSeconds: 1n << 63n },
+    { periods: 1.5 }, { periods: NaN }, { periods: Infinity },
+    { periodSeconds: 86400n, periods: 366 },
+    { outputs: [{ mint: fundingMint, weightBps: 10000 }] },
+  ]) assert.throws(() => validatePlanTerms({ ...params, ...override }));
+});
+
+test("basket funding preserves exact units including large and uneven amounts", () => {
+  const { allocateGuardFunding } = require("../dist/index.js");
+  const outputs = [3334, 3333, 3333].map((weightBps) => ({
+    mint: Keypair.generate().publicKey.toBase58(), weightBps,
+  }));
+  assert.deepEqual(allocateGuardFunding(10n, outputs), [4n, 3n, 3n]);
+  const max = (1n << 64n) - 1n;
+  for (const amount of [3n, 101n, 1000001n, max]) {
+    const result = allocateGuardFunding(amount, outputs);
+    assert.equal(result.reduce((sum, part) => sum + part, 0n), amount);
+    assert.ok(result.every((part) => part > 0n));
+    result.forEach((part, index) => {
+      const ideal = amount * BigInt(outputs[index].weightBps);
+      const difference = part * 10000n - ideal;
+      assert.ok(difference > -10000n && difference < 10000n);
+    });
+  }
+  assert.throws(() => allocateGuardFunding(2n, outputs), /every basket asset/);
+});

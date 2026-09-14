@@ -18,10 +18,10 @@ export type KitePage =
   | "landing";
 const titles: Record<KitePage, string> = {
   discover: "Discover",
-  markets: "Markets",
-  baskets: "Thematic baskets",
+  markets: "Discover",
+  baskets: "Baskets",
   portfolio: "Portfolio",
-  plans: "Recurring plans",
+  plans: "Recurring",
   watchlist: "Watchlist",
   activity: "Activity",
   settings: "Settings",

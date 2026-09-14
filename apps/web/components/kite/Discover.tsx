@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -15,17 +16,14 @@ import {
 } from "lucide-react";
 import { useKite } from "./State";
 import { PageIntro } from "./Shell";
-import {
-  AssetTable,
-  BasketCard,
-  BasketDisplay,
-  Empty,
-  money,
-  WatchRow,
-} from "./MarketUI";
-import { OrbitArt } from "./Brand";
+import { AssetTable, BasketCard, Empty, money, AssetAvatar } from "./MarketUI";
 import { useBaskets } from "./useBaskets";
-import { MarketPulse, MarketHeadlines } from "./MarketPulse";
+import {
+  MarketPulse,
+  MarketHeadlines,
+  MarketOverview,
+  MarketBreadth,
+} from "./MarketPulse";
 
 export function MarketStatus() {
   const { snapshot, loading, error, refresh, storageError } = useKite();
@@ -124,169 +122,172 @@ export function PaperAccountCard() {
   );
 }
 export function Discover() {
-  const { snapshot, watchlist, toggleWatch, loading, mode } = useKite();
+  return (
+    <Suspense
+      fallback={
+        <div className="notice" role="status">
+          Opening Discover…
+        </div>
+      }
+    >
+      <DiscoverContent />
+    </Suspense>
+  );
+}
+
+function DiscoverContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedFilter = searchParams.get("filter") ?? "all";
+  const filter = ["all", "xstocks", "prestocks", "saved"].includes(
+    requestedFilter,
+  )
+    ? requestedFilter
+    : "all";
+  const updateFilter = (next: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "all") params.delete("filter");
+    else params.set("filter", next);
+    router.replace(
+      `/app${params.size ? `?${params.toString()}` : ""}#all-assets`,
+      { scroll: false },
+    );
+  };
+  const { snapshot, watchlist, toggleWatch, loading, mode, refresh } =
+    useKite();
   const baskets = useBaskets();
   const assets = snapshot?.assets ?? [];
-  const watched = assets.filter((a) => watchlist.includes(a.mint));
   return (
-    <>
-      <PageIntro
-        eyebrow="An open world of ownership"
-        title={
-          <>
-            Big ideas.
-            <br className="hide-desktop" /> <em>Your next move.</em>
-          </>
-        }
-        description="Explore a basket for your next investment, or choose a daily, weekly or monthly rhythm."
-      />
+    <div className="discover-workspace">
+      <div className="discover-heading">
+        <div>
+          <span className="eyebrow">Discover on Kite</span>
+          <h1>Your next investment starts here.</h1>
+          <p>Explore companies, follow the market, and find your next idea.</p>
+        </div>
+        <button
+          type="button"
+          className="btn secondary small"
+          disabled={loading}
+          onClick={() => void refresh()}
+        >
+          <RefreshCw size={14} aria-hidden="true" />
+          Refresh prices
+        </button>
+      </div>
+      <MarketOverview />
       <MarketStatus />
-      <div className="discover-grid">
-        <div className="discover-primary">
-          <section className="discovery-hero">
-            <div className="hero-copy">
-              <p className="eyebrow">Ideas, brought together</p>
-              <h2>
-                A whole theme.
-                <br />
-                One place to start.
-              </h2>
-              <p>
-                Look inside a basket, see every holding, and choose how you want
-                to invest. Practice first with virtual funds.
-              </p>
-              <div className="landing-actions" style={{ flexWrap: "wrap" }}>
-                <Link href="/baskets" className="btn small">
-                  Explore baskets <ArrowUpRight size={14} />
-                </Link>
-                <Link href={`/sip?mode=${mode}`} className="text-link">
-                  Recurring plans <ArrowUpRight size={14} />
-                </Link>
-              </div>
-            </div>
-            <OrbitArt />
-            <span className="hero-tag">
-              CURATED ON KITE / SETTLED ON SOLANA
-            </span>
-          </section>
-          <section>
-            <div className="section-head">
-              <h2>Invest in a point of view</h2>
-              <Link href="/baskets" className="text-link">
-                All baskets <ArrowRight size={14} />
-              </Link>
-            </div>
-            <div className="basket-grid">
-              {baskets.slice(0, 3).map((b, i) => (
-                <BasketCard key={b.id} basket={b} index={i} />
-              ))}
-            </div>
-          </section>
+      <div className="discover-layout">
+        <div className="discover-content">
           <MarketPulse />
-          <section>
+          <section id="all-assets" className="discover-all-assets">
             <div className="section-head">
               <div>
-                <h2>A market without borders</h2>
+                <h2>Stocks &amp; funds</h2>
                 <p>
-                  Issuer-listed equities, ETFs and pre-IPO exposure on Solana.
+                  Explore the full catalog, from familiar companies to emerging
+                  ideas.
                 </p>
               </div>
+              <span className="badge">
+                {assets.length ? `${assets.length} ASSETS` : "CATALOG"}
+              </span>
             </div>
             <AssetTable
               assets={assets}
               loading={loading}
               watchlist={watchlist}
               onWatch={toggleWatch}
-              compact
+              initialFilter={filter}
+              onFilterChange={updateFilter}
             />
           </section>
-          <MarketHeadlines />
-        </div>
-        <aside className="right-column">
-          <PaperAccountCard />
-          <div className="panel step-card">
-            <span className="step-icon">
-              <Repeat2 size={18} strokeWidth={1.5} />
-            </span>
-            <h3>
-              Small steps.
-              <br />
-              Long-term thinking.
-            </h3>
-            <p>
-              {mode === "paper"
-                ? "Practice a recurring investment with virtual funds. Choose daily, weekly or monthly installments."
-                : "Choose a basket or stock, set your schedule, and review the limits before authorizing future investments."}
-            </p>
-            <Link className="text-link" href={`/sip?mode=${mode}`}>
-              Explore recurring plans <ArrowUpRight size={13} />
-            </Link>
-          </div>
-          <div className="panel watch-card">
-            <div className="flex-between">
-              <h3 style={{ fontSize: 16 }}>On your radar</h3>
-              <Link
-                href="/watchlist"
-                className="icon-btn"
-                aria-label="Open watchlist"
-              >
-                <ArrowUpRight size={15} />
+          <section className="discover-themes">
+            <div className="section-head">
+              <div>
+                <h2>Explore by theme</h2>
+                <p>A few ways to connect the companies you believe in.</p>
+              </div>
+              <Link href="/baskets" className="text-link">
+                All baskets <ArrowRight size={14} aria-hidden="true" />
               </Link>
             </div>
-            {watched.length ? (
-              watched
-                .slice(0, 4)
-                .map((a) => <WatchRow key={a.mint} asset={a} />)
-            ) : (
-              <Empty
-                icon={Bookmark}
-                title="Follow your conviction"
-                description="Save an asset to keep its latest price close."
-              />
-            )}
-          </div>
+            <div className="discover-theme-list">
+              {baskets.slice(0, 3).map((basket) => (
+                <Link
+                  href={`/basket/${basket.id}`}
+                  className="discover-theme"
+                  key={basket.id}
+                >
+                  <div className="mini-assets">
+                    {basket.assets.slice(0, 3).map((asset) => (
+                      <AssetAvatar
+                        key={asset.mint}
+                        asset={asset}
+                        small
+                        label={asset.name}
+                      />
+                    ))}
+                  </div>
+                  <h3>{basket.name}</h3>
+                  <p>
+                    {basket.assets.length} assets
+                    <span aria-hidden="true"> · </span>
+                    {basket.source.category || "Curated theme"}
+                  </p>
+                  <ArrowUpRight size={16} aria-hidden="true" />
+                </Link>
+              ))}
+            </div>
+          </section>
+        </div>
+        <aside
+          className="discover-rail"
+          aria-label="Your account and market context"
+        >
+          <PaperAccountCard />
+          <section className="panel discover-tools">
+            <h3>Keep your investments moving</h3>
+            <Link href={`/sip?mode=${mode}`}>
+              <span className="discover-tool-icon">
+                <Repeat2 size={18} aria-hidden="true" />
+              </span>
+              <span>
+                <strong>Recurring investments</strong>
+                <small>Set your amount and schedule</small>
+              </span>
+              <ChevronRight size={16} aria-hidden="true" />
+            </Link>
+            <Link href="/portfolio">
+              <span className="discover-tool-icon">
+                <Wallet2 size={18} aria-hidden="true" />
+              </span>
+              <span>
+                <strong>Portfolio &amp; activity</strong>
+                <small>Your holdings and investment history</small>
+              </span>
+              <ChevronRight size={16} aria-hidden="true" />
+            </Link>
+          </section>
+          <MarketBreadth />
+          <MarketHeadlines />
           <div className="data-source">
-            <ShieldCheck size={15} />
+            <ShieldCheck size={15} aria-hidden="true" />
             <p>
-              Prices from live market services.
+              Observed token prices, in USD.
               <br />
-              Your assets stay in your wallet.
+              Unreported prices are shown as —.
             </p>
           </div>
         </aside>
       </div>
-    </>
+    </div>
   );
 }
+
+/** Kept for existing links; Discover now includes the full market catalog. */
 export function Markets() {
-  const { snapshot, watchlist, toggleWatch, refresh, loading } = useKite();
-  return (
-    <>
-      <PageIntro
-        eyebrow="Explore / Markets"
-        title="Your world of possibilities."
-        description="Browse the full available xStocks and PreStocks catalogs. Search by company, ticker or mint address."
-      />
-      <MarketStatus />
-      <div className="section-head">
-        <div className="flex-start">
-          <span className="badge lime">
-            {snapshot ? `${snapshot.assets.length} ASSETS` : "LOADING CATALOG"}
-          </span>
-        </div>
-        <button className="btn secondary small" onClick={() => void refresh()}>
-          <RefreshCw size={13} />
-          Refresh data
-        </button>
-      </div>
-      <AssetTable
-        assets={snapshot?.assets ?? []}
-        loading={loading}
-        watchlist={watchlist}
-        onWatch={toggleWatch}
-      />
-    </>
-  );
+  return <Discover />;
 }
 export function Baskets() {
   const baskets = useBaskets();
@@ -385,8 +386,8 @@ export function Watchlist() {
             title="Your watchlist starts with an idea"
             description="Bookmark any asset while exploring. It will appear here with its latest available price."
             action={
-              <Link href="/markets" className="btn">
-                Explore markets <ArrowUpRight size={14} />
+              <Link href="/app#all-assets" className="btn">
+                Explore stocks <ArrowUpRight size={14} />
               </Link>
             }
           />

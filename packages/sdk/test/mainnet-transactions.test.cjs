@@ -30,7 +30,7 @@ test("V1-only creation rejects missing capability and never splits orders", asyn
       instructions,
       allowV1: false,
     }),
-    /V1 trading requires/,
+    /V1 transactions require/,
   );
   const v1 = await sdk.composeMainnetTransaction({
     payer,

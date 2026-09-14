@@ -32,7 +32,7 @@ kite/
 - **Node.js**: v24.12.0, **pnpm**: 10.31.0 (pinned lockfile)
 - **Web**: Next.js 15.5, Tailwind CSS, `@solana/wallet-adapter-react`, Privy for email/social sign-in
 - **Mobile**: Expo / React Native, `@solana-mobile/mobile-wallet-adapter-protocol` (Android MWA), Privy web flow (iOS/Expo web)
-- **Smart Contract**: Anchor framework (`packages/anchor`), program `kite_guard` deployed on devnet (`Fg6PaFpoGXkYidMpWEEe9nM3q7x5JqFHvXy6n3sNof9S`)
+- **Smart Contract**: Anchor framework (`packages/anchor`), program `kite_guard` (`8Fm9HENPAFnyo6L8cHJFx62HHsZ6ez6CPUDuzgKAzrjs`); V2 CPI implementation requires a separate devnet upgrade
 - **Transaction Format**: Solana V1 transactions composed via Jupiter Swap V2 build API. No ALTs for new transactions.
 
 ---
@@ -90,8 +90,7 @@ Baskets are **allocation definitions, not synthetic tokens**. Buying a basket de
 
 ### 3. Recurring Investing (SIP / DCA)
 - **Paper**: Local plans with configurable cadence (daily/weekly/bi-weekly/monthly). Runs due installments only while the app is open.
-- **Mainnet — Solana Subscriptions**: Bounded delegation via the official program (`De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`). Parameters: funding token, max per period, period seconds, number of periods, UTC expiration. Funds never leave the wallet until an installment executes. Revocable anytime.
-- **Mainnet — Kite Guard** (devnet): On-chain Anchor program enforcing plan parameters (cadence, weights summing to 10,000 bps, max 20 assets). Permissionless cranker execution. Owner can close plan and reclaim rent at any time.
+- **Devnet — Kite Guard V2**: Stock/basket plans delegate to a plan PDA through official Solana Subscriptions. Guard atomically collects, swaps through official Raydium devnet CPMM, and verifies delivery to owner ATAs. Collectors only pay fees. Owner-approved pools/minimum outputs are fixed; failed legs roll back the installment. Test tokens and pools must be provisioned separately. Mainnet wallet recurring is disabled. See `docs/kite-guard-protocol.md`.
 
 ### 4. Stock Research Suite (5-tab panel)
 - **Overview**: 1-year daily OHLCV chart (Yahoo Finance), interactive SVG scrubber, period selectors (1M/3M/6M/1Y), day and 52-week range bars, company profile (Wikipedia + Yahoo Finance).
@@ -133,7 +132,7 @@ No charts, sentiment, or news are manufactured. Missing prices fail closed as "u
 | `/api/trade/execute` | POST | Verify signature and broadcast a quoted transaction |
 | `/api/buy-basket` | POST | Prepare an atomic multi-leg basket transaction |
 | `/api/investing` | POST | Plan setup, receipts, and authenticated executor protocol |
-| `/api/recurring` | POST | Manage Subscriptions delegations (create, revoke, collect) |
+| `/api/recurring` | POST | Prepare devnet Guard V2 stock/basket plans; subroutes collect, revoke, config, execute |
 | `/api/transaction/execute` | POST | Verify and broadcast composed owner-signed transactions |
 | `/api/news` | GET | Google News RSS proxy (market or stock-specific) |
 | `/api/research` | GET | Company profile, charts, technicals, fundamentals, events |
@@ -152,17 +151,17 @@ Secrets remain on the web server; only public app IDs and RPC config are in `NEX
 - No fabricated data — missing values render as "unavailable" rather than synthetic fallbacks.
 
 ### Anchor / Smart Contract (`packages/anchor`)
-- Program: `kite_guard` — Rust/Anchor, deployed on devnet.
-- PDA pattern: `[b"plan", owner_pubkey, funding_mint_pubkey]`.
-- Instructions: `create_plan`, `execute_swap` (permissionless cranker), `close_plan` (owner-only, reclaims rent).
-- Invariants: weights must sum to exactly 10,000 bps, max 20 assets, minimum cadence 60s (devnet) / 86,400s (production).
+- Program: `kite_guard` — Anchor 1.2; V2 must be deployed separately.
+- PDA pattern: `[b"plan_v2", owner_pubkey, funding_mint_pubkey, nonce_u64_le]`.
+- Instructions: `create_plan_v2`, `execute_swap_v2`, `close_plan_v2`, `protocol_version`. Legacy create/execute reject; legacy close retains rent recovery.
+- Invariants: weights total 10,000 bps, max 20 assets subject to transaction limits, cadence at least 60s, duration at most 365 days, immutable owner destinations/pools/output floors. Devnet only.
 
 ---
 
 ## Primitives & Protocols
 - **Jupiter:** Atomic multi-leg swaps using the Swap V2 build API. Token prices via tokens-v2 and price-v3.
-- **Solana Subscriptions:** Official deployed program (`De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`) bounds recurring buyer delegation. A buyer-controlled keeper composes collection and delivery atomically. The permission itself cannot prevent an authorized buyer from collecting without delivery using a different transaction — this trust boundary is disclosed.
-- **Kite Guard:** On-chain Anchor program (`Fg6PaFpoGXkYidMpWEEe9nM3q7x5JqFHvXy6n3sNof9S`) enforcing delivery parameters on devnet. Replaces off-chain trust boundaries with immutable smart contract invariants.
+- **Solana Subscriptions:** Official program (`De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`) bounds the devnet plan PDA delegation. The Guard PDA, not a keeper wallet, signs collection CPI.
+- **Kite Guard:** V2 collects and swaps atomically via Subscriptions and Raydium devnet CPMM. The transient plan ATA must return to its starting balance; all outputs go to the owner. No cron worker or mainnet recurring deployment is included.
 - **Pyth Network:** Real-time equity oracle feeds for underlying share price references (`@pythnetwork/pyth-solana-receiver`).
 - **SPL Token / Token-2022:** Direct wallet holdings. No synthetic basket mint or Kite vault. Reject unsupported extensions rather than bypassing their checks.
 - **Privy:** Email/social sign-in with embedded Solana wallet creation. Secrets server-side only.

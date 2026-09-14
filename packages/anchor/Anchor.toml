@@ -9,16 +9,13 @@ skip-lint = false
 kite_guard = "8Fm9HENPAFnyo6L8cHJFx62HHsZ6ez6CPUDuzgKAzrjs"
 
 [programs.localnet]
-kite_guard = "Fg6PaFpoGXkYidMpWEEe9nM3q7x5JqFHvXy6n3sNof9S"
-
-[programs.mainnet]
-kite_guard = "Fg6PaFpoGXkYidMpWEEe9nM3q7x5JqFHvXy6n3sNof9S"
+kite_guard = "8Fm9HENPAFnyo6L8cHJFx62HHsZ6ez6CPUDuzgKAzrjs"
 
 [provider]
 cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "pnpm ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+test = "pnpm test"
 
 [hooks]

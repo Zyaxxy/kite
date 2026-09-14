@@ -7,7 +7,6 @@ import {
   WalletProvider,
 } from "@solana/wallet-adapter-react";
 import { clusterApiUrl } from "@solana/web3.js";
-import "@solana/wallet-adapter-react-ui/styles.css";
 
 const LoadingWallet = () => (
   <main className="system-screen" aria-busy="true">
