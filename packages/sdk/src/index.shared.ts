@@ -17,6 +17,7 @@ export * from "./client/kite-client";
 export * from "./state/kite-core";
 export * from "./mobile-signer";
 export * from "./recurring-investing";
+export * from "./guard/client";
 export * from "./wallet-capabilities";
 
 export type {

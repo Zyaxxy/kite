@@ -1,0 +1,51 @@
+{
+  "network": "devnet",
+  "description": "Devnet test tokens for Kite recurring xStocks. These are valueless mints for integration testing.",
+  "tokens": [
+    {
+      "symbol": "xAAPL",
+      "name": "xStocks Test Apple",
+      "mint": "xAapL11111111111111111111111111111111111111",
+      "decimals": 6,
+      "logo": "/xstocks-devnet/xAAPL.png",
+      "issuer": "kite-devnet",
+      "status": "test"
+    },
+    {
+      "symbol": "xTSLA",
+      "name": "xStocks Test Tesla",
+      "mint": "xTsla111111111111111111111111111111111111111",
+      "decimals": 6,
+      "logo": "/xstocks-devnet/xTSLA.png",
+      "issuer": "kite-devnet",
+      "status": "test"
+    },
+    {
+      "symbol": "xNVDA",
+      "name": "xStocks Test NVIDIA",
+      "mint": "xNvda111111111111111111111111111111111111111",
+      "decimals": 6,
+      "logo": "/xstocks-devnet/xNVDA.png",
+      "issuer": "kite-devnet",
+      "status": "test"
+    },
+    {
+      "symbol": "xAMZN",
+      "name": "xStocks Test Amazon",
+      "mint": "xAmzn111111111111111111111111111111111111111",
+      "decimals": 6,
+      "logo": "/xstocks-devnet/xAMZN.png",
+      "issuer": "kite-devnet",
+      "status": "test"
+    },
+    {
+      "symbol": "xGOOGL",
+      "name": "xStocks Test Alphabet",
+      "mint": "xGoog1111111111111111111111111111111111111111",
+      "decimals": 6,
+      "logo": "/xstocks-devnet/xGOOGL.png",
+      "issuer": "kite-devnet",
+      "status": "test"
+    }
+  ]
+}

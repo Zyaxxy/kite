@@ -1,0 +1,516 @@
+{
+  "address": "8Fm9HENPAFnyo6L8cHJFx62HHsZ6ez6CPUDuzgKAzrjs",
+  "metadata": {
+    "name": "kite_guard",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Kite Execution Guard: trustless recurring investment execution on Solana"
+  },
+  "instructions": [
+    {
+      "name": "close_plan",
+      "docs": [
+        "Cancel a recurring plan and reclaim the account rent lamports back to the owner."
+      ],
+      "discriminator": [
+        45,
+        137,
+        184,
+        220,
+        162,
+        253,
+        161,
+        8
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "plan"
+          ]
+        },
+        {
+          "name": "plan",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "plan.funding_mint",
+                "account": "Plan"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "create_plan",
+      "docs": [
+        "Create a guarded recurring investment plan with validated target weights."
+      ],
+      "discriminator": [
+        77,
+        43,
+        141,
+        254,
+        212,
+        118,
+        41,
+        186
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "funding_mint"
+        },
+        {
+          "name": "subscription_authority"
+        },
+        {
+          "name": "plan",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "funding_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "data",
+          "type": {
+            "defined": {
+              "name": "CreatePlanData"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "execute_swap",
+      "docs": [
+        "Cranker entrypoint. Executes a scheduled recurring purchase period.",
+        "Checks elapsed time intervals, advances plan state, and records execution."
+      ],
+      "discriminator": [
+        56,
+        182,
+        124,
+        215,
+        155,
+        140,
+        157,
+        102
+      ],
+      "accounts": [
+        {
+          "name": "cranker",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "plan",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "plan.owner",
+                "account": "Plan"
+              },
+              {
+                "kind": "account",
+                "path": "plan.funding_mint",
+                "account": "Plan"
+              }
+            ]
+          }
+        },
+        {
+          "name": "subscription_program"
+        },
+        {
+          "name": "subscription_authority"
+        },
+        {
+          "name": "recurring_delegation"
+        },
+        {
+          "name": "source_token",
+          "writable": true
+        },
+        {
+          "name": "vault_funding_token",
+          "writable": true
+        },
+        {
+          "name": "owner_output_token",
+          "writable": true
+        },
+        {
+          "name": "output_mint"
+        },
+        {
+          "name": "subscription_instruction"
+        }
+      ],
+      "args": [
+        {
+          "name": "_plan_id",
+          "type": "u64"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Plan",
+      "discriminator": [
+        161,
+        231,
+        251,
+        119,
+        2,
+        12,
+        162,
+        2
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "PlanClosed",
+      "discriminator": [
+        244,
+        135,
+        44,
+        167,
+        104,
+        238,
+        207,
+        12
+      ]
+    },
+    {
+      "name": "PlanCreated",
+      "discriminator": [
+        215,
+        11,
+        135,
+        121,
+        208,
+        119,
+        149,
+        149
+      ]
+    },
+    {
+      "name": "SwapExecuted",
+      "discriminator": [
+        150,
+        166,
+        26,
+        225,
+        28,
+        89,
+        38,
+        79
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidAmount",
+      "msg": "Funding amount must be greater than zero."
+    },
+    {
+      "code": 6001,
+      "name": "InvalidPeriods",
+      "msg": "Total periods must be greater than zero."
+    },
+    {
+      "code": 6002,
+      "name": "PeriodTooShort",
+      "msg": "Period interval is too short."
+    },
+    {
+      "code": 6003,
+      "name": "InvalidOutputsCount",
+      "msg": "Outputs must contain between 1 and 20 assets."
+    },
+    {
+      "code": 6004,
+      "name": "InvalidAllocationWeights",
+      "msg": "Output allocation weights must sum to exactly 10,000 basis points (100%)."
+    },
+    {
+      "code": 6005,
+      "name": "CalculationOverflow",
+      "msg": "Calculation overflow."
+    },
+    {
+      "code": 6006,
+      "name": "WeightOverflow",
+      "msg": "Allocation weights overflowed u16."
+    },
+    {
+      "code": 6007,
+      "name": "PlanAlreadyCompleted",
+      "msg": "This recurring plan has already completed all scheduled periods."
+    },
+    {
+      "code": 6008,
+      "name": "PeriodNotElapsed",
+      "msg": "Minimum period interval has not elapsed yet."
+    },
+    {
+      "code": 6009,
+      "name": "MismatchedFundingMint",
+      "msg": "The source token mint does not match the plan funding mint."
+    },
+    {
+      "code": 6010,
+      "name": "InsufficientFundingCollected",
+      "msg": "The guard could not collect enough funding from the subscription."
+    },
+    {
+      "code": 6011,
+      "name": "OutputDidNotIncrease",
+      "msg": "The owner's output token balance did not increase after execution."
+    }
+  ],
+  "types": [
+    {
+      "name": "CreatePlanData",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "funding_amount",
+            "type": "u64"
+          },
+          {
+            "name": "period_seconds",
+            "type": "u64"
+          },
+          {
+            "name": "periods",
+            "type": "u16"
+          },
+          {
+            "name": "outputs",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "Output"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Output",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "weight_bps",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Plan",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "funding_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "funding_amount",
+            "type": "u64"
+          },
+          {
+            "name": "period_seconds",
+            "type": "u64"
+          },
+          {
+            "name": "last_executed_at",
+            "type": "i64"
+          },
+          {
+            "name": "periods",
+            "type": "u16"
+          },
+          {
+            "name": "executed_periods",
+            "type": "u16"
+          },
+          {
+            "name": "subscription_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "outputs",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "Output"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "PlanClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "plan",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "reclaimed_periods",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PlanCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "plan",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "funding_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "funding_amount",
+            "type": "u64"
+          },
+          {
+            "name": "period_seconds",
+            "type": "u64"
+          },
+          {
+            "name": "periods",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SwapExecuted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "plan",
+            "type": "pubkey"
+          },
+          {
+            "name": "period",
+            "type": "u16"
+          },
+          {
+            "name": "output_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "funding_amount",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    }
+  ]
+}

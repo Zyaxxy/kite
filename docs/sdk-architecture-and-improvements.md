@@ -38,11 +38,11 @@ The SDK pins Kit 7 and its sysvars generation for the official Subscriptions SDK
 
 ## Buyer-side collection
 
-The primary Plans flow now uses the [recurring investment service](recurring-investing-operations.md): shared daily/weekly/calendar-monthly schedules, immutable basket/stock plans, signed setup persistence, atomic collection plus stock swaps, durable worker recovery, actual receipts and owner revocation. New approvals require executor configuration and a recent heartbeat. This service is implemented but still requires operating infrastructure and funded end-to-end verification. The paragraphs below describe the retained advanced payment-only collector.
+The primary Plans flow now uses the [recurring investment service](kite-guard-protocol.md): shared daily/weekly/calendar-monthly schedules, immutable basket/stock plans, signed setup persistence, atomic collection plus stock swaps, durable worker recovery, actual receipts and owner revocation. New approvals require executor configuration and a recent heartbeat. This service is implemented but still requires operating infrastructure and funded end-to-end verification. The paragraphs below describe the retained advanced payment-only collector.
 
 The owner signs setup and revocation. The approved buyer signs each collection; RPC or TypeScript alone cannot schedule a token transfer without that signature. The checked-in buyer runner can run once or as a periodic service. It derives collection instructions locally from the onchain permission, pays network fees from the buyer's wallet, and transfers into that buyer's own ATA.
 
-See [mainnet recurring payments](mainnet-recurring-payments.md) for operational configuration, APIs, restart behavior and revocation. No buyer key was supplied or provisioned by this change, and no real collection was executed during implementation. Automated stock purchasing/delivery after collection is the buyer service's responsibility and is not claimed as implemented by this payment integration.
+See [mainnet recurring payments](kite-guard-protocol.md) for operational configuration, APIs, restart behavior and revocation. No buyer key was supplied or provisioned by this change, and no real collection was executed during implementation. Automated stock purchasing/delivery after collection is the buyer service's responsibility and is not claimed as implemented by this payment integration.
 
 ## Retired implementation
 

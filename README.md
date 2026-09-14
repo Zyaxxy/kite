@@ -6,8 +6,9 @@ A self-custody interface for tokenized equities on Solana, with a paper-trading 
 
 - `apps/web`: Next.js 15.5 — landing, discovery, full markets, thematic baskets, asset details, portfolio, watchlist, activity, recurring investment setup and account settings.
 - `apps/mobile`: Expo / React Native — the same forest-and-lime visual system, shared market data and paper trading. Supported Android builds sign through MWA; iOS and Expo web offer the configured Privy web flow.
-- `packages/sdk`: typed issuer discovery, research, quotes, shared API transport/state, paper accounting, wallet execution and guarded protocol utilities.
-- Official Solana Subscriptions handles recurring spending permissions. The investment executor composes collection and stock delivery; no custom Anchor workspace is required.
+- `packages/sdk`: typed issuer discovery, research, quotes, shared API transport/state, paper accounting, wallet execution, and guard client utilities.
+- `packages/anchor`: Solana smart contract workspace containing `kite_guard`, an on-chain execution guard for trustless recurring deposits and basket investments.
+- Official Solana Subscriptions handles recurring spending permissions. The investment executor composes collection and stock delivery; the on-chain execution guard enforces delivery parameters on devnet.
 
 The previous static brokerage UI, fabricated market insights, fake holdings and devnet minting endpoints have been retired. The full live issuer catalogs are queried; a missing price is shown as unavailable. No charts, sentiment or news are manufactured.
 
@@ -45,18 +46,21 @@ Paper orders simulate reference-price execution only; they exclude fees, slippag
 
 There is no Kite vault in the active product. Thematic baskets are allocations across individual issuer tokens. Paper basket orders validate every component before committing the next ledger state. Actual baskets use one wallet-approved atomic V1 transaction when their routes fit the network and wallet limits. New transactions use inline addresses with no ALTs; historical V0 transactions remain readable for recovery.
 
-Recurring stock and basket purchases use bounded buyer delegation through the official Subscriptions program. The investment service composes collection and owner-directed swaps atomically and records confirmed delivery receipts. The executor is trusted: the permission itself cannot prevent an authorized buyer from collecting without delivery using a different transaction. Schedules, limits and this trust boundary are disclosed in the approval review. See [recurring investing operations](docs/recurring-investing-operations.md) for persistent storage, worker setup and release gates.
+Recurring stock and basket purchases use bounded buyer delegation through the official Subscriptions program. The investment service composes collection and owner-directed swaps atomically and records confirmed delivery receipts. The executor is trusted: the permission itself cannot prevent an authorized buyer from collecting without delivery using a different transaction. Schedules, limits and this trust boundary are disclosed in the approval review. See [Kite Guard Protocol](docs/kite-guard-protocol.md) for the smart contract architecture enforcing limits.
 
-`GET /api/markets` discovers and prices tokens. `GET /api/portfolio` reads wallet balances. `POST /api/trade/order` prepares a validated V1 swap using Jupiter build instructions. `POST /api/trade/execute` requires the exact quoted transaction and a valid wallet signature. `POST /api/buy-basket` prepares a complete atomic basket. `/api/investing` exposes plan setup, receipts and the authenticated executor protocol. `/api/recurring` manages the underlying permissions, including revoke and advanced payment-only collection. `/api/transaction/execute` verifies and broadcasts composed owner-signed transactions. Only the retired `/api/faucet` returns HTTP 410. See [advanced recurring payments](docs/mainnet-recurring-payments.md).
+`GET /api/markets` discovers and prices tokens. `GET /api/portfolio` reads wallet balances. `POST /api/trade/order` prepares a validated V1 swap using Jupiter build instructions. `POST /api/trade/execute` requires the exact quoted transaction and a valid wallet signature. `POST /api/buy-basket` prepares a complete atomic basket. `/api/investing` exposes plan setup, receipts and the authenticated executor protocol. `/api/recurring` manages the underlying permissions, including revoke and advanced payment-only collection. `/api/transaction/execute` verifies and broadcasts composed owner-signed transactions. Only the retired `/api/faucet` returns HTTP 410.
 
 ## Checks
-
+ 
 ```sh
 pnpm build:sdk
 node --test packages/sdk/test/*.test.cjs
+pnpm build:anchor
+pnpm test:anchor
 pnpm build:web
 ```
 
+See [Kite Guard Protocol](docs/kite-guard-protocol.md) for the smart contract architecture, and [V2 Architecture & Roadmap](docs/v2-roadmap-and-architecture.md) for composable brokerage milestones.
 Additional transaction validation tests are in `apps/web/tests`. Native export checks and setup are described in the mobile README.
 
 ## Design reference

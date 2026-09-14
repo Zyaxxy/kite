@@ -39,15 +39,7 @@ export async function POST(request: NextRequest) {
       throw new Error(
         "Scheduled investments must use the durable executor endpoint.",
       );
-    if (verified.investmentSetupHash) {
-      const { storeSignedInvestmentSetup } =
-        await import("@/lib/server/investing");
-      await storeSignedInvestmentSetup(
-        body.investmentSetup,
-        verified.taker,
-        verified.investmentSetupHash,
-      );
-    }
+
     await assertMainnet();
     if (verified.version === 1 && !(await mainnetV1Active()))
       throw new Error(

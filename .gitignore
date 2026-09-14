@@ -23,3 +23,7 @@ apps/mobile/ios/
 .kite-collections/
 .kite-investment-worker/
 .kite-investments/
+
+.kite-investing-state/
+.kite-worker-state/
+.kite-executor-keypair.json

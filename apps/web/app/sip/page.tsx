@@ -5,6 +5,12 @@ export const metadata: Metadata = {
     "Practice recurring paper investments or authorize bounded token payments from your wallet.",
 };
 import { KiteApp } from "../../components/kite/KiteApp";
+import { RecurringDevnetDialog } from "../../components/trading/RecurringDevnetDialog";
 export default function Page() {
-  return <KiteApp page="plans" />;
+  return (
+    <>
+      <RecurringDevnetDialog />
+      <KiteApp page="plans" />
+    </>
+  );
 }

@@ -52,7 +52,7 @@ test(
     const child = spawn(
       process.execPath,
       [
-        fileURLToPath(new URL("../dev-api-tunnel.mjs", import.meta.url)),
+        fileURLToPath(new URL("../scripts/dev-api-tunnel.mjs", import.meta.url)),
         "--proxy-only",
       ],
       {
@@ -115,8 +115,8 @@ test(
       "GET config and plans plus JSON POST plans reach the local API",
       async () => {
         for (const url of [
-          "/api/investing/config",
-          "/api/investing/plans?wallet=test-wallet",
+          "/api/health",
+          "/api/recurring?wallet=test-wallet",
         ])
           assert.equal((await request(url)).status, 200);
         const body = JSON.stringify({
@@ -126,7 +126,7 @@ test(
         });
         assert.equal(
           (
-            await request("/api/investing/plans", {
+            await request("/api/recurring", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body,
@@ -134,10 +134,10 @@ test(
           ).status,
           200,
         );
-        assert.equal(requests[0].url, "/api/investing/config");
+        assert.equal(requests[0].url, "/api/health");
         assert.equal(
           requests[1].url,
-          "/api/investing/plans?wallet=test-wallet",
+          "/api/recurring?wallet=test-wallet",
         );
         assert.equal(requests[2].method, "POST");
         assert.equal(requests[2].body, body);
@@ -153,7 +153,7 @@ test(
     await t.test(
       "CORS preflights for public investment routes preserve negotiation headers",
       async () => {
-        for (const url of ["/api/investing/config", "/api/investing/plans"]) {
+        for (const url of ["/api/health", "/api/recurring"]) {
           const response = await request(url, {
             method: "OPTIONS",
             headers: {
@@ -219,7 +219,7 @@ test(
     await t.test(
       "request and response credentials are stripped even on allowed routes",
       async () => {
-        const response = await request("/api/investing/config", {
+        const response = await request("/api/health", {
           headers: {
             Authorization: "Bearer request-private-token",
             "Proxy-Authorization": "Basic request-proxy-token",
@@ -266,7 +266,7 @@ test(
         const before = requests.length;
         assert.equal(
           (
-            await request("/api/investing/config", {
+            await request("/api/health", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: "{}",
@@ -275,12 +275,12 @@ test(
           404,
         );
         assert.equal(
-          (await request("/api/investing/plans", { method: "DELETE" })).status,
+          (await request("/api/recurring", { method: "DELETE" })).status,
           404,
         );
         assert.equal(
           (
-            await request("/api/investing/plans", {
+            await request("/api/recurring", {
               method: "POST",
               headers: { "Content-Type": "text/plain" },
               body: "{}",

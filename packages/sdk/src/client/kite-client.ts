@@ -6,14 +6,8 @@ import type {
   RecurringPaymentRequest,
 } from "../basket/mainnet";
 import type { MarketSnapshot } from "../markets";
-import {
-  assertRecurringInvestmentSchedule,
-  deriveRecurringPermissionWindow,
-  type RecurringInvestmentConfig,
-  type RecurringInvestmentPlan,
-  type RecurringInvestmentReceipt,
-  type CreateInvestmentPlanRequest,
-  type InvestmentPlanReview,
+import type {
+  RecurringInvestmentPlan,
 } from "../recurring-investing";
 import type { StockResearch } from "../research";
 import {
@@ -394,73 +388,7 @@ export class KiteClient {
         typeof v.periodStartedAt === "number",
     );
   }
-  async getInvestmentConfig(
-    signal?: AbortSignal,
-  ): Promise<RecurringInvestmentConfig> {
-    const { data } = await this.request("/api/investing/config", { signal });
-    return verified(
-      data,
-      (v) =>
-        typeof v.configured === "boolean" &&
-        typeof v.available === "boolean" &&
-        v.transactionVersion === 1 &&
-        (v.executor === null || typeof v.executor === "string") &&
-        (v.reason === null || typeof v.reason === "string"),
-    );
-  }
-  async getInvestmentPlans(
-    wallet: string,
-    signal?: AbortSignal,
-  ): Promise<{
-    plans: RecurringInvestmentPlan[];
-    receipts: RecurringInvestmentReceipt[];
-  }> {
-    const { data } = await this.request(
-      `/api/investing/plans?wallet=${encodeURIComponent(wallet)}`,
-      { signal },
-    );
-    return verified(
-      data,
-      (v) =>
-        Array.isArray(v.plans) &&
-        v.plans.every(
-          (p) => record(p) && p.owner === wallet && validInvestmentPlan(p),
-        ) &&
-        Array.isArray(v.receipts) &&
-        v.receipts.every((r) => validInvestmentReceipt(r)),
-    );
-  }
-  async requestInvestmentPlan(
-    input: CreateInvestmentPlanRequest,
-  ): Promise<InvestmentPlanReview> {
-    const { data } = await this.request("/api/investing/plans", {
-      body: input,
-    });
-    return verified(data, (v) => {
-      if (
-        !record(v.order) ||
-        !validWalletOrder(v.order, input.taker) ||
-        v.order.transactionVersion !== 1 ||
-        !record(v.plan) ||
-        !validInvestmentPlan(v.plan)
-      )
-        return false;
-      const p = v.plan as unknown as RecurringInvestmentPlan;
-      return (
-        JSON.stringify(v.order.investmentSetup) === JSON.stringify(p) &&
-        p.owner === input.taker &&
-        p.fundingMint === input.fundingMint &&
-        p.amountUnits === toTokenAmount(input.amount, p.fundingDecimals) &&
-        p.target.type === input.target.type &&
-        p.target.id === input.target.id &&
-        p.slippageBps === input.slippageBps &&
-        p.schedule.startsAt === input.schedule.startsAt &&
-        p.schedule.unit === input.schedule.unit &&
-        p.schedule.interval === input.schedule.interval &&
-        p.schedule.occurrences === input.schedule.occurrences
-      );
-    });
-  }
+
   async executeTransaction(
     input: ExecuteTradeRequest,
   ): Promise<MainnetTradeResult> {
@@ -506,95 +434,7 @@ function validWalletOrder(v: Record<string, unknown>, taker: string) {
   );
 }
 
-function validInvestmentPlan(p: Record<string, unknown>): boolean {
-  try {
-    if (
-      typeof p.id !== "string" ||
-      !/^[a-f0-9]{32}$/.test(p.id) ||
-      typeof p.owner !== "string" ||
-      typeof p.buyer !== "string" ||
-      typeof p.delegation !== "string" ||
-      typeof p.fundingMint !== "string" ||
-      typeof p.amountUnits !== "string" ||
-      !/^\d{1,20}$/.test(p.amountUnits) ||
-      !Number.isInteger(p.fundingDecimals) ||
-      Number(p.fundingDecimals) < 0 ||
-      Number(p.fundingDecimals) > 18 ||
-      !record(p.target) ||
-      !["stock", "basket"].includes(String(p.target.type)) ||
-      typeof p.target.id !== "string" ||
-      !record(p.schedule) ||
-      !record(p.permission) ||
-      !Array.isArray(p.allocations) ||
-      !p.allocations.length ||
-      p.allocations.length > 12 ||
-      !["draft", "active", "paused", "revoked", "completed"].includes(
-        String(p.status),
-      )
-    )
-      return false;
-    const plan = p as unknown as RecurringInvestmentPlan;
-    assertRecurringInvestmentSchedule(plan.schedule);
-    const terms = deriveRecurringPermissionWindow(plan.schedule);
-    if (
-      Object.entries(terms).some(
-        ([k, v]) =>
-          p.permission && (p.permission as Record<string, unknown>)[k] !== v,
-      )
-    )
-      return false;
-    return (
-      plan.allocations.every(
-        (a) =>
-          typeof a.mint === "string" &&
-          typeof a.symbol === "string" &&
-          Number.isInteger(a.weightBps) &&
-          a.weightBps > 0,
-      ) &&
-      plan.allocations.reduce((s, a) => s + a.weightBps, 0) === 10000 &&
-      new Set(plan.allocations.map((a) => a.mint)).size ===
-        plan.allocations.length
-    );
-  } catch {
-    return false;
-  }
-}
-function validInvestmentReceipt(value: unknown): boolean {
-  const raw = (v: unknown) => typeof v === "string" && /^\d{1,20}$/.test(v);
-  if (
-    !record(value) ||
-    typeof value.planId !== "string" ||
-    typeof value.runId !== "string" ||
-    !["prepared", "pending", "success", "failed", "skipped"].includes(
-      String(value.status),
-    ) ||
-    !Number.isSafeInteger(value.scheduledAt) ||
-    Number(value.scheduledAt) < 0 ||
-    !Number.isSafeInteger(value.updatedAt) ||
-    !raw(value.amountUnits)
-  )
-    return false;
-  if (
-    value.signature !== undefined &&
-    (typeof value.signature !== "string" ||
-      !/^[1-9A-HJ-NP-Za-km-z]{80,90}$/.test(value.signature))
-  )
-    return false;
-  return (
-    value.outputs === undefined ||
-    (Array.isArray(value.outputs) &&
-      value.outputs.every(
-        (o) =>
-          record(o) &&
-          typeof o.mint === "string" &&
-          typeof o.symbol === "string" &&
-          raw(o.amountUnits) &&
-          Number.isInteger(o.decimals) &&
-          Number(o.decimals) >= 0 &&
-          Number(o.decimals) <= 18,
-      ))
-  );
-}
+
 
 function validBasketOutputs(outputs: unknown, input: string): boolean {
   const raw = (v: unknown): v is string =>

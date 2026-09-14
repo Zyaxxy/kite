@@ -3,7 +3,7 @@ import {
   getAssociatedTokenAddressSync,
   createAssociatedTokenAccountIdempotentInstruction,
 } from "@solana/spl-token";
-import { kitInstructionToWeb3, type RecurringPayment } from "../basket/mainnet";
+import { kitInstructionToWeb3, type RecurringPayment, inspectWalletTransaction } from "../basket/mainnet";
 
 export const MAINNET_SUBSCRIPTIONS_PROGRAM =
   "De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44";
@@ -274,3 +274,35 @@ export async function buildCollectRecurringInstructions(
     ),
   ];
 }
+
+export const TX_V1_FEATURE = "txv1aq4pp281K9um3tnPgkfX8UqtFT6wcVW3hNezGLL";
+
+export function featureActive(
+  value: { owner: { toBase58(): string }; data: Buffer | Uint8Array } | null,
+  slot: number | bigint,
+): boolean {
+  return Boolean(
+    value &&
+      value.owner.toBase58() ===
+        "Feature111111111111111111111111111111111111" &&
+      value.data.length === 9 &&
+      value.data[0] === 1 &&
+      Buffer.from(value.data).readBigUInt64LE(1) <= BigInt(slot),
+  );
+}
+
+export async function signV1Collection(
+  encoded: string,
+  secretKey: Uint8Array,
+): Promise<string> {
+  const kit = await import("@solana/kit-v1");
+  const { transaction, message } = await inspectWalletTransaction(encoded);
+  if (message.version !== 1)
+    throw new Error("Buyer collection requires a V1 transaction.");
+  const keypair = await kit.createKeyPairFromBytes(secretKey);
+  const signed = await kit.signTransaction([keypair], transaction);
+  return Buffer.from(kit.getTransactionEncoder().encode(signed)).toString(
+    "base64",
+  );
+}
+

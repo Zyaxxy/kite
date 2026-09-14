@@ -13,10 +13,11 @@
     "lint": "turbo run lint",
     "typecheck": "pnpm build:sdk && pnpm --filter @kite/web exec next typegen && pnpm --filter @kite/web exec tsc --noEmit && pnpm --filter @kite/mobile exec tsc --noEmit",
     "test:sdk": "pnpm build:sdk && node --test packages/sdk/test/*.test.cjs",
+    "test": "node --test tests/*.test.*",
     "dev:api-tunnel": "node scripts/dev-api-tunnel.mjs",
-    "collect:recurring": "node scripts/collect-recurring-payment.cjs",
-    "run:recurring": "node scripts/run-recurring-investments.cjs",
-    "test:recurring-worker": "node --test scripts/test/recurring-investments.test.cjs"
+    "test:anchor": "pnpm --filter @kite/anchor test",
+    "build:anchor": "cd packages/anchor && anchor build",
+    "devnet:create-xstocks": "node scripts/create-devnet-xstocks.cjs"
   },
   "devDependencies": {
     "turbo": "^2.4.4",

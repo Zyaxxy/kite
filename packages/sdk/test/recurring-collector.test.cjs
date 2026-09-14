@@ -11,11 +11,9 @@ const {
 const {
   composeMainnetTransaction,
   inspectWalletTransaction,
-} = require("../dist");
-const {
   featureActive,
   signV1Collection,
-} = require("../../../scripts/collect-recurring-payment.cjs");
+} = require("../dist");
 
 test("the payment collector only enables V1 after the owned feature activates", () => {
   const data = Buffer.alloc(9);
