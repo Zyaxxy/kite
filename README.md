@@ -28,7 +28,7 @@ Open `http://localhost:3000`. To run mobile, configure `apps/mobile/.env.local` 
 
 Copy `apps/web/.env.example` to `apps/web/.env.local`. Market discovery can work with the public issuer APIs and Jupiter's available public endpoint. Configure `JUPITER_API_KEY` for the supported authenticated Jupiter service and actual swap routes. Configure Privy, the mainnet RPC and an independent `KITE_TRADE_SECRET` of at least 32 characters for actual trading. Secrets remain on the web server; only public app IDs and public RPC configuration belong in `NEXT_PUBLIC_*` / `EXPO_PUBLIC_*` variables.
 
-See [deployment and rollback verification](docs/deployment-readiness.md), [mainnet data](docs/mainnet-data.md), [trading setup](docs/mainnet-trading.md), and [mobile setup](apps/mobile/README.md) for endpoints, environment variables and limitations.
+See the [Kite product documentation](docs/README.md) for the product model, user flows, Solana architecture, use cases, and trust boundaries. Implementation and deployment records are preserved separately under `internal-docs/`. For local mobile setup, see [apps/mobile/README.md](apps/mobile/README.md).
 
 ## Demo flow
 
@@ -46,7 +46,7 @@ Paper orders simulate reference-price execution only; they exclude fees, slippag
 
 There is no Kite vault in the active product. Thematic baskets are allocations across individual issuer tokens. Paper basket orders validate every component before committing the next ledger state. Actual baskets use one wallet-approved atomic V1 transaction when their routes fit the network and wallet limits. New transactions use inline addresses with no ALTs; historical V0 transactions remain readable for recovery.
 
-Recurring stock and basket purchases use bounded buyer delegation through the official Subscriptions program. The investment service composes collection and owner-directed swaps atomically and records confirmed delivery receipts. The executor is trusted: the permission itself cannot prevent an authorized buyer from collecting without delivery using a different transaction. Schedules, limits and this trust boundary are disclosed in the approval review. See [Kite Guard Protocol](docs/kite-guard-protocol.md) for the smart contract architecture enforcing limits.
+Recurring stock and basket purchases use bounded buyer delegation through the official Subscriptions program. The investment service composes collection and owner-directed swaps atomically and records confirmed delivery receipts. The executor is trusted: the permission itself cannot prevent an authorized buyer from collecting without delivery using a different transaction. Schedules, limits and this trust boundary are disclosed in the approval review. See [how Kite works](docs/how-it-works.md) and [trust, safety, and current scope](docs/trust-and-scope.md) for the product model.
 
 `GET /api/markets` discovers and prices tokens. `GET /api/portfolio` reads wallet balances. `POST /api/trade/order` prepares a validated V1 swap using Jupiter build instructions. `POST /api/trade/execute` requires the exact quoted transaction and a valid wallet signature. `POST /api/buy-basket` prepares a complete atomic basket. `/api/investing` exposes plan setup, receipts and the authenticated executor protocol. `/api/recurring` manages the underlying permissions, including revoke and advanced payment-only collection. `/api/transaction/execute` verifies and broadcasts composed owner-signed transactions. Only the retired `/api/faucet` returns HTTP 410.
 
