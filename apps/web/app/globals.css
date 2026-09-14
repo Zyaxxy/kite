@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -15,7 +16,10 @@
   --accent-ink: #202917;
   --up: #b9de83;
   --down: #f3a59b;
-  --font-sans: Arial, Helvetica, sans-serif;
+  --font-sans: Inter, Manrope, "Avenir Next", "Avenir", "Segoe UI",
+    Helvetica, Arial, sans-serif;
+  --font-nav: Manrope, Inter, "Avenir Next", "Avenir", "Segoe UI",
+    Helvetica, Arial, sans-serif;
   color-scheme: dark;
 }
 * {
@@ -30,8 +34,59 @@ body {
   color: var(--ink);
   font-family: var(--font-sans);
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.52;
   -webkit-font-smoothing: antialiased;
+}
+.sip-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 24px;
+  align-items: start;
+}
+.sip-help-panel {
+  padding: 24px;
+}
+.sip-help-panel h2 {
+  margin-bottom: 8px;
+}
+.sip-help-panel > .fineprint {
+  margin: 0;
+}
+.sip-steps {
+  margin: 16px 0;
+  display: grid;
+  gap: 12px;
+}
+.sip-steps .step {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.sip-steps .step span {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+}
+.sip-steps .step strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+.sip-steps .step p {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.7;
 }
 button,
 input,
@@ -1811,6 +1866,9 @@ input::-webkit-inner-spin-button {
   .plan-layout {
     grid-template-columns: minmax(0, 1fr) 300px;
   }
+  .sip-layout {
+    grid-template-columns: minmax(0, 1fr) 300px;
+  }
   .toast {
     left: calc(50% + 97px);
   }
@@ -1843,6 +1901,9 @@ input::-webkit-inner-spin-button {
   }
   .detail-grid,
   .plan-layout {
+    grid-template-columns: 1fr;
+  }
+  .sip-layout {
     grid-template-columns: 1fr;
   }
   .trade-panel {
@@ -2098,6 +2159,7 @@ input::-webkit-inner-spin-button {
     display: flex;
     align-items: center;
     justify-content: space-around;
+    font-family: var(--font-nav);
     z-index: 40;
     padding: 10px 6px max(10px, env(safe-area-inset-bottom));
     backdrop-filter: blur(14px);

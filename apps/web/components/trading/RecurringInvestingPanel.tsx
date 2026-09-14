@@ -314,14 +314,24 @@ export function RecurringInvestingPanel() {
       setLoading(false);
     }
   };
+  const selectedDisplay = (() => {
+    if (!selectedToken || !config) return "No asset selected";
+    const [type, id] = selectedToken.split(":");
+    if (type === "stock") {
+      const stock = config.stocks.find((item) => item.id === id);
+      return stock ? `${stock.name} (${stock.symbol})` : "Selected stock";
+    }
+    const basket = config.baskets.find((item) => item.id === id);
+    return basket ? `${basket.name} (${basket.ticker})` : "Selected basket";
+  })();
 
   return (
     <section
-      className="panel stack"
+      className={`${recurringStyles.panel} panel stack`}
       style={{ gap: 20, scrollMarginTop: 110 }}
       aria-labelledby="guard-plan-title"
     >
-      <div>
+      <div className={recurringStyles.header}>
         <p className="eyebrow">Kite Guard · Devnet</p>
         <h2 id="guard-plan-title" className="mb-2">
           Set your investment rhythm.
@@ -333,6 +343,9 @@ export function RecurringInvestingPanel() {
           have no monetary value.
         </p>
       </div>
+      <p className={recurringStyles.networkChip}>
+        Network: <strong>Solana devnet</strong> · Destination: {selectedDisplay}
+      </p>
 
       <form
         className="stack"
@@ -346,57 +359,59 @@ export function RecurringInvestingPanel() {
           className="investing-fields"
           disabled={loading || Boolean(pending) || pendingUnreadable}
         >
-          <label className="form-field">
-            <span>Devnet stock or basket</span>
-            <NativeSelect
-              value={selectedToken}
-              onChange={(e) => setSelectedToken(e.target.value)}
-              disabled={loading || !config?.readyToPrepare}
-            >
-              {!selectedToken && (
-                <option value="">Select a devnet asset</option>
-              )}
-              <optgroup label="Stocks">
-                {config?.stocks.map((stock) => (
-                  <option
-                    key={stock.id}
-                    value={`stock:${stock.id}`}
-                    disabled={!stock.available}
-                  >
-                    {stock.name} ({stock.symbol})
-                    {!stock.available ? " · Not provisioned" : ""}
-                  </option>
-                ))}
-              </optgroup>
-              <optgroup label="Baskets">
-                {config?.baskets.map((basket) => (
-                  <option
-                    key={basket.id}
-                    value={`basket:${basket.id}`}
-                    disabled={!basket.available}
-                  >
-                    {basket.name} ({basket.ticker})
-                    {!basket.available ? " · Unavailable" : ""}
-                  </option>
-                ))}
-              </optgroup>
-            </NativeSelect>
-          </label>
+          <div className={recurringStyles.grid}>
+            <label className="form-field">
+              <span>Devnet stock or basket</span>
+              <NativeSelect
+                value={selectedToken}
+                onChange={(e) => setSelectedToken(e.target.value)}
+                disabled={loading || !config?.readyToPrepare}
+              >
+                {!selectedToken && (
+                  <option value="">Select a devnet asset</option>
+                )}
+                <optgroup label="Stocks">
+                  {config?.stocks.map((stock) => (
+                    <option
+                      key={stock.id}
+                      value={`stock:${stock.id}`}
+                      disabled={!stock.available}
+                    >
+                      {stock.name} ({stock.symbol})
+                      {!stock.available ? " · Not provisioned" : ""}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Baskets">
+                  {config?.baskets.map((basket) => (
+                    <option
+                      key={basket.id}
+                      value={`basket:${basket.id}`}
+                      disabled={!basket.available}
+                    >
+                      {basket.name} ({basket.ticker})
+                      {!basket.available ? " · Unavailable" : ""}
+                    </option>
+                  ))}
+                </optgroup>
+              </NativeSelect>
+            </label>
 
-          <label className="form-field">
-            <span>KUSD per investment · Devnet</span>
-            <input
-              type="number"
-              min="0.000001"
-              step="0.000001"
-              inputMode="decimal"
-              autoComplete="off"
-              placeholder="10.00"
-              value={fundingAmount}
-              onChange={(e) => setFundingAmount(e.target.value)}
-              disabled={loading}
-            />
-          </label>
+            <label className="form-field">
+              <span>KUSD per investment · Devnet</span>
+              <input
+                type="number"
+                min="0.000001"
+                step="0.000001"
+                inputMode="decimal"
+                autoComplete="off"
+                placeholder="10.00"
+                value={fundingAmount}
+                onChange={(e) => setFundingAmount(e.target.value)}
+                disabled={loading}
+              />
+            </label>
+          </div>
 
           <div className={recurringStyles.schedule}>
             <div className={recurringStyles.scheduleHeading}>

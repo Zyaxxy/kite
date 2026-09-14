@@ -422,8 +422,43 @@ export function Plans() {
       <MarketStatus />
       {mode === "actual" ? (
         <>
-          <section id="new-plan">
+          <section id="new-plan" className="sip-layout">
             <RecurringInvestingPanel />
+            <aside className="panel sip-help-panel">
+              <h2>How devnet recurring plans work</h2>
+              <p className="fineprint" style={{ marginTop: 10 }}>
+                Every approved plan uses the Kite Guard devnet contract. It
+                collects funds, swaps into your selected stock or basket, and
+                delivers output in your wallet on each interval.
+              </p>
+              <div className="sip-steps">
+                <article className="step">
+                  <span aria-hidden="true">1</span>
+                  <div>
+                    <strong>Choose asset</strong>
+                    <p>Pick a provisioned stock or basket and set your amount.</p>
+                  </div>
+                </article>
+                <article className="step">
+                  <span aria-hidden="true">2</span>
+                  <div>
+                    <strong>Review constraints</strong>
+                    <p>Confirm minimum per-investment outputs before signing.</p>
+                  </div>
+                </article>
+                <article className="step">
+                  <span aria-hidden="true">3</span>
+                  <div>
+                    <strong>Approve once</strong>
+                    <p>Sign the prepared transaction and monitor status in-app.</p>
+                  </div>
+                </article>
+              </div>
+              <p className="fineprint">
+                The devnet feature is intentionally isolated; this is an
+                engineering-first flow for recurring execution.
+              </p>
+            </aside>
           </section>
         </>
       ) : (
