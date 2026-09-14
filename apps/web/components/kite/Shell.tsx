@@ -245,9 +245,11 @@ export function Shell({
     <div className="workspace kite-workspace">
       <header className="workspace-header">
         <div className="workspace-header-inner">
-          <div className="navigation-pill">
+          <div className="navigation-core">
             <Brand />
-            <PrimaryNavigation />
+            <div className="navigation-pill">
+              <PrimaryNavigation />
+            </div>
           </div>
           <div className="workspace-header-actions">
             <button

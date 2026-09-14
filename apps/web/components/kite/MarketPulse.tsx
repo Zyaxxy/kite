@@ -13,36 +13,65 @@ export function MarketOverview() {
     () => getMarketPulse(snapshot?.assets ?? [], 4),
     [snapshot],
   );
+  const coveredAssets = pulse.breadth.coveredAssets || 0;
+  const advancingShare =
+    coveredAssets > 0
+      ? Math.round((pulse.breadth.advancing / coveredAssets) * 100)
+      : null;
+  const decliningShare =
+    coveredAssets > 0
+      ? Math.round((pulse.breadth.declining / coveredAssets) * 100)
+      : null;
+
   return (
     <div className="market-overview" aria-label="Token market overview">
       <div>
-        <span>Market coverage</span>
-        <strong>
+        <span className="market-overview-label">Market coverage</span>
+        <strong className="market-overview-value">
           {snapshot ? pulse.totalAssets : "—"}
           <small>assets</small>
         </strong>
+        <small className="market-overview-subtext">
+          {snapshot
+            ? `Across catalog · ${pulse.tradableAssets} tradable`
+            : "loading market universe"}
+        </small>
       </div>
       <div>
-        <span>Observed 24h volume</span>
-        <strong>{compactMoney(pulse.volume24hUsd)}</strong>
+        <span className="market-overview-label">Observed 24h volume</span>
+        <strong className="market-overview-value">
+          {compactMoney(pulse.volume24hUsd)}
+        </strong>
+        <small className="market-overview-subtext">Notional traded on chain</small>
       </div>
       <div>
-        <span>Advancing / declining</span>
-        <strong>
+        <span className="market-overview-label">Advancing / declining</span>
+        <strong className="market-overview-value">
           {pulse.breadth.coveredAssets ? (
             <>
-              <b className="up">{pulse.breadth.advancing}</b>
-              <small>/</small>
-              <b className="down">{pulse.breadth.declining}</b>
+              <span className="market-overview-trend market-overview-trend-up">
+                <b>{pulse.breadth.advancing}</b>
+                <em>{advancingShare === null ? "up" : `${advancingShare}%`}</em>
+              </span>
+              <span className="market-overview-trend-sep">•</span>
+              <span className="market-overview-trend market-overview-trend-down">
+                <b>{pulse.breadth.declining}</b>
+                <em>{decliningShare === null ? "down" : `${decliningShare}%`}</em>
+              </span>
             </>
           ) : (
             "—"
           )}
         </strong>
+        <small className="market-overview-subtext">
+          {pulse.breadth.coveredAssets
+            ? `${pulse.breadth.coveredAssets} assets reported in 24h`
+            : "calculating movement"}
+        </small>
       </div>
       <div className="market-overview-status">
-        <span>Price coverage</span>
-        <strong>
+        <span className="market-overview-label">Price coverage</span>
+        <strong className="market-overview-value">
           {loading && !snapshot ? (
             "Connecting…"
           ) : (
@@ -52,6 +81,9 @@ export function MarketOverview() {
             </>
           )}
         </strong>
+        <small className="market-overview-subtext">
+          of {pulse.tradableAssets} active assets
+        </small>
       </div>
     </div>
   );
