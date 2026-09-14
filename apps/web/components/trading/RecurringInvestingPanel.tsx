@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
 import { Program, AnchorProvider, BN } from "@coral-xyz/anchor";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
+import { CalendarDays, Repeat2 } from "lucide-react";
 import {
   KiteGuardIdl,
   KiteGuard,
@@ -11,6 +12,8 @@ import {
   findPlanPda,
   TOTAL_WEIGHT_BPS,
 } from "@kite/sdk";
+import { NativeSelect } from "../ui/native-select";
+import recurringStyles from "./recurring-controls.module.css";
 
 interface XStock {
   symbol: string;
@@ -49,7 +52,7 @@ export function RecurringInvestingPanel() {
     setError("");
     setSuccess("");
     setLoading(true);
-    
+
     try {
       const provider = new AnchorProvider(connection, wallet, {});
       const program = new Program(KiteGuardIdl as KiteGuard, provider);
@@ -57,7 +60,9 @@ export function RecurringInvestingPanel() {
       // Using a dummy USDC mint for funding on devnet, or use the first token as funding if you prefer.
       // For this test, let's just use a hardcoded fake devnet USDC or the wallet owner as fundingMint to test the PDA.
       // Usually you'd have a devnet USDC mint. Let's assume there is one or just use a random key for testing.
-      const devnetUsdcMint = new PublicKey("4zMMC9srt5Ri5X14sgXRo6CWjLN1vc2in1t1b1Vf8w2Q"); // Typical devnet USDC
+      const devnetUsdcMint = new PublicKey(
+        "4zMMC9srt5Ri5X14sgXRo6CWjLN1vc2in1t1b1Vf8w2Q",
+      ); // Typical devnet USDC
 
       const [planPda] = findPlanPda(wallet.publicKey, devnetUsdcMint);
 
@@ -96,76 +101,141 @@ export function RecurringInvestingPanel() {
   };
 
   return (
-    <div className="panel stack" style={{ gap: 16 }}>
+    <section
+      className="panel stack"
+      style={{ gap: 20, scrollMarginTop: 110 }}
+      aria-labelledby="guard-plan-title"
+    >
       <div>
-        <h2 className="mb-2">Devnet Trustless Recurring Plan</h2>
+        <p className="eyebrow">Kite Guard · Devnet</p>
+        <h2 id="guard-plan-title" className="mb-2">
+          Set your investment rhythm.
+        </h2>
         <p className="fineprint">
-          Create a non-custodial recurring plan using <strong>Kite Guard</strong>. This executes directly on devnet smart contracts.
+          Choose a devnet asset, set your amount and pick a schedule. This
+          creates a <strong>Kite Guard</strong> plan directly on the devnet
+          smart contract.
         </p>
       </div>
 
-      <label className="form-field">
-        <span>Target Devnet Asset</span>
-        <select
-          value={selectedToken}
-          onChange={(e) => setSelectedToken(e.target.value)}
-          disabled={loading || tokens.length === 0}
-        >
-          {tokens.map((t) => (
-            <option key={t.mint} value={t.mint}>
-              {t.name} ({t.symbol})
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label className="form-field">
-        <span>Funding Amount (USDC) per period</span>
-        <input
-          type="number"
-          value={fundingAmount}
-          onChange={(e) => setFundingAmount(e.target.value)}
-          disabled={loading}
-        />
-      </label>
-
-      <label className="form-field">
-        <span>Execution Interval</span>
-        <select
-          value={period}
-          onChange={(e) => setPeriod(e.target.value)}
-          disabled={loading}
-        >
-          <option value="60">Every 60 Seconds (Devnet Test)</option>
-          <option value="86400">Every Day</option>
-          <option value="604800">Every Week</option>
-        </select>
-      </label>
-
-      <label className="form-field">
-        <span>Total Installments</span>
-        <input
-          type="number"
-          min="1"
-          max="365"
-          value={periods}
-          onChange={(e) => setPeriods(e.target.value)}
-          disabled={loading}
-        />
-      </label>
-
-      {error && <p className="notice" style={{ color: "red" }}>{error}</p>}
-      {success && <p className="notice" style={{ color: "green", wordBreak: "break-all" }}>{success}</p>}
-
-      <button
-        className="btn full"
-        onClick={handleCreatePlan}
-        disabled={loading || !wallet}
+      <form
+        className="stack"
+        style={{ gap: 20 }}
+        onSubmit={(event) => {
+          event.preventDefault();
+          void handleCreatePlan();
+        }}
       >
-        {loading ? "Creating Plan..." : "Create Devnet Plan"}
-      </button>
+        <fieldset className="investing-fields" disabled={loading}>
+          <label className="form-field">
+            <span>Devnet asset</span>
+            <NativeSelect
+              value={selectedToken}
+              onChange={(e) => setSelectedToken(e.target.value)}
+              disabled={loading || tokens.length === 0}
+            >
+              {tokens.length === 0 && (
+                <option value="">Select a devnet asset</option>
+              )}
+              {tokens.map((t) => (
+                <option key={t.mint} value={t.mint}>
+                  {t.name} ({t.symbol})
+                </option>
+              ))}
+            </NativeSelect>
+          </label>
 
-      {!wallet && <p className="fineprint text-center">Please connect your wallet first.</p>}
-    </div>
+          <label className="form-field">
+            <span>USDC per investment · Devnet</span>
+            <input
+              type="number"
+              step="any"
+              inputMode="decimal"
+              autoComplete="off"
+              placeholder="10.00"
+              value={fundingAmount}
+              onChange={(e) => setFundingAmount(e.target.value)}
+              disabled={loading}
+            />
+          </label>
+
+          <div className={recurringStyles.schedule}>
+            <div className={recurringStyles.scheduleHeading}>
+              <span>
+                <CalendarDays size={17} aria-hidden="true" /> Your schedule
+              </span>
+              <span>Devnet</span>
+            </div>
+            <div className="investing-field-row">
+              <label className="form-field">
+                <span>Repeat</span>
+                <NativeSelect
+                  value={period}
+                  onChange={(e) => setPeriod(e.target.value)}
+                  disabled={loading}
+                >
+                  <option value="60">Every 60 seconds · Devnet test</option>
+                  <option value="86400">Every day</option>
+                  <option value="604800">Every week</option>
+                </NativeSelect>
+              </label>
+
+              <label className="form-field">
+                <span>Number of investments</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="365"
+                  value={periods}
+                  onChange={(e) => setPeriods(e.target.value)}
+                  disabled={loading}
+                />
+              </label>
+            </div>
+            <div className={recurringStyles.scheduleSummary}>
+              <Repeat2 size={15} aria-hidden="true" />
+              <span>
+                {period === "60"
+                  ? "Every 60 seconds"
+                  : period === "86400"
+                    ? "Every day"
+                    : "Every week"}{" "}
+                · {periods || "—"} planned investments
+              </span>
+            </div>
+          </div>
+        </fieldset>
+
+        {error && (
+          <p className="notice error" role="alert">
+            {error}
+          </p>
+        )}
+        {success && (
+          <p
+            className="notice"
+            role="status"
+            style={{ overflowWrap: "anywhere" }}
+          >
+            {success}
+          </p>
+        )}
+
+        <button
+          className="btn full"
+          type="submit"
+          aria-busy={loading}
+          disabled={loading || !wallet}
+        >
+          {loading ? "Creating devnet plan…" : "Create devnet plan"}
+        </button>
+
+        {!wallet && (
+          <p className="fineprint text-center">
+            Connect your wallet to create a devnet plan.
+          </p>
+        )}
+      </form>
+    </section>
   );
 }

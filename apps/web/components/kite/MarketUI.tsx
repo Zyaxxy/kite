@@ -1,9 +1,8 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  ArrowDownLeft,
   ArrowUpRight,
   ArrowRight,
   Bookmark,
@@ -14,6 +13,15 @@ import {
 import type { MarketAsset, MarketBasket } from "@kite/sdk";
 import { OrbitArt } from "./Brand";
 import { getCompanyLogo } from "../../lib/company-logos";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../ui/table";
+import { NativeSelect, NativeSelectOption } from "../ui/native-select";
 
 export const money = (value: number | null | undefined, digits = 2) =>
   value == null || !Number.isFinite(value)
@@ -144,11 +152,34 @@ export function WatchRow({ asset }: { asset: MarketAsset }) {
     </div>
   );
 }
+type AssetSort = "volume" | "gainers" | "losers" | "name";
+
+/** Null observations always stay last; an unknown price is never treated as zero. */
+function sortAssets(assets: MarketAsset[], sort: AssetSort): MarketAsset[] {
+  return [...assets].sort((a, b) => {
+    if (sort === "name") return a.name.localeCompare(b.name);
+    if (a.tradingHalted !== b.tradingHalted) return a.tradingHalted ? 1 : -1;
+    if ((a.priceUsd == null) !== (b.priceUsd == null))
+      return a.priceUsd == null ? 1 : -1;
+    const left = sort === "volume" ? a.volume24hUsd : a.change24hPct;
+    const right = sort === "volume" ? b.volume24hUsd : b.change24hPct;
+    if (left == null || right == null) {
+      if (left == null && right == null) return a.name.localeCompare(b.name);
+      return left == null ? 1 : -1;
+    }
+    return (
+      (sort === "losers" ? left - right : right - left) ||
+      a.name.localeCompare(b.name)
+    );
+  });
+}
+
 export function AssetTable({
   assets,
   watchlist,
   onWatch,
   initialFilter = "all",
+  onFilterChange,
   compact = false,
   loading = false,
 }: {
@@ -156,156 +187,246 @@ export function AssetTable({
   watchlist: string[];
   onWatch: (mint: string) => void;
   initialFilter?: string;
+  onFilterChange?: (filter: string) => void;
   compact?: boolean;
   loading?: boolean;
 }) {
   const [filter, setFilter] = useState(initialFilter);
   const [query, setQuery] = useState("");
-  const [limit, setLimit] = useState(compact ? 6 : 20);
-  const filtered = assets.filter(
-    (a) =>
-      (filter === "all" ||
-        (filter === "xstocks" && a.issuer === "xstocks") ||
-        (filter === "prestocks" && a.issuer === "prestocks") ||
-        (filter === "etf" && a.kind === "etf")) &&
-      `${a.name} ${a.symbol} ${a.mint}`
-        .toLowerCase()
-        .includes(query.toLowerCase()),
+  const [sort, setSort] = useState<AssetSort>("volume");
+  const pageSize = compact ? 8 : 12;
+  const [limit, setLimit] = useState(pageSize);
+  useEffect(() => {
+    setFilter(initialFilter);
+    setLimit(pageSize);
+  }, [initialFilter, pageSize]);
+  const changeFilter = (next: string) => {
+    setFilter(next);
+    setLimit(pageSize);
+    onFilterChange?.(next);
+  };
+  const filtered = sortAssets(
+    assets.filter(
+      (asset) =>
+        (filter === "all" ||
+          (filter === "xstocks" && asset.issuer === "xstocks") ||
+          (filter === "prestocks" && asset.issuer === "prestocks") ||
+          (filter === "etf" && asset.kind === "etf") ||
+          (filter === "saved" && watchlist.includes(asset.mint))) &&
+        `${asset.name} ${asset.symbol} ${asset.underlyingSymbol} ${asset.mint}`
+          .toLowerCase()
+          .includes(query.trim().toLowerCase()),
+    ),
+    sort,
   );
+  const resetFilters = () => {
+    changeFilter("all");
+    setQuery("");
+  };
   return (
-    <>
-      <div className="market-controls">
-        <div className="filter-tabs" role="group" aria-label="Asset category">
-          {[
-            ["all", "All assets"],
-            ["xstocks", "xStocks"],
-            ["prestocks", "PreStocks"],
-            ["etf", "ETFs"],
-          ].map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              className={filter === id ? "active" : ""}
-              aria-pressed={filter === id}
-              onClick={() => {
-                setFilter(id);
-                setLimit(compact ? 6 : 20);
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <label className="market-input">
-          <Search size={13} />
+    <div className="stock-catalog">
+      <div className="stock-catalog-toolbar">
+        <label className="market-input catalog-search">
+          <Search size={16} aria-hidden="true" />
           <input
-            aria-label="Filter assets"
-            placeholder="Find an asset"
+            type="search"
+            aria-label="Search companies, symbols or mint addresses"
+            placeholder="Search companies or symbols"
             value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setLimit(20);
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setLimit(pageSize);
             }}
           />
         </label>
+        <NativeSelect
+          aria-label="Sort assets"
+          value={sort}
+          onChange={(event) => {
+            setSort(event.target.value as AssetSort);
+            setLimit(pageSize);
+          }}
+        >
+          <NativeSelectOption value="volume">Most traded</NativeSelectOption>
+          <NativeSelectOption value="gainers">Top gainers</NativeSelectOption>
+          <NativeSelectOption value="losers">Top losers</NativeSelectOption>
+          <NativeSelectOption value="name">Company A–Z</NativeSelectOption>
+        </NativeSelect>
+      </div>
+      <div
+        className="catalog-filters filter-tabs"
+        role="group"
+        aria-label="Asset category"
+      >
+        {[
+          ["all", "All assets"],
+          ["xstocks", "xStocks"],
+          ["prestocks", "PreStocks"],
+          ["saved", "Saved"],
+        ].map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            className={filter === id ? "active" : ""}
+            aria-pressed={filter === id}
+            onClick={() => changeFilter(id)}
+          >
+            {id === "saved" && <Bookmark size={13} aria-hidden="true" />}
+            {label}
+            {id === "saved" && watchlist.length > 0 && (
+              <span>{watchlist.length}</span>
+            )}
+          </button>
+        ))}
       </div>
       {filtered.length ? (
         <>
-          <table className="assets-table">
-            <thead>
-              <tr>
-                <th>Asset</th>
-                <th className="hide-mobile">Issuer</th>
-                <th className="num">Price</th>
-                <th className="num">24h change</th>
-                <th className="num hide-medium hide-mobile">24h volume</th>
-                <th>
-                  <span className="sr-only">Watchlist</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.slice(0, limit).map((a) => (
-                <tr key={a.mint}>
-                  <td>
-                    <AssetName asset={a} />
-                  </td>
-                  <td className="hide-mobile">
-                    <span className="badge">
-                      {a.issuer === "xstocks"
-                        ? "xStocks"
-                        : a.issuer === "prestocks"
-                          ? "PreStocks"
-                          : "Tokenized"}
-                    </span>
-                  </td>
-                  <td className="num">
-                    {money(a.priceUsd)}
-                    {a.priceUsd == null && a.underlyingPriceUsd != null && (
-                      <small className="token-reference">
-                        {money(a.underlyingPriceUsd)} underlying reference
-                      </small>
-                    )}
-                  </td>
-                  <td className="num">
-                    <Change value={a.change24hPct} />
-                  </td>
-                  <td className="num hide-medium hide-mobile muted">
-                    {compactMoney(a.volume24hUsd)}
-                  </td>
-                  <td className="num">
-                    <button
-                      className={`icon-btn ${watchlist.includes(a.mint) ? "selected" : ""}`}
-                      aria-label={`${watchlist.includes(a.mint) ? "Remove" : "Add"} ${a.symbol} ${watchlist.includes(a.mint) ? "from" : "to"} watchlist`}
-                      aria-pressed={watchlist.includes(a.mint)}
-                      onClick={() => onWatch(a.mint)}
-                    >
-                      <Bookmark
-                        size={15}
-                        fill={
-                          watchlist.includes(a.mint) ? "currentColor" : "none"
-                        }
-                      />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="market-count">
+          <Table
+            className="assets-table catalog-table"
+            aria-label="Available tokenized stocks and funds"
+          >
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col">Company</TableHead>
+                <TableHead scope="col" className="num">
+                  Token price
+                </TableHead>
+                <TableHead scope="col" className="num catalog-change">
+                  24h change
+                </TableHead>
+                <TableHead scope="col" className="num catalog-volume">
+                  24h volume
+                </TableHead>
+                <TableHead scope="col" className="catalog-save">
+                  <span className="sr-only">Save asset</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.slice(0, limit).map((asset) => {
+                const saved = watchlist.includes(asset.mint);
+                return (
+                  <TableRow key={asset.mint}>
+                    <TableCell>
+                      <Link
+                        className="catalog-company"
+                        href={`/stock/${encodeURIComponent(asset.mint)}`}
+                      >
+                        <AssetAvatar asset={asset} />
+                        <span>
+                          <strong>{asset.name.replace(/ xStock$/i, "")}</strong>
+                          <small>
+                            {asset.symbol}
+                            <i aria-hidden="true">·</i>
+                            {asset.tradingHalted
+                              ? "Trading paused"
+                              : asset.issuer === "xstocks"
+                                ? "xStocks"
+                                : asset.issuer === "prestocks"
+                                  ? "PreStocks"
+                                  : "Tokenized"}
+                          </small>
+                        </span>
+                      </Link>
+                    </TableCell>
+                    <TableCell className="num catalog-price">
+                      <strong>
+                        {asset.priceUsd == null ? "—" : money(asset.priceUsd)}
+                      </strong>
+                      {asset.priceUsd == null ? (
+                        <small>Price unavailable</small>
+                      ) : (
+                        <small className="catalog-mobile-change">
+                          <Change value={asset.change24hPct} />
+                        </small>
+                      )}
+                    </TableCell>
+                    <TableCell className="num catalog-change">
+                      <Change value={asset.change24hPct} />
+                    </TableCell>
+                    <TableCell className="num catalog-volume muted">
+                      {asset.volume24hUsd == null
+                        ? "—"
+                        : compactMoney(asset.volume24hUsd)}
+                    </TableCell>
+                    <TableCell className="num catalog-save">
+                      <button
+                        type="button"
+                        className={`icon-btn ${saved ? "selected" : ""}`}
+                        aria-label={`${saved ? "Remove" : "Save"} ${asset.symbol}${saved ? " from saved assets" : " to saved assets"}`}
+                        aria-pressed={saved}
+                        onClick={() => onWatch(asset.mint)}
+                      >
+                        <Bookmark
+                          size={16}
+                          fill={saved ? "currentColor" : "none"}
+                          aria-hidden="true"
+                        />
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+          <div className="market-count catalog-count">
             <span>
               {Math.min(filtered.length, limit)} of {filtered.length} assets ·
-              USD prices
+              USD
             </span>
             {filtered.length > limit && (
               <button
-                className="btn secondary small"
-                onClick={() => setLimit((v) => v + 20)}
+                type="button"
+                className="text-link"
+                onClick={() => setLimit((value) => value + pageSize)}
               >
-                Load more <ArrowDownLeft size={12} />
+                Show more <ArrowRight size={14} aria-hidden="true" />
               </button>
-            )}
-            {compact && (
-              <Link className="text-link" href="/markets">
-                All markets <ArrowUpRight size={13} />
-              </Link>
             )}
           </div>
         </>
+      ) : loading ? (
+        <div
+          className="catalog-skeleton"
+          role="status"
+          aria-label="Loading market prices"
+        >
+          {Array.from({ length: 5 }, (_, index) => (
+            <div key={index}>
+              <i />
+              <span />
+              <b />
+            </div>
+          ))}
+          <span className="sr-only">
+            Loading available companies and prices.
+          </span>
+        </div>
       ) : (
         <Empty
-          icon={Search}
-          title={loading ? "Connecting to the market" : "No assets found"}
+          icon={filter === "saved" ? Bookmark : Search}
+          title={
+            filter === "saved" && !query
+              ? "Your ideas, saved here"
+              : "No matching assets"
+          }
           description={
-            loading
-              ? "Loading the latest issuer catalogs and available prices."
-              : query
-                ? "Try a different name, symbol or mint address."
-                : "No assets in this category are available from the current market feed."
+            filter === "saved" && !query
+              ? "Tap the bookmark beside a company to follow it from Discover."
+              : "Try another company, symbol or category."
+          }
+          action={
+            <button
+              type="button"
+              className="btn secondary small"
+              onClick={resetFilters}
+            >
+              Browse all assets
+            </button>
           }
         />
       )}
-    </>
+    </div>
   );
 }
 export interface BasketDisplay {
@@ -321,11 +442,13 @@ export function BasketCard({
   index = 0,
   tabIndex,
   prefetch,
+  presentation = "app",
 }: {
   basket: BasketDisplay;
   index?: number;
   tabIndex?: number;
   prefetch?: boolean;
+  presentation?: "app" | "marketing";
 }) {
   return (
     <Link
@@ -359,11 +482,13 @@ export function BasketCard({
         <div className="basket-meta">
           <span>
             {basket.assets.length ? `${basket.assets.length} assets · ` : ""}
-            {basket.available
-              ? "Available to practice"
-              : basket.source.missingSymbols.length
-                ? "Some components unavailable"
-                : "Some token prices unavailable"}
+            {presentation === "marketing"
+              ? "Explore theme"
+              : basket.available
+                ? "Available to practice"
+                : basket.source.missingSymbols.length
+                  ? "Some components unavailable"
+                  : "Some token prices unavailable"}
           </span>
           <ArrowRight size={14} />
         </div>

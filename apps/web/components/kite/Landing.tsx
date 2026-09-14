@@ -13,7 +13,7 @@ import { useKite } from "./State";
 import { useBaskets } from "./useBaskets";
 import { WatchRow } from "./MarketUI";
 import { BasketMarquee } from "./BasketMarquee";
-import { TradingModeSwitch } from "./TradingModeSwitch";
+import { PrimaryNavigation } from "./Shell";
 
 export function Landing() {
   const { snapshot, loading } = useKite();
@@ -24,15 +24,15 @@ export function Landing() {
   return (
     <div className="landing">
       <header className="landing-nav">
-        <Brand />
-        <nav aria-label="Website navigation">
-          <Link href="/markets">Explore markets</Link>
-          <Link href="/baskets">Thematic baskets</Link>
-          <Link href="/sip">Recurring plans</Link>
-        </nav>
-        <TradingModeSwitch />
-        <Link href="/app" className="btn small">
-          Open Kite <ArrowUpRight size={15} />
+        <div className="navigation-pill">
+          <Brand />
+          <PrimaryNavigation landing />
+        </div>
+        <Link href="/app" className="btn small landing-open">
+          Open Kite{" "}
+          <span>
+            <ArrowUpRight size={17} />
+          </span>
         </Link>
       </header>
       <main>
@@ -42,27 +42,25 @@ export function Landing() {
               <span className="status-dot" /> YOUR WORLD, ONCHAIN
             </span>
             <h1>
-              Big ideas.
+              Your ideas.
               <br />
-              Small beginnings.
+              Your next move.
               <br />
-              <span>Limitless you.</span>
+              <span>Your Kite.</span>
             </h1>
             <p>
-              Explore thematic stock baskets. Practice with virtual funds, then
-              review a purchase from your own wallet.
+              A clearer view of the markets. Discover companies, explore what
+              moves them, and bring your investments together on Solana.
             </p>
             <div className="landing-actions">
-              <Link href="/baskets" className="btn">
-                Explore baskets <ArrowUpRight size={16} />
+              <Link href="/app" className="btn">
+                Start with Kite <ArrowUpRight size={16} />
               </Link>
-              <Link href="/settings" className="text-link">
-                Sign in with Privy
+              <Link href="/app#all-assets" className="text-link">
+                Explore the markets <ArrowRight size={15} />
               </Link>
             </div>
-            <small>
-              Start with paper trading. Choose your own investing rhythm.
-            </small>
+            <small>One place for the companies and ideas you believe in.</small>
           </div>
           <div className="landing-art">
             <div className="landing-art-label">
@@ -81,7 +79,7 @@ export function Landing() {
                       : "Market prices are temporarily unavailable."}
                   </p>
                   <Link
-                    href="/markets"
+                    href="/app#all-assets"
                     className="text-link"
                     style={{ marginTop: 12 }}
                   >
@@ -95,7 +93,7 @@ export function Landing() {
         <div className="landing-strip">
           <span>
             <ShieldCheck />
-            Your keys. Your ownership.
+            Your assets. Your wallet.
           </span>
           <span>
             <Layers3 />
@@ -145,19 +143,19 @@ export function Landing() {
               </p>
             </div>
             <div className="how-item">
-              <span>02 / PRACTICE</span>
-              <h3>Find your footing.</h3>
+              <span>02 / UNDERSTAND</span>
+              <h3>See the bigger picture.</h3>
               <p>
-                Try your ideas with virtual funds and live reference prices.
-                Your paper portfolio begins with your first decision.
+                Put prices in context. Read company news, compare assets, and
+                understand the ideas behind your next move.
               </p>
             </div>
             <div className="how-item">
               <span>03 / OWN</span>
               <h3>Make it yours.</h3>
               <p>
-                Review a basket purchase with one wallet approval when supported
-                routes are available. Each asset stays in your wallet.
+                Bring your investments together in one portfolio. Choose your
+                pace, set a recurring plan, and keep control of your wallet.
               </p>
             </div>
           </div>
@@ -165,12 +163,10 @@ export function Landing() {
         <section className="landing-cta">
           <div>
             <h2>Your next idea is waiting.</h2>
-            <p>
-              Look inside a basket, choose an amount, and take your first step.
-            </p>
+            <p>Follow the markets, find your perspective, and make it yours.</p>
           </div>
-          <Link href="/baskets" className="btn">
-            Explore baskets <ArrowUpRight size={16} />
+          <Link href="/app" className="btn">
+            Open Kite <ArrowUpRight size={16} />
           </Link>
         </section>
       </main>
@@ -178,8 +174,7 @@ export function Landing() {
         <Brand />
         <p>
           Kite is a self-custody interface for tokenized assets. Issuer
-          eligibility and trading restrictions apply. Paper trading is a
-          simulation and does not represent actual execution.
+          eligibility and trading restrictions apply.
         </p>
       </footer>
     </div>

@@ -2,175 +2,218 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Activity, ArrowUpRight, ArrowRight, Newspaper } from "lucide-react";
+import { Activity, ArrowUpRight, Newspaper, RefreshCw } from "lucide-react";
 import { getMarketPulse } from "@kite/sdk";
 import { AssetAvatar, Change, compactMoney, Empty, money } from "./MarketUI";
 import { useKite } from "./State";
 
-export function MarketPulse() {
-  const { snapshot } = useKite();
+export function MarketOverview() {
+  const { snapshot, loading } = useKite();
   const pulse = useMemo(
-    () => getMarketPulse(snapshot?.assets ?? [], 5),
+    () => getMarketPulse(snapshot?.assets ?? [], 4),
+    [snapshot],
+  );
+  return (
+    <div className="market-overview" aria-label="Token market overview">
+      <div>
+        <span>Market coverage</span>
+        <strong>
+          {snapshot ? pulse.totalAssets : "—"}
+          <small>assets</small>
+        </strong>
+      </div>
+      <div>
+        <span>Observed 24h volume</span>
+        <strong>{compactMoney(pulse.volume24hUsd)}</strong>
+      </div>
+      <div>
+        <span>Advancing / declining</span>
+        <strong>
+          {pulse.breadth.coveredAssets ? (
+            <>
+              <b className="up">{pulse.breadth.advancing}</b>
+              <small>/</small>
+              <b className="down">{pulse.breadth.declining}</b>
+            </>
+          ) : (
+            "—"
+          )}
+        </strong>
+      </div>
+      <div className="market-overview-status">
+        <span>Price coverage</span>
+        <strong>
+          {loading && !snapshot ? (
+            "Connecting…"
+          ) : (
+            <>
+              {pulse.pricedAssets}
+              <small>of {pulse.tradableAssets} active assets</small>
+            </>
+          )}
+        </strong>
+      </div>
+    </div>
+  );
+}
+
+export function MarketPulse() {
+  const { snapshot, loading } = useKite();
+  const pulse = useMemo(
+    () => getMarketPulse(snapshot?.assets ?? [], 4),
     [snapshot],
   );
   const [ranking, setRanking] = useState<"topVolume" | "gainers" | "losers">(
     "topVolume",
   );
-  const breadth = pulse.breadth;
-  const tone =
-    breadth.coveredAssets === 0
-      ? "Awaiting market data"
-      : breadth.advancing > breadth.declining
-        ? "More assets advancing"
-        : breadth.declining > breadth.advancing
-          ? "More assets declining"
-          : "A balanced market";
   return (
-    <section className="market-pulse" aria-label="Market sentiment and movers">
+    <section className="discover-movers" aria-label="Market movers">
       <div className="section-head">
         <div>
-          <span className="eyebrow">The market, right now</span>
-          <h2>Find the pulse.</h2>
+          <h2>Market movers</h2>
+          <p>Follow the activity across tokenized assets.</p>
         </div>
         <span className="badge">24 HOURS</span>
       </div>
-      <div className="pulse-summary">
-        <div className="panel pulse-breadth">
-          <div className="flex-between">
-            <span className="eyebrow">Market sentiment · breadth</span>
-            <Activity size={16} className="up" />
-          </div>
-          <h3>{tone}</h3>
-          <div
-            className="breadth-track"
-            role="img"
-            aria-label={`${breadth.advancing} advancing, ${breadth.declining} declining, ${breadth.unchanged} unchanged of ${breadth.coveredAssets} assets with returns.`}
+      <div
+        className="filter-tabs mover-filters"
+        role="group"
+        aria-label="Market movers ranking"
+      >
+        {(
+          [
+            ["topVolume", "Most traded"],
+            ["gainers", "Top gainers"],
+            ["losers", "Top losers"],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            type="button"
+            key={key}
+            className={ranking === key ? "active" : ""}
+            aria-pressed={ranking === key}
+            onClick={() => setRanking(key)}
           >
-            {breadth.coveredAssets > 0 && (
-              <>
-                <i
-                  className="advancing"
-                  style={{
-                    width: `${(breadth.advancing / breadth.coveredAssets) * 100}%`,
-                  }}
-                />
-                <i
-                  className="unchanged"
-                  style={{
-                    width: `${(breadth.unchanged / breadth.coveredAssets) * 100}%`,
-                  }}
-                />
-                <i
-                  className="declining"
-                  style={{
-                    width: `${(breadth.declining / breadth.coveredAssets) * 100}%`,
-                  }}
-                />
-              </>
-            )}
-          </div>
-          <div className="breadth-labels">
-            <span className="up">{breadth.advancing} advancing</span>
-            <span>{breadth.unchanged} flat</span>
-            <span className="down">{breadth.declining} declining</span>
-          </div>
-          <p>
-            {breadth.coveredAssets} priced assets with a reported 24h change. A
-            measure of market breadth, not a prediction.
-          </p>
-        </div>
-        <div className="panel pulse-volume">
-          <span className="eyebrow">Observed trading volume</span>
-          <strong>{compactMoney(pulse.volume24hUsd)}</strong>
-          <p>
-            Across {pulse.volumeCoveredAssets} assets with reported token-market
-            volume.
-          </p>
-          <div className="divider" />
-          <div className="flex-between">
-            <span>Token price coverage</span>
-            <b>
-              {pulse.pricedAssets} / {pulse.tradableAssets}
-            </b>
-          </div>
-        </div>
+            {label}
+          </button>
+        ))}
       </div>
-      <div className="panel pulse-leaders">
-        <div className="pulse-leaders-head">
-          <h3>Where the market is moving</h3>
-          <div
-            className="filter-tabs"
-            role="group"
-            aria-label="Market movers ranking"
-          >
-            {(
-              [
-                ["topVolume", "Most traded"],
-                ["gainers", "Top gainers"],
-                ["losers", "Top losers"],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                className={ranking === key ? "active" : ""}
-                aria-pressed={ranking === key}
-                onClick={() => setRanking(key)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+      {pulse[ranking].length ? (
+        <div className="mover-cards">
+          {pulse[ranking].map((asset) => (
+            <Link
+              className="mover-card"
+              key={asset.mint}
+              href={`/stock/${encodeURIComponent(asset.mint)}`}
+            >
+              <div className="mover-card-top">
+                <AssetAvatar asset={asset} />
+                <ArrowUpRight size={15} aria-hidden="true" />
+              </div>
+              <h3>{asset.name.replace(/ xStock$/i, "")}</h3>
+              <span className="mover-symbol">{asset.symbol}</span>
+              <strong className="mover-price">{money(asset.priceUsd)}</strong>
+              <div className="mover-card-bottom">
+                <Change value={asset.change24hPct} />
+                <small>24h</small>
+              </div>
+            </Link>
+          ))}
         </div>
-        {pulse[ranking].length ? (
-          <div className="leader-list">
-            <div className="leader-columns">
-              <span>Asset</span>
-              <span>Token price / 24h</span>
-              <span>24h volume</span>
+      ) : loading ? (
+        <div
+          className="mover-cards"
+          role="status"
+          aria-label="Loading market movers"
+        >
+          {Array.from({ length: 4 }, (_, index) => (
+            <div className="mover-card mover-skeleton" key={index}>
+              <i />
+              <span />
+              <b />
             </div>
-            {pulse[ranking].map((asset, index) => (
-              <Link
-                className="leader-row"
-                key={asset.mint}
-                href={`/stock/${encodeURIComponent(asset.mint)}`}
-              >
-                <span className="leader-asset">
-                  <small>{String(index + 1).padStart(2, "0")}</small>
-                  <AssetAvatar asset={asset} />
-                  <span>
-                    <strong>{asset.symbol}</strong>
-                    <small>{asset.name}</small>
-                    <small className="mobile-leader-volume">
-                      Vol {compactMoney(asset.volume24hUsd)}
-                    </small>
-                  </span>
-                </span>
-                <span className="leader-price">
-                  <strong>{money(asset.priceUsd)}</strong>
-                  <Change value={asset.change24hPct} />
-                </span>
-                <span className="leader-volume">
-                  {compactMoney(asset.volume24hUsd)}
-                  <ArrowUpRight size={14} />
-                </span>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <Empty
-            title="Waiting for enough market data"
-            description="Rankings appear only for assets with a reported price and the selected metric."
-          />
-        )}
-        <div className="leader-footer">
-          <span>
-            Ranks use available onchain data; paused assets are excluded.
-          </span>
-          <Link href="/markets" className="text-link">
-            All markets <ArrowRight size={13} />
-          </Link>
+          ))}
         </div>
+      ) : (
+        <div className="panel">
+          <Empty
+            icon={Activity}
+            title="Market movers are unavailable"
+            description="Rankings appear when prices and the selected 24h metric are available."
+          />
+        </div>
+      )}
+    </section>
+  );
+}
+
+export function MarketBreadth() {
+  const { snapshot } = useKite();
+  const { breadth, volumeCoveredAssets } = useMemo(
+    () => getMarketPulse(snapshot?.assets ?? []),
+    [snapshot],
+  );
+  return (
+    <section className="panel discover-breadth" aria-label="Market breadth">
+      <div className="flex-between">
+        <h3>Market breadth</h3>
+        <Activity size={17} className="up" aria-hidden="true" />
       </div>
+      <p>How assets moved in the last 24 hours</p>
+      <div className="breadth-score">
+        <strong>
+          {breadth.advancingPct == null
+            ? "—"
+            : `${Math.round(breadth.advancingPct)}%`}
+        </strong>
+        <span>advancing</span>
+      </div>
+      <div
+        className="breadth-track"
+        role="img"
+        aria-label={`${breadth.advancing} advancing, ${breadth.declining} declining, ${breadth.unchanged} unchanged of ${breadth.coveredAssets} assets with reported returns.`}
+      >
+        {breadth.coveredAssets > 0 && (
+          <>
+            <i
+              className="advancing"
+              style={{
+                width: `${(breadth.advancing / breadth.coveredAssets) * 100}%`,
+              }}
+            />
+            <i
+              className="unchanged"
+              style={{
+                width: `${(breadth.unchanged / breadth.coveredAssets) * 100}%`,
+              }}
+            />
+            <i
+              className="declining"
+              style={{
+                width: `${(breadth.declining / breadth.coveredAssets) * 100}%`,
+              }}
+            />
+          </>
+        )}
+      </div>
+      <div className="breadth-key">
+        <span>
+          <i className="up-dot" />
+          Advancing <b>{breadth.advancing}</b>
+        </span>
+        <span>
+          <i className="down-dot" />
+          Declining <b>{breadth.declining}</b>
+        </span>
+        <span>
+          <i />
+          Unchanged <b>{breadth.unchanged}</b>
+        </span>
+      </div>
+      <small className="breadth-disclosure">
+        Based on {breadth.coveredAssets} assets with reported returns. Volume
+        covers {volumeCoveredAssets} assets.
+      </small>
     </section>
   );
 }
@@ -198,13 +241,18 @@ export function MarketHeadlines() {
         const data = (await response.json()) as { articles: Article[] };
         if (active)
           setState({
-            articles: data.articles.slice(0, 4),
+            articles: data.articles.slice(0, 5),
             loading: false,
             error: false,
           });
       })
       .catch(() => {
-        if (active) setState({ articles: [], loading: false, error: true });
+        if (active)
+          setState((previous) => ({
+            ...previous,
+            loading: false,
+            error: true,
+          }));
       });
     return () => {
       active = false;
@@ -212,16 +260,16 @@ export function MarketHeadlines() {
     };
   }, [attempt]);
   return (
-    <section>
-      <div className="section-head">
+    <section className="panel discover-news">
+      <div className="news-rail-heading">
         <div>
-          <h2>Beyond the numbers</h2>
-          <p>The latest market headlines, linked to their sources.</p>
+          <span className="eyebrow">In the headlines</span>
+          <h3>Market news</h3>
         </div>
-        <Newspaper size={18} className="muted" />
+        <Newspaper size={19} className="muted" aria-hidden="true" />
       </div>
       {state.articles.length ? (
-        <div className="research-news dashboard-news">
+        <div className="news-rail-list">
           {state.articles.map((article) => (
             <a
               href={article.link}
@@ -229,14 +277,12 @@ export function MarketHeadlines() {
               target="_blank"
               rel="noreferrer"
             >
-              <div>
-                <span className="eyebrow">
-                  {article.source || "Market news"}
-                </span>
-                <ArrowUpRight size={16} />
+              <div className="news-rail-meta">
+                <span>{article.source || "Market news"}</span>
+                <ArrowUpRight size={14} aria-hidden="true" />
               </div>
-              <h3>{article.title}</h3>
-              <time>
+              <h4>{article.title}</h4>
+              <time dateTime={article.pubDate ?? undefined}>
                 {article.pubDate
                   ? new Date(article.pubDate).toLocaleDateString("en-US", {
                       month: "short",
@@ -247,33 +293,52 @@ export function MarketHeadlines() {
             </a>
           ))}
         </div>
-      ) : (
-        <div className="panel">
-          <Empty
-            icon={Newspaper}
-            title={
-              state.loading
-                ? "Finding the latest stories"
-                : "Headlines are unavailable"
-            }
-            description={
-              state.loading
-                ? "Connecting to the news feed."
-                : "No recent articles were returned. Check back or refresh the feed."
-            }
-            action={
-              state.error ? (
-                <button
-                  className="btn secondary small"
-                  onClick={() => setAttempt((count) => count + 1)}
-                >
-                  Retry headlines
-                </button>
-              ) : undefined
-            }
-          />
+      ) : state.loading ? (
+        <div
+          className="news-skeleton"
+          role="status"
+          aria-label="Loading market news"
+        >
+          {Array.from({ length: 3 }, (_, index) => (
+            <div key={index}>
+              <small />
+              <span />
+              <span />
+            </div>
+          ))}
         </div>
+      ) : (
+        <Empty
+          icon={Newspaper}
+          title={
+            state.error
+              ? "News is temporarily unavailable"
+              : "No recent headlines"
+          }
+          description={
+            state.error
+              ? "The news feed could not be reached. Try refreshing it."
+              : "New stories will appear here when the feed updates."
+          }
+        />
       )}
+      {state.error && state.articles.length > 0 && (
+        <p className="news-refresh-note" role="status">
+          Couldn’t refresh. Showing the last loaded stories.
+        </p>
+      )}
+      <div className="news-rail-footer">
+        <span>Source-linked reporting</span>
+        <button
+          type="button"
+          className="icon-btn"
+          aria-label="Refresh market news"
+          disabled={state.loading}
+          onClick={() => setAttempt((count) => count + 1)}
+        >
+          <RefreshCw size={14} aria-hidden="true" />
+        </button>
+      </div>
     </section>
   );
 }

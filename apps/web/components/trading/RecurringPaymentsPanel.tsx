@@ -1,4 +1,7 @@
 "use client";
+import { NativeSelect } from "../ui/native-select";
+import { CalendarDays, Repeat2 } from "lucide-react";
+import recurringStyles from "./recurring-controls.module.css";
 import { useEffect, useRef, useState } from "react";
 import {
   BASE_SWAP_TOKENS,
@@ -247,29 +250,48 @@ export function RecurringPaymentsPanel() {
             placeholder="0.00"
           />
         </label>
-        <label className="form-field">
-          <span>Payment period</span>
-          <select
-            value={period}
-            onChange={(e) => setPeriod(e.target.value)}
-            disabled={disabled}
-          >
-            <option value="86400">Every day</option>
-            <option value="604800">Every week</option>
-            <option value="2592000">Every 30 days</option>
-          </select>
-        </label>
-        <label className="form-field">
-          <span>Number of periods</span>
-          <input
-            type="number"
-            min={1}
-            max={365}
-            value={periods}
-            onChange={(e) => setPeriods(e.target.value)}
-            disabled={disabled}
-          />
-        </label>
+        <div className={recurringStyles.schedule}>
+          <div className={recurringStyles.scheduleHeading}>
+            <span>
+              <CalendarDays size={17} aria-hidden="true" /> Payment schedule
+            </span>
+          </div>
+          <label className="form-field">
+            <span>Payment period</span>
+            <NativeSelect
+              value={period}
+              onChange={(e) => setPeriod(e.target.value)}
+              disabled={disabled}
+            >
+              <option value="86400">Every day</option>
+              <option value="604800">Every week</option>
+              <option value="2592000">Every 30 days</option>
+            </NativeSelect>
+          </label>
+          <label className="form-field">
+            <span>Number of periods</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[1-9][0-9]{0,2}"
+              autoComplete="off"
+              value={periods}
+              onChange={(e) => setPeriods(e.target.value)}
+              disabled={disabled}
+            />
+          </label>
+          <div className={recurringStyles.scheduleSummary}>
+            <Repeat2 size={15} aria-hidden="true" />
+            <span>
+              {period === "86400"
+                ? "Every day"
+                : period === "604800"
+                  ? "Every week"
+                  : "Every 30 days"}{" "}
+              · {periods || "—"} periods
+            </span>
+          </div>
+        </div>
         <label
           className="fineprint"
           style={{ display: "flex", gap: 10, alignItems: "start" }}

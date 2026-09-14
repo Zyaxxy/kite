@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@base-ui/react": "1.8.0",
     "@coral-xyz/anchor": "^0.32.1",
     "@farcaster/mini-app-solana": "^1.0.0",
     "@kite/sdk": "workspace:*",

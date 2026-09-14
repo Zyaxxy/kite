@@ -3,11 +3,42 @@
 import { useEffect, useId, useRef, useState } from "react";
 import {
   BASE_SWAP_TOKENS,
+  MAINNET_SOL_MINT,
+  MAINNET_USDC_MINT,
+  MAINNET_USDT_MINT,
   holdingToSwapToken,
   type MainnetHolding,
   type SwapToken,
 } from "@kite/sdk";
 import styles from "./swap-tokens.module.css";
+import { getCompanyLogo } from "../../lib/company-logos";
+import { Check, ChevronDown, Search, X } from "lucide-react";
+
+const logoRequests = new Map<string, Promise<string | null>>();
+const networkLogos = new Map([
+  [MAINNET_SOL_MINT, "/token-logos/sol.png"],
+  [MAINNET_USDC_MINT, "/token-logos/usdc.png"],
+  [MAINNET_USDT_MINT, "/token-logos/usdt.svg"],
+]);
+function fetchTokenLogo(mint: string): Promise<string | null> {
+  const cached = logoRequests.get(mint);
+  if (cached) return cached;
+  // Resolve only the exact mint. Metadata is decoration, never a trading authority.
+  const request = fetch(`/api/tokens?${new URLSearchParams({ query: mint })}`, {
+    signal: AbortSignal.timeout(15_000),
+  })
+    .then(async (response) => {
+      if (!response.ok) return null;
+      const data: { tokens?: SwapToken[] } = await response.json();
+      const logo = data.tokens?.find((item) => item.mint === mint)?.logoUrl;
+      return logo?.startsWith("https://") ? logo : null;
+    })
+    .catch(() => null);
+  if (logoRequests.size >= 128)
+    logoRequests.delete(logoRequests.keys().next().value!);
+  logoRequests.set(mint, request);
+  return request;
+}
 
 const units = (value: string) =>
   Number(value) > 0 && Number(value) < 0.00000001
@@ -24,22 +55,45 @@ const usd = (value: number) =>
 
 export function TokenAvatar({
   token,
+  fetchMissing = false,
 }: {
   token: Pick<SwapToken, "mint" | "symbol" | "logoUrl">;
+  fetchMissing?: boolean;
 }) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [token.logoUrl]);
+  const [failed, setFailed] = useState<string[]>([]);
+  const [metadataLogo, setMetadataLogo] = useState<{
+    mint: string;
+    url: string | null;
+  } | null>(null);
+  const localLogo =
+    getCompanyLogo(token) ?? networkLogos.get(token.mint) ?? null;
+  useEffect(() => {
+    if (!fetchMissing || localLogo || token.logoUrl?.startsWith("https://"))
+      return;
+    let current = true;
+    void fetchTokenLogo(token.mint).then((url) => {
+      if (current) setMetadataLogo({ mint: token.mint, url });
+    });
+    return () => {
+      current = false;
+    };
+  }, [fetchMissing, token.mint, token.logoUrl, localLogo]);
+  const logo = [
+    localLogo,
+    token.logoUrl?.startsWith("https://") ? token.logoUrl : null,
+    metadataLogo?.mint === token.mint ? metadataLogo.url : null,
+  ].find((url): url is string => Boolean(url) && !failed.includes(url!));
   return (
     <span className={styles.monogram} aria-hidden="true">
-      {token.logoUrl?.startsWith("https://") && !failed ? (
+      {logo ? (
         <img
-          src={token.logoUrl}
+          src={logo}
           width="40"
           height="40"
           alt=""
           loading="lazy"
           referrerPolicy="no-referrer"
-          onError={() => setFailed(true)}
+          onError={() => setFailed((previous) => [...previous, logo])}
         />
       ) : (
         token.symbol.slice(0, 2)
@@ -149,7 +203,7 @@ export function SwapTokenSelector({
           setOpen(!open);
         }}
       >
-        <TokenAvatar token={token} />
+        <TokenAvatar token={token} fetchMissing />
         <span className={styles.identity}>
           <strong>{token.symbol}</strong>
           <small>{token.name}</small>
@@ -160,17 +214,7 @@ export function SwapTokenSelector({
             <small>In wallet</small>
           </span>
         )}
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          aria-hidden="true"
-        >
-          <path d="m6 9 6 6 6-6" />
-        </svg>
+        <ChevronDown size={16} aria-hidden="true" className={styles.chevron} />
       </button>
       <div className={styles.address}>
         <span>
@@ -208,10 +252,10 @@ export function SwapTokenSelector({
               onClick={close}
               aria-label="Close token selector"
             >
-              Close
+              <X size={16} aria-hidden="true" />
             </button>
           </div>
-          <label className="form-field">
+          <label className={`form-field ${styles.search}`}>
             <span className={styles.label}>Search tokens</span>
             <input
               autoFocus
@@ -221,6 +265,7 @@ export function SwapTokenSelector({
               maxLength={100}
               onChange={(event) => setQuery(event.target.value)}
             />
+            <Search size={16} aria-hidden="true" />
           </label>
           <div className={styles.tabs} role="group" aria-label="Token source">
             <button
@@ -280,6 +325,7 @@ export function SwapTokenSelector({
                   key={item.mint}
                   type="button"
                   className={styles.result}
+                  aria-pressed={item.mint === token.mint}
                   disabled={
                     disabled ||
                     item.mint === otherMint ||
@@ -295,7 +341,12 @@ export function SwapTokenSelector({
                 >
                   <TokenAvatar token={item} />
                   <span className={styles.identity}>
-                    <strong>{item.symbol}</strong>
+                    <strong>
+                      {item.symbol}
+                      {item.mint === token.mint && (
+                        <Check size={13} aria-label="Selected" />
+                      )}
+                    </strong>
                     <small>{item.name}</small>
                     <small>
                       {item.mint.slice(0, 5)}…{item.mint.slice(-4)}

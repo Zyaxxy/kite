@@ -22,6 +22,7 @@ import { SwapTokenSelector } from "./SwapTokenSelector";
 import styles from "./swap-tokens.module.css";
 import { useWalletPortfolio } from "./useWalletPortfolio";
 import { kiteClient } from "../kite/api-client";
+import { TradeTransfer, type TransferPhase } from "./TradeTransfer";
 
 const USDC = BASE_SWAP_TOKENS.find(
   (token) => token.mint === MAINNET_USDC_MINT,
@@ -80,6 +81,8 @@ export function ActualTradePanel({
   );
   const [amount, setAmount] = useState("");
   const [order, setOrder] = useState<MainnetTradeOrder | null>(null);
+  const [submittedOrder, setSubmittedOrder] =
+    useState<MainnetTradeOrder | null>(null);
   const [busy, setBusy] = useState<"quote" | "sign" | "execute" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<MainnetTradeResult | null>(null);
@@ -178,6 +181,7 @@ export function ActualTradePanel({
     setOrder(null);
     setError(null);
     setResult(null);
+    setSubmittedOrder(null);
   }, [inputToken.mint, outputToken.mint, amount, auth.walletAddress]);
   useEffect(() => {
     if (!order) return;
@@ -190,6 +194,7 @@ export function ActualTradePanel({
     setError(null);
     setResult(null);
     setOrder(null);
+    setSubmittedOrder(null);
     const version = ++requestVersion.current;
     try {
       if (!auth.walletAddress)
@@ -258,6 +263,7 @@ export function ActualTradePanel({
     try {
       if (!canApproveTrade(order, auth.walletAddress))
         throw new Error("This quote expired. Request a new quote.");
+      setSubmittedOrder(order);
       setBusy("sign");
       // Opens the user's wallet confirmation; no server-held key can authorize a trade.
       const signedTransaction = await auth.signTransaction(
@@ -308,15 +314,29 @@ export function ActualTradePanel({
     }
   }
 
+  const transferOrder = order ?? submittedOrder;
+  const transferPhase: TransferPhase =
+    result?.status === "Success"
+      ? "success"
+      : busy === "sign"
+        ? "signing"
+        : busy === "execute"
+          ? "confirming"
+          : pendingExecution
+            ? "unknown"
+            : error
+              ? "error"
+              : "review";
+
   return (
     <section
-      className={`actual-trade-panel ${className}`}
+      className={`actual-trade-panel ${styles.swapPanel} ${className}`}
       aria-label={`Trade ${asset.symbol} on mainnet`}
     >
       <div className={styles.swapHeading}>
         <div>
-          <p className="eyebrow">Actual trading</p>
-          <h3>Swap</h3>
+          <p className="eyebrow">Your wallet. Your assets.</p>
+          <h3>Swap tokens</h3>
         </div>
         {auth.walletAddress && (
           <button
@@ -494,7 +514,6 @@ export function ActualTradePanel({
         >
           <path d="M8 3v16m-4-4 4 4 4-4M16 21V5m-4 4 4-4 4 4" />
         </svg>
-        Reverse
       </button>
       <div className={styles.swapSide}>
         <SwapTokenSelector
@@ -510,7 +529,11 @@ export function ActualTradePanel({
         <div className={styles.receiveAmount}>
           {order ? fromTokenAmount(order.outAmount, order.outputDecimals) : "—"}
         </div>
-        <p className="fineprint">Estimated received after a live quote</p>
+        <p className="fineprint">
+          {order
+            ? "Quote from a live route"
+            : "Get a live quote to see your amount"}
+        </p>
       </div>
       {balanceError && (
         <p className="notice error" role="alert">
@@ -616,6 +639,23 @@ export function ActualTradePanel({
           )}
         </div>
       )}
+      {transferOrder && (
+        <TradeTransfer
+          phase={transferPhase}
+          input={inputToken}
+          output={outputToken}
+          inputAmount={fromTokenAmount(
+            result?.totalInputAmount ?? transferOrder.inAmount,
+            transferOrder.inputDecimals,
+          )}
+          outputAmount={fromTokenAmount(
+            result?.totalOutputAmount ?? transferOrder.outAmount,
+            transferOrder.outputDecimals,
+          )}
+          signature={result?.signature}
+          estimatedOutput={!result?.totalOutputAmount}
+        />
+      )}
       {error && (
         <p className="notice error" role="alert">
           {error}
@@ -652,18 +692,6 @@ export function ActualTradePanel({
             when you return to a trade screen in this browser.
           </p>
         </div>
-      )}
-      {result?.signature && (
-        <p className="notice" role="status">
-          Trade confirmed.{" "}
-          <a
-            href={`https://solscan.io/tx/${encodeURIComponent(result.signature)}`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            View transaction
-          </a>
-        </p>
       )}
       <p className="fineprint">
         Orders use raw token units. For xStocks, these can differ from your

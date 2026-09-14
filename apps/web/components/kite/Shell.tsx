@@ -5,43 +5,222 @@ import { useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
   Bookmark,
+  ChevronDown,
   ChevronRight,
   Compass,
-  Globe2,
+  FileText,
   Layers3,
   ListOrdered,
+  LogOut,
   Search,
   Settings2,
   ShieldCheck,
+  UserRound,
   Wallet2,
   X,
   Repeat2,
   Check,
-  Menu,
+  Plus,
 } from "lucide-react";
 import { Brand } from "./Brand";
 import { TradingModeSwitch } from "./TradingModeSwitch";
 import { AssetName, money } from "./MarketUI";
 import { useKite } from "./State";
 import { useTradingAuth } from "../trading/TradingAuth";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLinkItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 
 const navigation = [
   { href: "/app", label: "Discover", icon: Compass },
-  { href: "/markets", label: "Markets", icon: Globe2 },
-  { href: "/baskets", label: "Thematic baskets", icon: Layers3 },
+  { href: "/baskets", label: "Baskets", icon: Layers3 },
+  { href: "/sip", label: "Recurring", icon: Repeat2 },
   { href: "/portfolio", label: "Portfolio", icon: Wallet2 },
-  { href: "/sip", label: "Recurring plans", icon: Repeat2 },
-  { href: "/watchlist", label: "Watchlist", icon: Bookmark },
-  { href: "/orders", label: "Activity", icon: ListOrdered },
 ];
-export function SignInButton() {
-  const auth = useTradingAuth();
+function isActive(path: string, href: string) {
   return (
-    <Link className="btn small secondary" href="/settings">
-      {auth.authenticated ? "My account" : "Sign in"} <ArrowUpRight size={13} />
-    </Link>
+    path === href ||
+    (href === "/app" &&
+      (path === "/markets" ||
+        path.startsWith("/stock/") ||
+        path === "/watchlist")) ||
+    (href === "/baskets" && path.startsWith("/basket/")) ||
+    (href === "/portfolio" && path === "/orders")
   );
 }
+
+export function PrimaryNavigation({ landing = false }: { landing?: boolean }) {
+  const path = usePathname();
+  return (
+    <nav
+      className="primary-navigation"
+      aria-label={landing ? "Website navigation" : "Main navigation"}
+    >
+      {navigation.map(({ href, label }) =>
+        href === "/sip" ? (
+          <DropdownMenu key={href}>
+            <DropdownMenuTrigger
+              className={`primary-nav-link ${isActive(path, href) ? "active" : ""}`}
+            >
+              {label}
+              <ChevronDown size={13} aria-hidden="true" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="recurring-nav-menu">
+              <div className="kite-menu-heading">
+                <span className="eyebrow">A little, regularly</span>
+                <p>Make room for your next idea.</p>
+              </div>
+              <DropdownMenuLinkItem render={<Link href="/sip" />}>
+                <Repeat2 size={17} />
+                <span>
+                  Your recurring plans
+                  <small>View and manage your schedule</small>
+                </span>
+                <ArrowUpRight size={14} />
+              </DropdownMenuLinkItem>
+              <DropdownMenuLinkItem render={<Link href="/sip#new-plan" />}>
+                <Plus size={17} />
+                <span>
+                  Create a plan<small>Choose an asset and frequency</small>
+                </span>
+                <ArrowUpRight size={14} />
+              </DropdownMenuLinkItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <Link
+            key={href}
+            href={href}
+            className={`primary-nav-link ${isActive(path, href) ? "active" : ""}`}
+            aria-current={isActive(path, href) ? "page" : undefined}
+          >
+            {label}
+          </Link>
+        ),
+      )}
+    </nav>
+  );
+}
+
+export function AccountMenu() {
+  const auth = useTradingAuth();
+  const [error, setError] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+  const identity = auth.walletAddress
+    ? `${auth.walletAddress.slice(0, 4)}…${auth.walletAddress.slice(-4)}`
+    : auth.authenticated
+      ? "Your account"
+      : "Welcome to Kite";
+  async function signOut() {
+    setError(null);
+    setSigningOut(true);
+    try {
+      await auth.logout();
+    } catch {
+      setError("Could not sign out. Please try again.");
+    } finally {
+      setSigningOut(false);
+    }
+  }
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className="account-trigger"
+        aria-label="Open account menu"
+      >
+        <span className="account-avatar">
+          <UserRound size={19} strokeWidth={1.5} aria-hidden="true" />
+        </span>
+        <span className="account-trigger-copy">
+          <strong>{auth.authenticated ? identity : "Your account"}</strong>
+          <small>
+            {auth.authenticated ? "Connected" : "Sign in to get started"}
+          </small>
+        </span>
+        <ChevronDown size={13} aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="account-dropdown">
+        <div className="account-menu-heading">
+          <span className="account-avatar">
+            <UserRound size={22} />
+          </span>
+          <div>
+            <strong>{identity}</strong>
+            <small>
+              {auth.authenticated
+                ? "Your wallet. Your investments."
+                : "A place for your next idea."}
+            </small>
+          </div>
+        </div>
+        <DropdownMenuLinkItem render={<Link href="/portfolio" />}>
+          <Wallet2 size={17} />
+          Portfolio
+          <ArrowUpRight size={14} />
+        </DropdownMenuLinkItem>
+        <DropdownMenuLinkItem render={<Link href="/orders" />}>
+          <ListOrdered size={17} />
+          Activity
+          <ArrowUpRight size={14} />
+        </DropdownMenuLinkItem>
+        <DropdownMenuLinkItem
+          render={<Link href="/app?filter=saved#all-assets" />}
+        >
+          <Bookmark size={17} />
+          Saved assets
+          <ArrowUpRight size={14} />
+        </DropdownMenuLinkItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLinkItem render={<Link href="/settings" />}>
+          <Settings2 size={17} />
+          Account & settings
+          <ArrowUpRight size={14} />
+        </DropdownMenuLinkItem>
+        <DropdownMenuLinkItem render={<Link href="/terms" />}>
+          <FileText size={17} />
+          Terms & policies
+          <ArrowUpRight size={14} />
+        </DropdownMenuLinkItem>
+        <DropdownMenuSeparator />
+        {error && (
+          <p className="account-menu-error" role="alert">
+            {error}
+          </p>
+        )}
+        {auth.authenticated ? (
+          <DropdownMenuItem
+            className="account-signout"
+            disabled={signingOut}
+            closeOnClick={false}
+            onClick={signOut}
+          >
+            <LogOut size={17} />
+            {signingOut ? "Signing out…" : "Sign out"}
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuLinkItem
+            className="account-signin"
+            render={<Link href="/settings" />}
+          >
+            <UserRound size={17} />
+            Sign in / connect wallet
+            <ArrowUpRight size={14} />
+          </DropdownMenuLinkItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+export function SignInButton() {
+  return <AccountMenu />;
+}
+
 export function Shell({
   children,
   title,
@@ -52,10 +231,6 @@ export function Shell({
   const path = usePathname();
   const { snapshot, toast, clearToast } = useKite();
   const [searchOpen, setSearchOpen] = useState(false);
-  const active = (href: string) =>
-    path === href ||
-    (href === "/markets" && path.startsWith("/stock/")) ||
-    (href === "/baskets" && path.startsWith("/basket/"));
   useEffect(() => {
     const listener = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -67,69 +242,40 @@ export function Shell({
     return () => window.removeEventListener("keydown", listener);
   }, []);
   return (
-    <div className="workspace">
-      <aside className="sidebar">
-        <Brand />
-        <p className="eyebrow nav-label">Your workspace</p>
-        <nav aria-label="Main navigation">
-          {navigation.map(({ href, label, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              className={`nav-item ${active(href) ? "active" : ""}`}
-              aria-current={active(href) ? "page" : undefined}
-            >
-              <Icon strokeWidth={1.5} />
-              {label}
-            </Link>
-          ))}
-        </nav>
-        <div className="sidebar-bottom">
-          <div className="sidebar-note">
-            <span className="eyebrow">Your keys. Your Kite.</span>
-            <p>
-              Explore ideas in paper mode. Trade onchain from your own wallet.
-            </p>
-            <Link href="/settings" className="text-link">
-              Meet your account <ArrowUpRight size={13} />
-            </Link>
+    <div className="workspace kite-workspace">
+      <header className="workspace-header">
+        <div className="workspace-header-inner">
+          <div className="navigation-pill">
+            <Brand />
+            <PrimaryNavigation />
           </div>
-          <Link
-            href="/settings"
-            className={`nav-item ${path === "/settings" ? "active" : ""}`}
-          >
-            <Settings2 strokeWidth={1.5} />
-            Settings
-          </Link>
-        </div>
-      </aside>
-      <header className="topbar">
-        <div className="mobile-brand">
-          <Brand />
-        </div>
-        <div className="breadcrumb">
-          Workspace <ChevronRight size={12} />
-          <strong>{title}</strong>
-        </div>
-        <div className="top-actions">
-          <button
-            className="search-trigger"
-            onClick={() => setSearchOpen(true)}
-            aria-label="Search assets"
-          >
-            <Search size={15} />
-            <span>Search anything</span>
-            <kbd>⌘ K</kbd>
-          </button>
-          <TradingModeSwitch />
-          <SignInButton />
+          <div className="workspace-header-actions">
+            <button
+              className="header-search"
+              onClick={() => setSearchOpen(true)}
+              aria-label="Search assets"
+            >
+              <Search size={18} />
+              <span>Search</span>
+              <kbd>⌘ K</kbd>
+            </button>
+            <AccountMenu />
+          </div>
         </div>
       </header>
       <main className="workspace-main">
+        <div className="workspace-context">
+          <div className="breadcrumb">
+            Kite <ChevronRight size={12} />
+            <strong>{title}</strong>
+          </div>
+          <TradingModeSwitch />
+        </div>
         {children}
         <footer className="page-footer">
           <span>
-            <ShieldCheck size={12} /> Self-custody, by design
+            <ShieldCheck size={12} />
+            Self-custody, by design
           </span>
           <span>
             {snapshot?.status === "live"
@@ -143,48 +289,21 @@ export function Shell({
           </Link>
         </footer>
       </main>
-      <nav className="bottom-nav" aria-label="Mobile navigation">
-        {navigation
-          .filter((n) =>
-            ["/app", "/markets", "/baskets", "/portfolio", "/sip"].includes(
-              n.href,
-            ),
-          )
-          .map(({ href, label, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              className={active(href) ? "active" : ""}
-              aria-current={active(href) ? "page" : undefined}
-            >
-              <Icon strokeWidth={1.6} />
-              {label === "Thematic baskets"
-                ? "Baskets"
-                : label === "Recurring plans"
-                  ? "Plans"
-                  : label}
-            </Link>
-          ))}
-        <details className="mobile-more">
-          <summary>
-            <Menu size={19} />
-            <span>More</span>
-          </summary>
-          <nav className="more-links" aria-label="More navigation">
-            <Link href="/watchlist">
-              <Bookmark size={16} />
-              Watchlist
-            </Link>
-            <Link href="/orders">
-              <ListOrdered size={16} />
-              Activity
-            </Link>
-            <Link href="/settings">
-              <Settings2 size={16} />
-              Settings
-            </Link>
-          </nav>
-        </details>
+      <nav
+        className="bottom-nav kite-bottom-nav"
+        aria-label="Mobile navigation"
+      >
+        {navigation.map(({ href, label, icon: Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            className={isActive(path, href) ? "active" : ""}
+            aria-current={isActive(path, href) ? "page" : undefined}
+          >
+            <Icon strokeWidth={1.6} />
+            {label}
+          </Link>
+        ))}
       </nav>
       {searchOpen && <SearchDialog onClose={() => setSearchOpen(false)} />}
       {toast && (

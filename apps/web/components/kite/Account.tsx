@@ -22,6 +22,7 @@ import { PageIntro } from "./Shell";
 import { MarketStatus } from "./Discover";
 import { AssetName, Change, Empty, money } from "./MarketUI";
 import { OrbitArt } from "./Brand";
+import { NativeSelect, NativeSelectOption } from "../ui/native-select";
 import { useTradingAuth } from "../trading/TradingAuth";
 import { RecurringPaymentsPanel } from "../trading/RecurringPaymentsPanel";
 import { RecurringInvestingPanel } from "../trading/RecurringInvestingPanel";
@@ -198,11 +199,15 @@ export function Portfolio() {
           </p>
         </>
       )}
+      <section className="portfolio-activity">
+        <Activity embedded />
+      </section>
     </>
   );
 }
-export function Activity() {
+export function Activity({ embedded = false }: { embedded?: boolean }) {
   const { paper, mode } = useKite();
+  const auth = useTradingAuth();
   const exportOrders = () => {
     const rows = [
       [
@@ -236,13 +241,21 @@ export function Activity() {
   };
   return (
     <>
-      <PageIntro
-        eyebrow="Every step, recorded"
-        title="Your activity."
-        description="A clear record of the investments you have made."
-      />
+      {!embedded && (
+        <PageIntro
+          eyebrow="Every step, recorded"
+          title="Your activity."
+          description="A clear record of the investments you have made."
+        />
+      )}
       <div className="section-head">
-        <h2>{mode === "paper" ? "Paper orders" : "Mainnet activity"}</h2>
+        <h2>
+          {embedded
+            ? "Recent activity"
+            : mode === "paper"
+              ? "Paper orders"
+              : "Mainnet activity"}
+        </h2>
         {mode === "paper" && paper.orders.length > 0 && (
           <button className="btn secondary small" onClick={exportOrders}>
             <ArrowDownToLine size={13} />
@@ -254,13 +267,31 @@ export function Activity() {
         <div className="panel">
           <Empty
             icon={ListOrdered}
-            title="Mainnet transaction history"
-            description="Inspect your signed transactions from the account page. Paper activity is recorded separately in paper mode."
+            title={
+              auth.walletAddress
+                ? "Your onchain activity"
+                : "Your wallet activity, together"
+            }
+            description={
+              auth.walletAddress
+                ? "View confirmed transactions and transfers for your connected wallet on Solscan."
+                : "Connect your wallet to access its transaction history alongside your holdings."
+            }
             action={
-              <Link href="/settings" className="btn secondary">
-                Open account
-                <ArrowUpRight size={14} />
-              </Link>
+              auth.walletAddress ? (
+                <a
+                  href={`https://solscan.io/account/${auth.walletAddress}#transactions`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn secondary"
+                >
+                  View wallet activity <ArrowUpRight size={14} />
+                </a>
+              ) : (
+                <Link href="/settings" className="btn secondary">
+                  Connect your wallet <ArrowUpRight size={14} />
+                </Link>
+              )
             }
           />
         </div>
@@ -276,7 +307,7 @@ export function Activity() {
             </tr>
           </thead>
           <tbody>
-            {paper.orders.map((o) => (
+            {(embedded ? paper.orders.slice(0, 6) : paper.orders).map((o) => (
               <tr key={o.id}>
                 <td>
                   <Link href={`/stock/${o.mint}`}>
@@ -392,7 +423,9 @@ export function Plans() {
       <MarketStatus />
       {mode === "actual" ? (
         <>
-          <RecurringInvestingPanel />
+          <section id="new-plan">
+            <RecurringInvestingPanel />
+          </section>
           <details className="investing-advanced">
             <summary>Advanced: direct token payment permissions</summary>
             <p className="fineprint">
@@ -483,7 +516,7 @@ export function Plans() {
               </p>
             </div>
           </div>
-          <aside className="panel trade-panel">
+          <aside className="panel trade-panel" id="new-plan">
             <h2>A plan for your next chapter.</h2>
             <p className="fineprint" style={{ margin: "10px 0 23px" }}>
               Recurring investments using virtual USD.
@@ -491,31 +524,33 @@ export function Plans() {
             <form className="stack" onSubmit={submit}>
               <label className="form-field">
                 Invest in
-                <select
+                <NativeSelect
                   value={target}
                   onChange={(e) => setTarget(e.target.value)}
                   required
                 >
-                  <option value="">Choose an asset or basket</option>
+                  <NativeSelectOption value="">
+                    Choose an asset or basket
+                  </NativeSelectOption>
                   <optgroup label="Thematic baskets">
                     {targets
                       .filter((t) => t.type === "basket")
                       .map((t) => (
-                        <option key={t.value} value={t.value}>
+                        <NativeSelectOption key={t.value} value={t.value}>
                           {t.name}
-                        </option>
+                        </NativeSelectOption>
                       ))}
                   </optgroup>
                   <optgroup label="Mainnet assets">
                     {targets
                       .filter((t) => t.type === "asset")
                       .map((t) => (
-                        <option key={t.value} value={t.value}>
+                        <NativeSelectOption key={t.value} value={t.value}>
                           {t.name}
-                        </option>
+                        </NativeSelectOption>
                       ))}
                   </optgroup>
-                </select>
+                </NativeSelect>
               </label>
               <label className="form-field">
                 Amount per installment (virtual USD)
@@ -531,17 +566,25 @@ export function Plans() {
               </label>
               <label className="form-field">
                 How often
-                <select
+                <NativeSelect
                   value={frequency}
                   onChange={(e) =>
                     setFrequency(e.target.value as PaperFrequency)
                   }
                 >
-                  <option value="daily">Every day</option>
-                  <option value="weekly">Every week</option>
-                  <option value="biweekly">Every two weeks</option>
-                  <option value="monthly">Every month</option>
-                </select>
+                  <NativeSelectOption value="daily">
+                    Every day
+                  </NativeSelectOption>
+                  <NativeSelectOption value="weekly">
+                    Every week
+                  </NativeSelectOption>
+                  <NativeSelectOption value="biweekly">
+                    Every two weeks
+                  </NativeSelectOption>
+                  <NativeSelectOption value="monthly">
+                    Every month
+                  </NativeSelectOption>
+                </NativeSelect>
               </label>
               {error && (
                 <div className="notice error" role="alert">
