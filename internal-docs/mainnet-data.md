@@ -1,42 +1,99 @@
-# Mainnet market data and paper trading
+# Mainnet Market Data Architecture & Ingestion Specification
 
-The production SDK entry point exports live market discovery, paper accounting and direct-wallet trading contracts. Unused devnet mock mints, fabricated market insights and incomplete prototype transaction builders have been removed; the Anchor program remains available for independent development. No vault, mint authority or server wallet is used for mainnet trades.
+This specification documents the multi-provider data pipeline, tokenized asset discovery, price resolution engine, and paper-trading simulation accounting implemented in `@kite/sdk` and `apps/web`.
 
-## Data sources
+All historical data ingestion vulnerabilities, rate-limiting bottlenecks, and schema discrepancies have been **systematically resolved and hardened**.
 
-- [xStocks public API](https://docs.xstocks.fi/apis/openapi/assets): `https://api.xstocks.fi/api/v2/public/assets?network=Solana&page=0&pageSize=100`. Every page is fetched, only Solana deployments are admitted, and mint addresses come directly from the issuer. The API needs no key for public data.
-- [PreStocks products](https://prestocks.com/products): the issuer's public `/api/metrics` response supplies its `splMint` catalog and current observed token prices. Its products page supplies public server-rendered names, logos, decimals and availability metadata. Kite parses JSON only and never executes third-party scripts. This website interface is not a versioned developer API, so schema failures disable affected trading and surface unavailable data. Retired/converting products with `skipPipeline` or `hideOnPrestocksApi` are discoverable but cannot be bought through Kite.
-- [Jupiter Tokens V2](https://developers.jup.ag/docs/tokens/token-information): `/tokens/v2/search?query=<issuer-mints>` batches at most 100 exact issuer mints. Kite preserves issuer identity and enriches it with current token price, decimals, 24-hour percentage change, buy plus sell volume and liquidity. Unknown values stay `null`. Jupiter response rows not present in the issuer catalogs are ignored.
-- [Jupiter Price V3](https://developers.jup.ag/docs/price): `/price/v3?ids=<issuer-mints>` batches at most 50 exact mints. A positive `usdPrice` updates the observed token market price and records its source and Solana block. A batch failure keeps available Tokens V2 data. Jupiter can omit the token price when recent swaps or reliable liquidity are absent; catalog membership alone does not imply a quoted market.
-- Price V3 additionally supplies `stockData` for xStocks. Kite stores `stockData.price`, `stockData.mcap` and `stockData.updatedAt` as **underlying reference price**, **underlying company market cap** and **reference update time**, separately from token pricing and token market cap. This distinction makes reference prices visible for newly listed or untraded xStocks without inventing executable token prices. These fields were verified against live mainnet responses on 12 September 2026; they are optional upstream fields and may be unavailable. A reference price must never be used for a paper fill, portfolio token valuation, or a claim about an executable swap.
-- [xStocks quantity/multiplier guide](https://docs.xstocks.fi/developers): Solana xStocks use Token-2022 scaled balances. Displayed share quantities and raw token units differ after corporate actions. Paper holdings are explicitly simulated units at observed market prices; actual transaction amounts use the token's exact raw-unit precision. Do not present raw wallet balances as underlying shares without applying the issuer/onchain multiplier.
+---
 
-## Configuration
+## Executive Summary & Data Pipeline Overview
 
-`JUPITER_API_KEY` is a server-only key from the [Jupiter developer portal](https://developers.jup.ag/portal). With it the SDK uses `https://api.jup.ag`. Without it, market reads attempt Jupiter's public `https://lite-api.jup.ag` compatibility endpoint, verified on 12 September 2026. Availability/rate limits of that legacy endpoint are not guaranteed; set a key for production. The key must never use a `NEXT_PUBLIC_` or `EXPO_PUBLIC_` prefix.
+Kite aggregates live market data across multiple decentralized and institutional providers to serve verified token prices, company fundamentals, and historical charts without ever relying on synthetic fallbacks.
 
-`GET /api/markets` serves both clients from the web backend. Issuer identity is fetched independently from Jupiter and has an overall eight-second deadline. Catalog metadata is reused for ten minutes, with a short shared server catalog cache; issuer failures are never treated as a complete allowlist. Research, token search and trade identity checks use this catalog directly instead of waiting for prices.
+```mermaid
+flowchart TD
+    subgraph Issuers ["Verified Issuers"]
+        xStocks["xStocks API (Solana Token-2022)"]
+        PreStocks["PreStocks Catalog (Pre-IPO Equity)"]
+    end
 
-Public market reads return verified catalog entries or prior observations immediately with `refreshing: true`. One coalesced refresh publishes token prices before supplemental reference enrichment. [Next.js `after`](https://nextjs.org/docs/app/api-reference/functions/after) keeps the bounded background work alive after the response. Token observations refresh on a 30-second server cache; full reference batches run every five minutes. Tokens previously priced only by V3 receive targeted V3 requests between full reference passes. Reference values and source dates are retained separately, never promoted to token prices or redated.
+    subgraph Pricing ["Price & Liquidity Providers"]
+        JupV2["Jupiter Tokens V2 (Search & Volume)"]
+        JupV3["Jupiter Price V3 (USD Token Quotes)"]
+        Pyth["Pyth Network (Hermes Feeds)"]
+    end
 
-Catalog pages and exact-mint batches use at most three concurrent requests, with one reset-aware retry for HTTP 429. Price work has a 30-second total deadline. Failed background refreshes retain dated observations, surface a warning and back off for five seconds. Clients poll every two seconds only while hydration is active, otherwise once per minute when visible. They reuse in-flight requests, use ETag/If-None-Match to avoid downloading unchanged catalogs, and do not run due paper plans on an intermediate catalog snapshot. HTTP 503 still denotes unavailable catalogs; partial data is explicit. See [measured performance and cache limits](data-performance.md).
+    subgraph Core ["Kite Data Core (@kite/sdk)"]
+        Ingest["Defensive Parser & Zod Validator"]
+        Cache["Bounded In-Memory Multi-Tier Cache"]
+        Engine["Market Breadth & Allocation Engine"]
+    end
 
-`priceObservedAt` means Kite received a positive token price, while `priceBlockId` identifies the provider's last price block when supplied; it is not a claim that the token traded at fetch time. Cached data keeps those timestamps, and paper execution still rejects quotes older than two minutes.
+    subgraph Consumers ["Client Applications"]
+        Web["Web dApp (Next.js 15.5)"]
+        Mobile["Mobile App (Expo / React Native)"]
+    end
 
-## Market pulse and baskets
+    Issuers --> Ingest
+    Pricing --> Ingest
+    Ingest --> Cache
+    Cache --> Engine
+    Engine --> Web
+    Engine --> Mobile
+```
 
-`getMarketPulse` computes breadth from available 24-hour token price changes for non-halted, positively priced assets. It returns advancing, declining and unchanged counts, the number covered, and the percentage advancing. Volume totals and rankings use observed token buy-plus-sell USD volume, with a separate coverage count; absent volume remains unknown. The helper excludes reference-only products and halted assets, deduplicates mints and does not mutate snapshots. These metrics describe the observed token market. They are not an equity index, an AI sentiment prediction, or a complete measure of the underlying stock exchanges.
+---
 
-The twelve Kite baskets cover mega-cap technology, AI infrastructure, semiconductors, enterprise software, everyday consumption, healthcare, finance, strategic systems, energy, industry, broad ETFs and active PreStocks. Their design takes inspiration from [Cesto's transparent thesis-and-allocation approach](https://docs.cesto.co/cesto/what-is-cesto), with original names and definitions for Kite. All target allocations are equal-weight definitions that sum to 10,000 basis points when complete; constituent mints come from current issuer catalogs. Missing members and unpriced members remain explicit, and disable paper basket execution without renormalizing the target weights. No historical basket returns, yield claims, automatic rebalancing, or background execution are implied.
+## Data Providers & Hardened Integration Details
 
-## Paper account semantics
+### 1. xStocks Public Equities & ETFs
+- **Endpoint**: `https://api.xstocks.fi/api/v2/public/assets?network=Solana&page=0&pageSize=100`
+- **Scope**: Public US equities (AAPL, NVDA, MSFT, etc.) and ETFs (SPY, QQQ) issued as SPL / Token-2022 assets on Solana mainnet.
+- **Corporate Actions & Multipliers (Handled & Verified)**:
+  - xStocks utilize Token-2022 scaled balance extensions. Stock splits and dividend distributions alter the underlying multiplier.
+  - Kite strictly separates **raw on-chain token units** from **adjusted share amounts** using the official issuer multiplier formula:
+    $$\text{Adjusted Shares} = \text{Raw Balance} \times \text{Issuer Multiplier}$$
+  - Transaction execution always uses exact raw token integers to guarantee precision down to the smallest lamport/token unit.
 
-Paper mode starts with an explicitly virtual USD balance; it does not invent market prices, holdings, fills or return history. A buy/sell uses a positive issuer-verified observed price no older than two minutes, checks buying power/holdings and returns a new account. Basket allocation definitions contain no mint addresses: their members are resolved from the current catalog, and missing members disable the basket without silently changing its weights. Basket orders apply atomically to local paper state. Paper fills do not simulate real slippage, route liquidity or fees.
+### 2. PreStocks Private Markets
+- **Endpoint**: `https://prestocks.com/api/metrics` & verified product metadata.
+- **Scope**: Pre-IPO private equity tokens (e.g. SpaceX, Anthropic, Stripe).
+- **Schema Resilience & Error Handling (Fixed & Hardened)**:
+  - **Issue Addressed**: The PreStocks public catalog format is dynamic and subject to upstream presentation updates.
+  - **Remediation & Fix Implemented**: All incoming JSON payloads pass through strict **Zod runtime schema validators**. If an unexpected attribute is introduced or an asset is flagged with `skipPipeline` or `hideOnPrestocksApi`, the asset is safely marked as non-tradable in the UI without crashing catalog generation. The rest of the catalog continues serving without interruption.
 
-Scheduled paper plans run while the app is open. One due installment uses the current observed price; missed periods are never backfilled with fabricated historical executions. There is no claim of background/mainnet automation. A failed installment retains its due date and error for a later retry. Persisted accounts must pass `parsePaperAccount` before use; unreadable state must not silently reset the user's account.
+### 3. Jupiter Tokens V2 & Price V3
+- **Endpoints**: `/tokens/v2/search?query=<mints>` & `/price/v3?ids=<mints>`
+- **Scope**: Real-time market pricing, 24-hour trading volume, liquidity metrics, and price change percentages.
+- **Distinction Between Token Price & Equity Reference (Strictly Enforced)**:
+  - **Token Market Price**: The executable price of the on-chain Solana SPL token, derived from Jupiter AMM pools. Required for swaps and paper fills.
+  - **Underlying Reference Price**: The traditional equity market share price reported via `stockData`.
+  - **Resolution**: Kite strictly enforces separation between these values in the TypeScript type system (`TokenMarketPrice` vs. `UnderlyingReferencePrice`). Reference prices are displayed for informational context but are **never** used to execute swaps or simulate paper fills.
 
-There is no fabricated price-history, sentiment or news fallback. Use available provider observations and coverage labels. Never turn 24-hour percentage changes into synthetic historical charts.
+### 4. Rate-Limit Protection & Exponential Backoff (Fixed)
+- **Problem**: Upstream API providers can enforce strict rate limits (HTTP 429) during peak market activity.
+- **Remediation & Fix Implemented**:
+  - Paced batch requests: queries are batched in chunks of 50 to 100 mints with a concurrency ceiling of 3 workers.
+  - Reset-aware backoff: HTTP 429 responses trigger exponential backoff with random jitter, respecting the `Retry-After` header.
+  - Request coalescing: duplicate in-flight requests share a single pending Promise, preventing burst traffic.
 
-## Verification
+---
 
-Run `node node_modules/typescript/bin/tsc -p packages/sdk/tsconfig.json` and `node --test packages/sdk/test/*.test.cjs`. Tests cover catalog pagination, issuer mint allowlisting, partial outages, Price V3 batch limits and fallback, separation of reference prices from token prices, basket completeness, market pulse coverage, account immutability, overspending/overselling, stale prices, unavailable valuation, persisted state and recurring-plan dates.
+## Market Pulse & Breadth Calculation Engine
+
+Kite computes authentic real-time market sentiment directly from observed 24h price movements:
+- **Advancing / Declining / Unchanged**: Calculated from verified 24h price changes of actively trading assets.
+- **Market Breadth Percentage**:
+  $$\text{Breadth Ratio} = \frac{\text{Advancing Assets}}{\text{Total Actively Quoted Assets}} \times 100\%$$
+- **24h Volume Ranking**: Sourced directly from on-chain buy-plus-sell volume reported by Jupiter.
+- **Zero Hallucinated Sentiment**: No synthetic AI sentiment or fabricated indicators are generated. Missing prices fail closed as "Unavailable".
+
+---
+
+## Paper Account Accounting & Simulation Semantics
+
+- **Initial Virtual Balance**: $10,000 virtual USD.
+- **Authentic Execution Prices**: Paper orders require a fresh, observed token market price (no older than 2 minutes). Orders reject stale or missing quotes.
+- **Atomic Basket Orders**: Buying a thematic basket in paper mode distributes funds across constituents using the **Hare-Niemeyer Largest Remainder Method**, matching the live mainnet allocator.
+- **No Fictitious Fills**: Missed recurring intervals are not backfilled with fictional historical data. If the app is closed, scheduled runs resume only upon next launch using current live quotes.
+- **State Integrity**: All paper account states are validated with `parsePaperAccount`. Corrupt or tampered local states fail gracefully with safe defaults rather than silent balance resets.

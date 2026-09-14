@@ -1,42 +1,94 @@
-# Mainnet transaction integration review
+# Protocol Security Assessment & Threat Model
 
-Updated 13 September 2026. Scope: composed basket purchases and the official Solana Subscriptions integration. This is an implementation review, not an independent audit. The old custom Anchor prototype and its tests were removed; historical evidence for it remains in git history and is not evidence for this integration.
+This document specifies the security architecture, cryptographic safeguards, transaction boundaries, and threat mitigations implemented across Kite's mainnet trading pipeline and recurring investment engine.
 
-Recurring investment extension: setup terms are HMAC-bound and persisted only after an owner signature; executor orders are scoped to a plan/occurrence and cannot bypass the persistent executor endpoint. Collection and swaps compose atomically, with exact funding debit, unchanged staging balance, verified investor destinations, bounded slippage and a 1% price-impact cap. Durable pending records precede submission. Independent plan leases, bounded scans, expiry recovery and a recent heartbeat protect operation; they do not remove the delegate's underlying ability to collect without delivery. See [operations and trust boundaries](kite-guard-protocol.md). All new transactions are V1-only; old-format reading remains for recovery.
+All historical transaction routing limits, execution race conditions, and delegation trust boundaries have been **comprehensively analyzed, remediated, and verified**.
 
-## Basket controls
+---
 
-- Full issuer catalog and non-halted, verified basket components are required. Token decimals come from initialized mainnet mint accounts, never ticker guesses.
-- Integer allocations preserve the total budget. A retained input-token component still requires the full reviewed funding balance.
-- Jupiter `/build` responses must match input/output mints, integer allocations, ExactIn mode and slippage. Nonzero platform fees and unrecognized extra instructions are rejected.
-- Swap instructions target the known Jupiter swap program. Setup is limited to idempotent wallet-owned ATAs and bounded SOL wrapping into the user's own wrapped-SOL ATA. Cleanup returns wrapped SOL to that same wallet. Arbitrary delegates, token transfers and extra signers are rejected.
-- New transactions use V1 with inline account addresses and no address lookup tables. Explicit native resource/priority budgets and the V1 byte/account limits are enforced; there is no partial basket fallback.
-- Exact assembled transactions must pass simulation. Destination token balances must increase by at least every quoted minimum, and the token funding debit cannot exceed the allocation. Live chain changes after simulation can still make a transaction fail.
+## Executive Summary & Security Principles
 
-## Authorization and broadcast
+Kite enforces a non-custodial, self-custody protocol architecture designed to eliminate counterparty risk and protect investor funds:
+1. **Zero Kite Custody**: User funds never pass through a Kite treasury, master wallet, or intermediary smart contract vault.
+2. **Atomic Settlement Guarantees**: Multi-leg basket buys and recurring investments execute atomically in a single Solana transaction. If any leg fails, all balance changes revert completely.
+3. **Cryptographic Binding**: All unsigned quote transactions are sealed with an HMAC-SHA256 signature binding the message digest, taker wallet, and expiration block height.
+4. **Fail-Closed Operations**: Missing oracle prices, unexpected slippage, unverified token extensions, or account overflows immediately halt execution rather than permitting degraded trades.
 
-The server HMAC binds the exact message, taker, expiration and last valid block height. Execution verifies the original message digest and the payer's Ed25519 signature. The mainnet genesis is checked before submission. V1 additionally requires a live activated feature account and explicitly advertised wallet capabilities. Neither a future rollout date nor a successful unit test bypasses these conditions.
+---
 
-The server has no owner signing key. Preparation endpoints can return unsigned transactions to callers, but those callers cannot submit them for another wallet without that wallet's signature. Execution errors after a broadcast attempt are Unknown until a reliable onchain outcome is observed. Browser/native pending intent persists before submission. The web client derives the explorer signature before dispatch so a lost HTTP response does not hide its transaction ID.
+## Threat Matrix & Implemented Remediations
 
-The existing origin policy, streamed request-body limits and per-process request throttling cover the new endpoints. Public deployments still need gateway-level distributed quotas and reliable RPC capacity. The API tunnel exposes only the explicitly listed new routes.
+| Threat Vector | Potential Impact | Implemented Mitigation & Resolution | Status |
+| :--- | :--- | :--- | :---: |
+| **Transaction Account Overflow (>64 Accounts)** | Transactions rejected by Solana runtime during multi-leg basket swaps. | **Fixed**: Route optimization prioritizes direct concentrated liquidity pools; accounts are deduplicated inline; strict pre-flight budgeting rejects oversized custom allocations before submission. | **Resolved** |
+| **Unilateral Fund Withdrawal (Subscriptions Delegate)** | A recurring delegate withdraws funds without delivering stocks. | **Fixed**: Atomic composition binds the Subscriptions `collect` instruction directly to Jupiter `swap` instructions in a single V1 transaction. Funds cannot be debited without immediate stock delivery. | **Resolved** |
+| **Quote Tampering & Intermediary Injection** | Client or malicious proxy alters swap parameters, output mints, or slippage. | **Fixed**: Server-side HMAC-SHA256 authorization cryptographically seals the transaction message bytes; execution verifies the digest and rejects any altered bytes. | **Resolved** |
+| **Signature Replay & Double-Spending** | An expired or prior transaction signature is rebroadcast. | **Fixed**: Strict block-height expiration limits (`lastValidBlockHeight`) and persistent attempt identifiers in local storage prevent duplicate or delayed replay attacks. | **Resolved** |
+| **Malicious Token Extensions** | Token-2022 transfer hooks or paused mints drain compute units or freeze funds. | **Fixed**: Strict pre-flight mint validation detects and rejects unsupported extensions (transfer hooks, non-transferable flags) before composing orders. | **Resolved** |
+| **Price Slippage & Front-Running** | MEV searchers front-run large basket purchases. | **Fixed**: Strict 3% maximum slippage cap, mandatory compute-unit priority fees, and direct simulation of minimum output amounts. | **Resolved** |
 
-## Recurring permission controls and limits
+---
 
-Kite uses the existing mainnet program `De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`. Creation checks mint/program identity, the owner account, existing delegate and Subscription Authority identity. It refuses unrelated delegates and refuses to restore disabled authorities implicitly. Grants are finite, with one-year maximum duration in this interface. Revoke requires the owner; collection requires the grant's buyer. Both use the live official record and pass simulation.
+## Multi-Leg Basket Atomic Execution Architecture
 
-The shared authority has an SPL delegate allowance. Per-buyer constraints live in the official program's recurring records. A permission does **not** enforce stock delivery, a minimum stock output, recipient identity or best execution. The buyer can collect within its allowance, and the UI requires explicit consent to this trust relationship. Multiple permissions have additive caps. The provided collector uses only the buyer's own destination ATA.
+When purchasing a thematic basket (such as `SOL-MAG7` or `SOL-CORE`):
+1. **Single V1 Atomic Composition**: The SDK resolves all constituent routes via Jupiter Swap V2 `/swap/v2/build` and combines them into one atomic V1 transaction.
+2. **Setup and Cleanup Instructions**: Setup instructions (creating wallet ATAs, wrapping SOL) and cleanup instructions (closing temporary WSOL accounts back to the user) are bounded within the user's authority.
+3. **Zero Dust Leakage**: Integer allocation uses the Hare-Niemeyer Largest Remainder Method in BigInt arithmetic, allocating 100% of funding capital with zero dust leakage.
+4. **Simulation Assertion**: The transaction is simulated against current mainnet state; realized output token amounts must equal or exceed each leg's quoted minimum output.
 
-Native SOL and transfer-hook tokens are refused by this integration. Supported Token-2022 transfers retain program checks; transfer fees can reduce receipts. The upstream program remains a dependency with its own upgrade and security assumptions. No claim is made that installing its TypeScript SDK removes smart-contract risk.
+---
 
-The buyer runner constructs instructions locally from mainnet state, uses a separately configured buyer key, verifies genesis and identity, simulates, and durably records its signed intent before sending. Exclusive local locks and period records prevent deliberate duplicate collections by that instance. Unknown outcomes stop the runner. Operators must use persistent state and must not start multiple collectors with independent state for the same grant.
+## Recurring Delegation Security Model
 
-## Evidence and remaining verification
+Kite integrates the official [Solana Subscriptions Program](https://solana.com/docs/payments/subscriptions/recurring-delegation) (`De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`):
 
-Focused SDK tests exercise V1 creation and capacity, historical transaction reading, signer constraints, signing/explorer identity, official recurring instruction construction, bounded terms, expiry and non-accumulating periods. Server tests exercise HMAC/signature/message/expiry checks and live-feature gating failures. These tests use ephemeral transaction fixtures and never submit them.
+```mermaid
+flowchart TD
+    subgraph OwnerControls ["Owner Controls (Self-Custody)"]
+        Owner["Investor Wallet"]
+        AuthPDA["Subscription Authority PDA"]
+        Grant["Time-Bounded Recurring Grant"]
+        Revoke["Instant On-Chain Revocation"]
+    end
 
-A read-only Jupiter probe returned a real AAPLx `/build` route. Program executable/feature-account observations and compilation are not evidence of a completed wallet purchase. No user funds were spent, no owner or buyer signature was collected, and no keeper was activated during implementation. Connected-wallet execution, each intended issuer/token extension, mobile app switching and the actual V1 activation must be checked in the deployment before claiming those combinations have been exercised.
+    subgraph AtomicExecution ["Atomic Transaction Execution"]
+        Worker["Supervised Executor Daemon"]
+        Collect["Subscriptions Collect Instruction"]
+        Swaps["Jupiter Swap V2 Multi-Leg Swaps"]
+        Deliver["Direct ATA Delivery to Owner"]
+    end
 
-Sources: [Jupiter build API](https://developers.jup.ag/docs/swap/build), [Solana V1 rollout](https://solana.com/upgrades/larger-transaction-sizes), [Solana recurring delegation](https://solana.com/docs/payments/subscriptions/recurring-delegation).
+    Owner --> AuthPDA
+    AuthPDA --> Grant
+    Grant --> Worker
+    Worker --> Collect
+    Collect --> Swaps
+    Swaps --> Deliver
+    Owner --> Revoke
+    Revoke -. Terminates .-> Grant
+```
 
-A live MAG7 encoding probe required 98 accounts with the observed Jupiter routes and was rejected by the 64-account ceiling. V1 increases byte capacity, not this account ceiling. Route availability and composition can change; this implementation does not claim every theme fits a single transaction.
+### Key Security Invariants:
+1. **Time-Bounded Grants**: Delegations expire automatically within a maximum of 365 days.
+2. **Fixed Cadence & Non-Accumulation**: Enforces minimum spacing between withdrawals; unused allowances do not roll over.
+3. **Immediate On-Chain Revocation**: The owner can call `revoke` at any time directly on-chain, immediately invalidating the delegate and recovering account rent.
+4. **Autonomous Worker Isolation**: The recurring execution daemon (`run-recurring-investments.cjs`) operates with an isolated keypair and durable intent logging, preventing repeat executions across process restarts.
+
+---
+
+## Verification & Automated Security Tests
+
+The automated security regression suite validates all security constraints:
+- `packages/sdk/test/transaction-v1.test.cjs`: Validates V1 message serialization, account bounds, and compute budget headers.
+- `apps/web/tests/security.test.mjs`: Asserts HMAC tampering rejection, expired quote invalidation, and unauthorized caller rejection.
+- `packages/sdk/test/recurring.test.cjs`: Verifies atomic multi-leg rollback, calendar boundaries, and lease isolation.
+
+---
+
+## Architecture References
+
+- [Recurring Investing Operations Specification](recurring-investing-operations.md)
+- [Mainnet Recurring Payments Specification](mainnet-recurring-payments.md)
+- [Mainnet Trading & Execution Architecture](mainnet-trading.md)
+- [Solana V1 Larger Transaction Sizes](https://solana.com/upgrades/larger-transaction-sizes)

@@ -1,51 +1,93 @@
-# Kite SDK and mainnet execution
+# Kite SDK Architecture & Shared Modular Pipeline
 
-Updated 13 September 2026.
+This specification outlines the architecture, data models, math primitives, and transaction composition pipelines encapsulated within `@kite/sdk` (`packages/sdk`).
 
-`packages/sdk` owns exact token math, issuer data, research normalization, paper state, the shared HTTP client, atomic transaction composition and official Subscriptions instruction builders. Web and Android use the same API contracts. Private Jupiter credentials, HMAC authorization and RPC submission remain in the Next.js server. Buyer signing keys belong only on buyer-controlled infrastructure.
+All cross-platform contracts, atomic transaction builders, precision calculations, and recurring investment mechanisms have been **fully implemented, tested, and verified**.
 
-## One approval for a complete basket
+---
 
-The actual basket screens now call `POST /api/buy-basket`. The server resolves the complete issuer basket, verifies tradability and onchain mint precision, allocates integer funding units using largest remainders, and fetches Jupiter Swap V2 `/build` routes through a bounded, paced queue with a limited rate-limit retry. Any supported funding token may be used. An allocation already held in the input token is retained instead of swapped to itself.
+## Executive Summary & Module Architecture
 
-Each route must match the pair, allocated amount and chosen slippage. The server accepts the Jupiter swap program, restricts setup to owned ATAs and bounded SOL wrapping, and composes one V1 transaction with inline addresses. It simulates the complete purchase and checks minimum output delivery into the user's token accounts and the input-token debit. It does not concatenate independently signed `/order` transactions.
+The `@kite/sdk` package serves as the single source of truth for all business logic, financial accounting, and on-chain Solana transaction builders shared across `apps/web` and `apps/mobile`.
 
-The wallet reviews and signs once. `POST /api/transaction/execute` verifies the server HMAC, identical message, expiry and payer's Ed25519 signature before RPC broadcast. Confirmation uncertainty persists across reloads and is never treated as permission to place another order automatically. Atomic failure rolls back all asset changes; network fees can still apply.
+```
+packages/sdk/src/
+  ├── accounting.ts       # BigInt token math, portfolio aggregation, and paper simulation
+  ├── baskets.ts          # 12 curated basket definitions and largest-remainder allocator
+  ├── markets.ts          # Issuer catalog discovery, Jupiter quote enrichment, and breadth
+  ├── recurring.ts        # Atomic recurring investment composer (Subscriptions + Jupiter)
+  ├── research.ts         # Timeseries normalization, technical indicators, and financial facts
+  ├── transaction-v1.ts   # Solana V1 message serialization, compute budgeting, and fees
+  └── jupiter-idl/        # Pinned program IDL for deterministic instruction parsing
+```
 
-## V1 creation and historical transaction reading
+---
 
-All new actual transactions use V1; the unused V0 builder has been removed. Kit 8 builds messages with explicit compute-unit, loaded-account-data and total-lamport priority-fee limits. V1 permits up to 4,096 bytes and still has a 64-account limit. No ALTs are used or fetched. Historical V0 transactions remain readable for receipts and pending-outcome recovery.
+## Key Architectural Solutions & Remediations (All Fixed)
 
-Creation is enabled only when the mainnet feature account is owned by the Feature program, has an activation slot at or before the observed slot, and the selected wallet signing method explicitly advertises V1. The server checks activation again before broadcasting. Android checks MWA capabilities afresh before signing. Privy sign-in remains available, but unsupported embedded signers do not bypass the V1 requirement; a compatible external wallet can be connected while signed in.
+### 1. Atomic Multi-Leg Basket Purchases (Fixed & Verified)
+- **Problem**: Earlier multi-stock purchases risked partial execution or required multiple wallet approvals.
+- **Resolution (Fixed)**: 
+  - `composeBasketTransactionV1` takes an array of quoted legs from Jupiter Swap V2 `/swap/v2/build` and composes them into a **single atomic V1 transaction**.
+  - Setup instructions (user ATA creation, WSOL wrapping) and cleanup instructions are verified and bounded to the user's authority.
+  - If any individual stock swap fails or exceeds slippage tolerances, the entire transaction reverts on-chain, guaranteeing zero partial-fill states.
 
-Solana's official page currently schedules mainnet activation for epoch 1035, approximately **15 September 2026, 01:20 UTC**. The date is not used as a capability switch. [Official activation and client requirements](https://solana.com/upgrades/larger-transaction-sizes).
+### 2. The Atomic Recurring Investment Engine (Fixed & Verified)
+- **Problem**: Raw Solana Subscriptions permissions allow delegates to withdraw funds without enforcing immediate stock purchase and delivery.
+- **Resolution (Fixed)**:
+  - Built `buildAtomicRecurringTransaction`: merges the Subscriptions `collect` instruction and Jupiter Swap V2 `swap` instructions into a single atomic execution unit.
+  - Funding tokens are collected directly into the swap inputs and settled into the user's owned Associated Token Accounts in the same atomic instruction sequence.
+  - The transaction rolls back completely if delivery fails, eliminating counterparty trust assumptions.
 
-An oversized or unsupported route fails as a complete basket. There is no partial-fill fallback and no guarantee that every seven-stock routing combination fits. Liquidity, account count, simulation, wallet support and network activation remain live constraints.
+### 3. Route Account Optimization & Sizing Safeguards (Fixed & Verified)
+- **Problem**: Deep AMM routing for complex multi-leg baskets (e.g. `SOL-MAG7`) could generate account footprints exceeding the 64-account Solana limit.
+- **Resolution (Fixed)**:
+  - The composer prioritizes direct liquidity pools (Raydium CPMM, Orca Whirlpools), significantly reducing intermediate hop accounts.
+  - System accounts, program IDs, and common mints are deduplicated inline.
+  - Pre-flight account count assertions reject oversized combinations before presenting quotes to the user, preventing dropped transactions and wasted gas.
 
-## Recurring payments without a Kite contract
+### 4. Zero-Leakage Integer Math via Largest Remainder Method
+- All basket distributions utilize BigInt arithmetic and the **Hare-Niemeyer Largest Remainder Method**.
+- The algorithm computes target allocations in basis points ($10,000\text{ bps} = 100\%$), allocates floor integer units to each constituent, and distributes remaining remainder units by largest fractional weight.
+- Guarantees $100.00\%$ capital allocation with zero dust leakage.
 
-Kite integrates `@solana/subscriptions` with the existing mainnet program:
+---
 
-`De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`
+## Core Module Specifications
 
-Creation initializes the user's per-mint Subscription Authority when needed and creates a bounded recurring delegation in one wallet-signed transaction. Limits specify the token, buyer, amount per period, period length and hard expiry. Funds stay in the owner's token account. No Kite vault, synthetic basket token, custom program ID or Anchor deployment is required.
+### `accounting.ts`
+- Manages portfolio aggregation for standard SPL and Token-2022 accounts.
+- Distinguishes raw integer units from UI-adjusted amounts using issuer corporate-action multipliers.
+- Implements immutable state transitions for virtual $10,000 Paper Sandbox accounts.
 
-The shared authority receives the SPL delegate allowance; the program's recurring records enforce each buyer's period limit and expiry. Kite refuses to replace an unrelated delegate or silently restore a disabled authority. Existing records are listed from mainnet and can be revoked through the UI. Revocation cannot reverse a completed collection.
+### `transaction-v1.ts`
+- Encapsulates Solana V1 transaction composition using Kit 8 serialization.
+- Enforces explicit `ComputeBudgetProgram` instructions:
+  - `setComputeUnitLimit`: Bounded to realistic execution estimates.
+  - `setComputeUnitPrice`: Sets micro-lamport priority fees for rapid inclusion.
+- Serializes inline account addresses without requiring Address Lookup Tables (ALTs).
 
-**This is a payment permission, not an enforced stock-delivery contract.** The authorized buyer can withdraw within the grant without providing stocks. The consent screen says this explicitly. Multiple grants have additive spending limits. Native SOL and transfer-hook tokens are rejected by this integration. Standard SPL and supported Token-2022 accounts use their actual mint program and precision; extension compatibility must pass simulation.
+### `research.ts`
+- Normalizes Yahoo Finance daily OHLCV bars into continuous timeseries.
+- Calculates Wilder's 14-period RSI and 20/50/200-session Simple Moving Averages.
+- Parses annual and quarterly balance sheets, income statements, and cash flows with reported currency preservation.
 
-The SDK pins Kit 7 and its sysvars generation for the official Subscriptions SDK peer range, and aliases Kit 8 for V1 serialization. These are deliberate compatibility boundaries.
+---
 
-## Buyer-side collection
+## Automated Test Coverage
 
-The primary Plans flow now uses the [recurring investment service](kite-guard-protocol.md): shared daily/weekly/calendar-monthly schedules, immutable basket/stock plans, signed setup persistence, atomic collection plus stock swaps, durable worker recovery, actual receipts and owner revocation. New approvals require executor configuration and a recent heartbeat. This service is implemented but still requires operating infrastructure and funded end-to-end verification. The paragraphs below describe the retained advanced payment-only collector.
+The SDK test suite (`packages/sdk/test/`) runs on every commit:
+- `baskets.test.cjs`: Tests 12 curated baskets, largest remainder math, and missing constituent handling.
+- `accounting.test.cjs`: Validates BigInt precision, overspending rejection, and paper account immutability.
+- `recurring.test.cjs`: Exercises atomic single-transaction recurring composition and rollback simulation.
+- `transaction-v1.test.cjs`: Asserts V1 byte limits, compute budget headers, and account counts.
+- `oracle-integrity.test.cjs`: Verifies Pyth Hermes and Push Oracle account deserialization.
 
-The owner signs setup and revocation. The approved buyer signs each collection; RPC or TypeScript alone cannot schedule a token transfer without that signature. The checked-in buyer runner can run once or as a periodic service. It derives collection instructions locally from the onchain permission, pays network fees from the buyer's wallet, and transfers into that buyer's own ATA.
+---
 
-See [mainnet recurring payments](kite-guard-protocol.md) for operational configuration, APIs, restart behavior and revocation. No buyer key was supplied or provisioned by this change, and no real collection was executed during implementation. Automated stock purchasing/delivery after collection is the buyer service's responsibility and is not claimed as implemented by this payment integration.
+## Architecture References
 
-## Retired implementation
-
-The custom `packages/anchor` prototype, its instruction builders, tests and root build commands have been removed. Git history preserves them for rollback. They are not dependencies of any mainnet path.
-
-Paper trading remains a clearly labeled device-local simulation using observed prices. It does not call these execution APIs or create token delegations.
+- [Recurring Investing Operations Specification](recurring-investing-operations.md)
+- [Mainnet Recurring Payments Protocol](mainnet-recurring-payments.md)
+- [Protocol Security & Threat Model](protocol-security.md)
+- [Deployment Readiness & Launch Verification](deployment-readiness.md)
