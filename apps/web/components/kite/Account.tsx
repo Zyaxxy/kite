@@ -24,7 +24,6 @@ import { AssetName, Change, Empty, money } from "./MarketUI";
 import { OrbitArt } from "./Brand";
 import { NativeSelect, NativeSelectOption } from "../ui/native-select";
 import { useTradingAuth } from "../trading/TradingAuth";
-import { RecurringPaymentsPanel } from "../trading/RecurringPaymentsPanel";
 import { RecurringInvestingPanel } from "../trading/RecurringInvestingPanel";
 import { ActualPortfolio } from "../trading/ActualPortfolio";
 const WalletButton = dynamic(
@@ -426,14 +425,6 @@ export function Plans() {
           <section id="new-plan">
             <RecurringInvestingPanel />
           </section>
-          <details className="investing-advanced">
-            <summary>Advanced: direct token payment permissions</summary>
-            <p className="fineprint">
-              These permissions authorize a buyer you choose to collect tokens.
-              They do not create a stock or basket investment plan.
-            </p>
-            <RecurringPaymentsPanel />
-          </details>
         </>
       ) : (
         <div className="plan-layout">

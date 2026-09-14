@@ -1,53 +1,55 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { RecurringPaymentRequest } from "@kite/sdk";
 import { readLimitedJson } from "@/lib/server/request-policy";
 import {
-  createRecurringPayment,
-  listRecurringPayments,
-} from "@/lib/server/recurring-payments";
+  createDevnetRecurringPlan,
+  listDevnetRecurringPlans,
+} from "@/lib/server/recurring-devnet";
+import {
+  parseCreateDevnetPlan,
+  parseDevnetWallet,
+} from "@/lib/server/recurring-devnet-policy";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 const headers = { "Cache-Control": "no-store" };
 export async function GET(request: NextRequest) {
   try {
+    const wallet = parseDevnetWallet(
+      request.nextUrl.searchParams.get("wallet"),
+    );
     return NextResponse.json(
       {
-        payments: await listRecurringPayments(
-          request.nextUrl.searchParams.get("wallet") ?? "",
-        ),
+        schemaVersion: 1,
+        network: "devnet",
+        plans: await listDevnetRecurringPlans(wallet),
       },
       { headers },
     );
-  } catch (e) {
+  } catch (error) {
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Unable to read permissions." },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unable to read devnet plans.",
+      },
       { status: 503, headers },
     );
   }
 }
 export async function POST(request: NextRequest) {
   try {
-    const body = (await readLimitedJson(
-      request,
-      4096,
-    )) as RecurringPaymentRequest;
-    if (
-      !body ||
-      typeof body.taker !== "string" ||
-      typeof body.buyer !== "string" ||
-      typeof body.mint !== "string" ||
-      typeof body.amount !== "string" ||
-      body.amount.length > 40 ||
-      !Number.isInteger(body.periodSeconds) ||
-      !Number.isInteger(body.periods)
-    )
-      throw new Error("Invalid recurring payment terms.");
-    return NextResponse.json(await createRecurringPayment(body), { headers });
-  } catch (e) {
+    const input = parseCreateDevnetPlan(await readLimitedJson(request, 4096));
+    return NextResponse.json(await createDevnetRecurringPlan(input), {
+      headers,
+    });
+  } catch (error) {
     return NextResponse.json(
       {
-        error: e instanceof Error ? e.message : "Unable to prepare permission.",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unable to prepare devnet plan.",
       },
       { status: 422, headers },
     );

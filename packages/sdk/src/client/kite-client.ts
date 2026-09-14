@@ -44,6 +44,8 @@ export class KiteApiError extends Error {
     this.name = "KiteApiError";
   }
 }
+const LEGACY_RECURRING_MIGRATION_MESSAGE =
+  "Legacy recurring payments are unavailable. Recurring plans now use the devnet Kite Guard V2 flow with devnet test tokens. Update this client to use the devnet recurring plan API.";
 export interface KiteClientConfig {
   baseUrl?: string;
   fetcher?: typeof fetch;
@@ -321,51 +323,30 @@ export class KiteClient {
         validBasketOutputs(v.outputs, v.inAmount as string),
     );
   }
+  /** @deprecated Use the devnet Guard V2 plan API; legacy payment schemas are retired. */
   async getRecurringPayments(
     wallet: string,
     signal?: AbortSignal,
   ): Promise<RecurringPayment[]> {
-    const { data } = await this.request(
-      `/api/recurring?wallet=${encodeURIComponent(wallet)}`,
-      { signal },
-    );
-    return verified<{ payments: RecurringPayment[] }>(
-      data,
-      (v) =>
-        Array.isArray(v.payments) &&
-        v.payments.every((p) => record(p) && p.owner === wallet),
-    ).payments;
+    throw new KiteApiError(LEGACY_RECURRING_MIGRATION_MESSAGE, 410);
   }
+  /** @deprecated Use the devnet Guard V2 plan API; external buyer grants are retired. */
   async requestRecurringPayment(
     input: RecurringPaymentRequest,
   ): Promise<
     WalletTransactionOrder & { payment: RecurringPayment; decimals: number }
   > {
-    const { data } = await this.request("/api/recurring", { body: input });
-    return verified(
-      data,
-      (v) =>
-        validWalletOrder(v, input.taker) &&
-        record(v.payment) &&
-        v.payment.owner === input.taker &&
-        v.payment.buyer === input.buyer &&
-        v.payment.mint === input.mint &&
-        v.payment.periodSeconds === input.periodSeconds &&
-        Number.isInteger(v.decimals) &&
-        v.payment.amountPerPeriod ===
-          toTokenAmount(input.amount, v.decimals as number),
-    );
+    throw new KiteApiError(LEGACY_RECURRING_MIGRATION_MESSAGE, 410);
   }
+  /** @deprecated Close the specific devnet Guard V2 plan using its owner-approved flow. */
   async revokeRecurringPayment(
     taker: string,
     delegation: string,
     supportedTransactionVersions?: number[],
   ): Promise<WalletTransactionOrder> {
-    const { data } = await this.request("/api/recurring/revoke", {
-      body: { taker, delegation, supportedTransactionVersions },
-    });
-    return verified(data, (v) => validWalletOrder(v, taker));
+    throw new KiteApiError(LEGACY_RECURRING_MIGRATION_MESSAGE, 410);
   }
+  /** @deprecated Collect a devnet Guard V2 plan; keeper/buyer payment schemas are retired. */
   async collectRecurringPayment(
     taker: string,
     delegation: string,
@@ -377,16 +358,7 @@ export class KiteClient {
       mint: string;
     }
   > {
-    const { data } = await this.request("/api/recurring/collect", {
-      body: { taker, delegation, supportedTransactionVersions },
-    });
-    return verified(
-      data,
-      (v) =>
-        validWalletOrder(v, taker) &&
-        typeof v.amount === "string" &&
-        typeof v.periodStartedAt === "number",
-    );
+    throw new KiteApiError(LEGACY_RECURRING_MIGRATION_MESSAGE, 410);
   }
 
   async executeTransaction(

@@ -81,8 +81,8 @@ export function kitInstructionToWeb3(ix: {
   });
 }
 
-/** New mainnet orders are V1 only. The caller must verify network and wallet capability. */
-export async function composeMainnetTransaction(params: {
+/** Compose an unsigned V1 message. Callers must verify cluster and wallet capability. */
+export async function composeV1Transaction(params: {
   payer: string;
   blockhash: string;
   lastValidBlockHeight: number;
@@ -103,7 +103,7 @@ export async function composeMainnetTransaction(params: {
     throw new Error("Invalid priority fee limit.");
   if (!params.allowV1)
     throw new Error(
-      "V1 trading requires an activated mainnet and a wallet that supports V1 signing. No transaction was created.",
+      "V1 transactions require an activated cluster and a wallet that supports V1 signing. No transaction was created.",
     );
   const kit = await import("@solana/kit-v1");
   if (!Number.isInteger(units) || units < 1 || units > 1_400_000)
@@ -172,6 +172,9 @@ export async function composeMainnetTransaction(params: {
     transactionVersion: 1,
   };
 }
+
+/** Backwards-compatible name for existing mainnet callers with their own cluster gates. */
+export const composeMainnetTransaction = composeV1Transaction;
 
 export async function inspectWalletTransaction(encoded: string) {
   const kit = await import("@solana/kit-v1");

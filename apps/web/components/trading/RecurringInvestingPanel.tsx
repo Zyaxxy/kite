@@ -1,100 +1,315 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
-import { Program, AnchorProvider, BN } from "@coral-xyz/anchor";
-import { PublicKey, SystemProgram } from "@solana/web3.js";
+import { useEffect, useRef, useState } from "react";
 import { CalendarDays, Repeat2 } from "lucide-react";
-import {
-  KiteGuardIdl,
-  KiteGuard,
-  KITE_GUARD_PROGRAM_ID,
-  findPlanPda,
-  TOTAL_WEIGHT_BPS,
-} from "@kite/sdk";
+import { fromTokenAmount, walletTransactionSignature } from "@kite/sdk";
+import { useTradingAuth } from "./TradingAuth";
 import { NativeSelect } from "../ui/native-select";
 import recurringStyles from "./recurring-controls.module.css";
 
-interface XStock {
-  symbol: string;
-  name: string;
-  mint: string;
-  decimals: number;
-  logo: string;
+interface RecurringConfig {
+  readyToPrepare: boolean;
+  reasons: string[];
+  fundingSymbol: string;
+  stocks: Array<{
+    id: string;
+    symbol: string;
+    name: string;
+    available: boolean;
+  }>;
+  baskets: Array<{
+    id: string;
+    name: string;
+    ticker: string;
+    available: boolean;
+  }>;
+}
+interface PreparedPlan {
+  network: "devnet";
+  transactionVersion: 1;
+  transaction: string;
+  authorization: string;
+  signer: string;
+  plan: string;
+  expiresAt: number;
+  terms: {
+    amount: string;
+    fundingSymbol: string;
+    periodSeconds: number;
+    periods: number;
+    startsAt: number;
+    expiresAt: number;
+    minimumPolicy: string;
+    outputs: Array<{
+      mint: string;
+      symbol: string;
+      decimals: number;
+      weightBps: number;
+      minimumAmountOut: string;
+    }>;
+  };
+}
+interface PendingPlan {
+  order: PreparedPlan;
+  signedTransaction: string;
+}
+const pendingPlanKey = (owner: string) => `kite:pending-devnet-plan:${owner}`;
+function validPendingPlan(value: unknown, owner: string): value is PendingPlan {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Partial<PendingPlan>;
+  const order = record.order;
+  const terms = order?.terms;
+  return Boolean(
+    order &&
+    order.signer === owner &&
+    order.network === "devnet" &&
+    order.transactionVersion === 1 &&
+    typeof order.authorization === "string" &&
+    order.authorization.length <= 4096 &&
+    typeof order.transaction === "string" &&
+    typeof order.plan === "string" &&
+    Number.isSafeInteger(order.expiresAt) &&
+    typeof record.signedTransaction === "string" &&
+    record.signedTransaction.length <= 8192 &&
+    /^[A-Za-z0-9+/]+={0,2}$/.test(record.signedTransaction) &&
+    terms &&
+    typeof terms.amount === "string" &&
+    terms.amount.length <= 40 &&
+    typeof terms.fundingSymbol === "string" &&
+    terms.fundingSymbol.length <= 20 &&
+    Number.isSafeInteger(terms.periodSeconds) &&
+    Number.isSafeInteger(terms.periods) &&
+    Number.isSafeInteger(terms.startsAt) &&
+    terms.startsAt > 0 &&
+    Number.isSafeInteger(terms.expiresAt) &&
+    terms.expiresAt > terms.startsAt &&
+    typeof terms.minimumPolicy === "string" &&
+    Array.isArray(terms.outputs) &&
+    terms.outputs.length > 0 &&
+    terms.outputs.length <= 20 &&
+    terms.outputs.every(
+      (output) =>
+        output &&
+        typeof output.mint === "string" &&
+        typeof output.symbol === "string" &&
+        Number.isSafeInteger(output.weightBps) &&
+        Number.isSafeInteger(output.decimals) &&
+        output.decimals >= 0 &&
+        output.decimals <= 9 &&
+        typeof output.minimumAmountOut === "string" &&
+        /^\d{1,20}$/.test(output.minimumAmountOut),
+    ),
+  );
+}
+async function recurringRequest<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json();
+  if (!response.ok)
+    throw new Error(data.error || "The devnet request could not be completed.");
+  return data as T;
 }
 
 export function RecurringInvestingPanel() {
-  const { connection } = useConnection();
-  const wallet = useAnchorWallet();
-  const [tokens, setTokens] = useState<XStock[]>([]);
+  const auth = useTradingAuth();
+  const activeWallet = useRef(auth.walletAddress);
+  activeWallet.current = auth.walletAddress;
+  const [config, setConfig] = useState<RecurringConfig | null>(null);
   const [selectedToken, setSelectedToken] = useState<string>("");
   const [fundingAmount, setFundingAmount] = useState<string>("10");
-  const [period, setPeriod] = useState<string>("86400"); // 1 day
+  const [period, setPeriod] = useState<string>("86400");
   const [periods, setPeriods] = useState<string>("10");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [explorerUrl, setExplorerUrl] = useState("");
+  const [prepared, setPrepared] = useState<PreparedPlan | null>(null);
+  const [pending, setPending] = useState<PendingPlan | null>(null);
+  const [pendingUnreadable, setPendingUnreadable] = useState(false);
 
   useEffect(() => {
-    fetch("/xstocks-devnet/xstocks.json")
-      .then((res) => res.json())
-      .then((data) => {
-        setTokens(data.tokens);
-        if (data.tokens.length > 0) {
-          setSelectedToken(data.tokens[0].mint);
-        }
+    const controller = new AbortController();
+    fetch("/api/recurring/config", { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok)
+          throw new Error("The devnet recurring configuration is unavailable.");
+        return response.json() as Promise<RecurringConfig>;
       })
-      .catch((err) => console.error("Failed to load devnet tokens", err));
+      .then((data) => {
+        setConfig(data);
+        const stock = data.stocks.find((item) => item.available);
+        const basket = data.baskets.find((item) => item.available);
+        setSelectedToken(
+          stock ? `stock:${stock.id}` : basket ? `basket:${basket.id}` : "",
+        );
+      })
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted)
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : "Unable to load devnet plans.",
+          );
+      });
+    return () => controller.abort();
   }, []);
+  useEffect(() => {
+    if (!pending) setPrepared(null);
+  }, [
+    selectedToken,
+    fundingAmount,
+    period,
+    periods,
+    auth.walletAddress,
+    pending,
+  ]);
+  useEffect(() => {
+    setPending(null);
+    setPendingUnreadable(false);
+    setPrepared(null);
+    setSuccess("");
+    setExplorerUrl("");
+    if (!auth.walletAddress) return;
+    try {
+      const raw = localStorage.getItem(pendingPlanKey(auth.walletAddress));
+      if (!raw) return;
+      const record: unknown = JSON.parse(raw);
+      if (!validPendingPlan(record, auth.walletAddress))
+        throw new Error("Invalid saved devnet submission.");
+      setPending(record);
+      setPrepared(record.order);
+      setSuccess(
+        "A previous devnet submission needs a status check. Reuse its signed transaction before creating another plan.",
+      );
+    } catch {
+      setPendingUnreadable(true);
+      setError(
+        "The saved devnet submission could not be read. New plans are blocked until this wallet’s pending submission is recovered. Check your devnet wallet history.",
+      );
+    }
+  }, [auth.walletAddress]);
 
   const handleCreatePlan = async () => {
-    if (!wallet) return setError("Connect wallet first");
+    const owner = auth.walletAddress;
+    if (!owner) return setError("Connect wallet first.");
+    if (pending || pendingUnreadable)
+      return setError(
+        "Resolve the saved devnet submission before creating another plan.",
+      );
+    if (!config?.readyToPrepare)
+      return setError("Devnet recurring setup is not ready yet.");
     setError("");
     setSuccess("");
+    setExplorerUrl("");
     setLoading(true);
-
     try {
-      const provider = new AnchorProvider(connection, wallet, {});
-      const program = new Program(KiteGuardIdl as KiteGuard, provider);
-
-      // Using a dummy USDC mint for funding on devnet, or use the first token as funding if you prefer.
-      // For this test, let's just use a hardcoded fake devnet USDC or the wallet owner as fundingMint to test the PDA.
-      // Usually you'd have a devnet USDC mint. Let's assume there is one or just use a random key for testing.
-      const devnetUsdcMint = new PublicKey(
-        "4zMMC9srt5Ri5X14sgXRo6CWjLN1vc2in1t1b1Vf8w2Q",
-      ); // Typical devnet USDC
-
-      const [planPda] = findPlanPda(wallet.publicKey, devnetUsdcMint);
-
-      // We need to parse amount properly (assuming 6 decimals for USDC)
-      const amountDecimals = 6;
-      const amountBn = new BN(parseFloat(fundingAmount) * 10 ** amountDecimals);
-
-      const tx = await program.methods
-        .createPlan({
-          fundingAmount: amountBn,
-          periodSeconds: new BN(parseInt(period)),
-          periods: parseInt(periods),
-          outputs: [
-            {
-              mint: new PublicKey(selectedToken),
-              weightBps: TOTAL_WEIGHT_BPS,
-            },
-          ],
-        })
-        .accountsStrict({
-          owner: wallet.publicKey,
-          fundingMint: devnetUsdcMint,
-          subscriptionAuthority: wallet.publicKey, // For now, owner is auth
-          plan: planPda,
-          systemProgram: SystemProgram.programId,
-        })
-        .rpc();
-
-      setSuccess(`Plan created successfully! TX: ${tx}`);
-    } catch (err) {
-      console.error(err);
-      setError(err instanceof Error ? err.message : "Failed to create plan");
+      const [type, id] = selectedToken.split(":");
+      const order = await recurringRequest<PreparedPlan>("/api/recurring", {
+        schemaVersion: 1,
+        owner,
+        target: { type, id },
+        amount: fundingAmount,
+        periodSeconds: Number(period),
+        periods: Number(periods),
+        supportedTransactionVersions: auth.supportedTransactionVersions,
+      });
+      if (activeWallet.current !== owner)
+        throw new Error("Wallet changed. Prepare the plan again.");
+      setPrepared(order);
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Failed to prepare devnet plan.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+  const handleApprovePlan = async () => {
+    const order = pending?.order ?? prepared;
+    if (!order || order.signer !== auth.walletAddress)
+      return setError("Prepare this plan with the connected wallet first.");
+    setError("");
+    setLoading(true);
+    let record = pending;
+    try {
+      if (!record) {
+        if (order.expiresAt <= Date.now())
+          throw new Error(
+            "The reviewed transaction expired. Prepare the plan again.",
+          );
+        const signedTransaction = await auth.signTransaction(
+          order.transaction,
+          1,
+          "solana:devnet",
+        );
+        if (activeWallet.current !== order.signer)
+          throw new Error("Wallet changed. Review the plan again.");
+        const nextRecord = { order, signedTransaction };
+        // Save the exact signed transaction before submission, so a lost HTTP response cannot create a second plan.
+        localStorage.setItem(
+          pendingPlanKey(order.signer),
+          JSON.stringify(nextRecord),
+        );
+        record = nextRecord;
+        setPending(record);
+      }
+      const signature = await walletTransactionSignature(
+        record.signedTransaction,
+      );
+      setExplorerUrl(
+        `https://explorer.solana.com/tx/${signature}?cluster=devnet`,
+      );
+      const result = await recurringRequest<{
+        status: "failed" | "confirmed" | "submitted" | "unknown" | "expired";
+        signature: string;
+        explorerUrl: string;
+      }>("/api/recurring/execute", {
+        schemaVersion: 1,
+        authorization: order.authorization,
+        signedTransaction: record.signedTransaction,
+      });
+      if (["failed", "confirmed", "expired"].includes(result.status)) {
+        localStorage.removeItem(pendingPlanKey(order.signer));
+        if (activeWallet.current === order.signer) {
+          setPending(null);
+          setPrepared(null);
+        }
+      }
+      if (activeWallet.current !== order.signer) return;
+      setExplorerUrl(result.explorerUrl);
+      if (result.status === "failed") {
+        setError(
+          "The devnet transaction failed on-chain. Review its explorer record before retrying.",
+        );
+        return;
+      }
+      if (result.status === "expired") {
+        setError(
+          "The previous transaction expired without a recorded execution. Prepare a fresh plan review.",
+        );
+        return;
+      }
+      setSuccess(
+        result.status === "confirmed"
+          ? "Devnet recurring plan confirmed."
+          : "Devnet confirmation is pending. Check submission status to reuse this exact transaction; a second plan will not be created.",
+      );
+    } catch (cause) {
+      if (record && activeWallet.current === order.signer)
+        setSuccess(
+          "Devnet confirmation is unavailable. Keep this saved submission and check its status before creating another plan.",
+        );
+      else
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "Unable to prepare the signed devnet plan.",
+        );
     } finally {
       setLoading(false);
     }
@@ -112,9 +327,10 @@ export function RecurringInvestingPanel() {
           Set your investment rhythm.
         </h2>
         <p className="fineprint">
-          Choose a devnet asset, set your amount and pick a schedule. This
-          creates a <strong>Kite Guard</strong> plan directly on the devnet
-          smart contract.
+          Choose a devnet stock or basket, set your amount and pick a schedule.
+          Review the delivery minimums, then approve your{" "}
+          <strong>Kite Guard</strong> plan. KUSD and these xStock test tokens
+          have no monetary value.
         </p>
       </div>
 
@@ -126,30 +342,53 @@ export function RecurringInvestingPanel() {
           void handleCreatePlan();
         }}
       >
-        <fieldset className="investing-fields" disabled={loading}>
+        <fieldset
+          className="investing-fields"
+          disabled={loading || Boolean(pending) || pendingUnreadable}
+        >
           <label className="form-field">
-            <span>Devnet asset</span>
+            <span>Devnet stock or basket</span>
             <NativeSelect
               value={selectedToken}
               onChange={(e) => setSelectedToken(e.target.value)}
-              disabled={loading || tokens.length === 0}
+              disabled={loading || !config?.readyToPrepare}
             >
-              {tokens.length === 0 && (
+              {!selectedToken && (
                 <option value="">Select a devnet asset</option>
               )}
-              {tokens.map((t) => (
-                <option key={t.mint} value={t.mint}>
-                  {t.name} ({t.symbol})
-                </option>
-              ))}
+              <optgroup label="Stocks">
+                {config?.stocks.map((stock) => (
+                  <option
+                    key={stock.id}
+                    value={`stock:${stock.id}`}
+                    disabled={!stock.available}
+                  >
+                    {stock.name} ({stock.symbol})
+                    {!stock.available ? " · Not provisioned" : ""}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Baskets">
+                {config?.baskets.map((basket) => (
+                  <option
+                    key={basket.id}
+                    value={`basket:${basket.id}`}
+                    disabled={!basket.available}
+                  >
+                    {basket.name} ({basket.ticker})
+                    {!basket.available ? " · Unavailable" : ""}
+                  </option>
+                ))}
+              </optgroup>
             </NativeSelect>
           </label>
 
           <label className="form-field">
-            <span>USDC per investment · Devnet</span>
+            <span>KUSD per investment · Devnet</span>
             <input
               type="number"
-              step="any"
+              min="0.000001"
+              step="0.000001"
               inputMode="decimal"
               autoComplete="off"
               placeholder="10.00"
@@ -206,6 +445,53 @@ export function RecurringInvestingPanel() {
           </div>
         </fieldset>
 
+        {config && !config.readyToPrepare && (
+          <p className="notice" role="status">
+            {config.reasons.join(" ")}
+          </p>
+        )}
+        {prepared && (
+          <div
+            className="notice stack"
+            style={{ gap: 10 }}
+            aria-label="Review devnet plan"
+          >
+            <strong>Review your devnet plan</strong>
+            <p className="fineprint">
+              {prepared.terms.amount} {prepared.terms.fundingSymbol} per
+              investment · {prepared.terms.periods} investments.
+            </p>
+            <p className="fineprint">
+              Starts {new Date(prepared.terms.startsAt * 1000).toLocaleString()}{" "}
+              · Ends{" "}
+              {new Date(prepared.terms.expiresAt * 1000).toLocaleString()}.
+            </p>
+            <div className="stack" style={{ gap: 6 }}>
+              {prepared.terms.outputs.map((output) => (
+                <p className="fineprint" key={output.mint}>
+                  {output.symbol}: {output.weightBps / 100}% allocation ·
+                  minimum{" "}
+                  {fromTokenAmount(output.minimumAmountOut, output.decimals)}{" "}
+                  tokens each investment
+                </p>
+              ))}
+            </div>
+            <p className="fineprint">{prepared.terms.minimumPolicy}</p>
+            <button
+              className="btn full"
+              type="button"
+              disabled={loading}
+              onClick={() => void handleApprovePlan()}
+            >
+              {loading
+                ? "Checking devnet transaction…"
+                : pending
+                  ? "Check submission status"
+                  : "Approve devnet plan"}
+            </button>
+          </div>
+        )}
+
         {error && (
           <p className="notice error" role="alert">
             {error}
@@ -217,7 +503,12 @@ export function RecurringInvestingPanel() {
             role="status"
             style={{ overflowWrap: "anywhere" }}
           >
-            {success}
+            {success}{" "}
+            {explorerUrl && (
+              <a href={explorerUrl} target="_blank" rel="noreferrer">
+                View on devnet explorer
+              </a>
+            )}
           </p>
         )}
 
@@ -225,14 +516,32 @@ export function RecurringInvestingPanel() {
           className="btn full"
           type="submit"
           aria-busy={loading}
-          disabled={loading || !wallet}
+          disabled={
+            loading ||
+            Boolean(pending) ||
+            pendingUnreadable ||
+            !auth.walletAddress ||
+            !auth.canSignV1 ||
+            !config?.readyToPrepare ||
+            !selectedToken
+          }
         >
-          {loading ? "Creating devnet plan…" : "Create devnet plan"}
+          {loading
+            ? "Preparing devnet plan…"
+            : prepared
+              ? "Refresh plan review"
+              : "Review devnet plan"}
         </button>
 
-        {!wallet && (
+        {!auth.walletAddress && (
           <p className="fineprint text-center">
             Connect your wallet to create a devnet plan.
+          </p>
+        )}
+        {auth.walletAddress && !auth.canSignV1 && (
+          <p className="fineprint text-center">
+            Connect a wallet with V1 and devnet signing support to approve an
+            atomic recurring plan.
           </p>
         )}
       </form>
