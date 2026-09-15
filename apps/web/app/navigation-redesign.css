@@ -18,47 +18,69 @@
 .workspace-header-inner {
   max-width: 1440px;
   margin: 0 auto;
-  padding: 20px 40px;
+  padding: 14px 32px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 24px;
 }
-.navigation-pill {
+.navigation-core {
   display: flex;
   align-items: center;
-  gap: 28px;
-  padding: 10px 12px 10px 20px;
+  gap: 16px;
+}
+.navigation-pill {
+  width: fit-content;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
   border-radius: 40px;
   background: var(--surface);
   border: 1px solid var(--line);
 }
 .navigation-pill .kite-brand {
+  display: none;
   gap: 7px;
 }
 .navigation-pill .kite-brand > span {
-  font-size: 30px;
+  font-size: 20px;
 }
 .navigation-pill .kite-brand > svg {
-  width: 24px;
-  height: 30px;
+  width: 20px;
+  height: 24px;
+}
+.navigation-core .kite-brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 2px;
+}
+.navigation-core .kite-brand > span {
+  font-size: 23px;
+  letter-spacing: -0.06em;
+  line-height: 1;
+}
+.navigation-core .kite-brand > svg {
+  width: 20px;
+  height: 24px;
 }
 .primary-navigation {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
 }
 .primary-nav-link {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 7px;
-  min-height: 40px;
-  padding: 10px 16px;
+  min-height: 32px;
+  padding: 5px 12px;
   border-radius: 24px;
   color: var(--muted);
   background: transparent;
-  font-size: 13px;
+  font-size: 11px;
   white-space: nowrap;
   transition:
     color 150ms,
@@ -82,10 +104,10 @@
   display: flex;
   gap: 10px;
   align-items: center;
-  min-height: 44px;
+  min-height: 34px;
   background: transparent;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
 }
 .header-search:hover {
   color: var(--ink);
@@ -103,15 +125,15 @@
   gap: 12px;
   background: transparent;
   border-radius: 28px;
-  min-height: 48px;
+  min-height: 40px;
   padding: 4px 8px;
 }
 .account-trigger:hover {
   background: var(--surface);
 }
 .account-avatar {
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   flex-shrink: 0;
   border-radius: 50%;
   display: grid;
@@ -128,7 +150,7 @@
 }
 .account-trigger-copy strong {
   font-weight: 500;
-  font-size: 12px;
+  font-size: 10px;
 }
 .account-trigger-copy small {
   font-size: 10px;
@@ -323,18 +345,28 @@
 }
 @media (max-width: 1200px) {
   .workspace-header-inner {
-    padding: 16px 24px;
+    padding: 12px 20px;
     gap: 12px;
+  }
+  .navigation-core {
+    gap: 12px;
+  }
+  .navigation-core .kite-brand > span {
+    font-size: 22px;
+  }
+  .navigation-core .kite-brand > svg {
+    width: 20px;
+    height: 24px;
   }
   .kite-workspace .workspace-main {
     padding: 24px 28px 0;
   }
   .navigation-pill {
-    gap: 16px;
-    padding-left: 16px;
+    gap: 8px;
+    padding: 6px 8px;
   }
   .primary-nav-link {
-    padding-inline: 12px;
+    padding-inline: 10px;
   }
   .account-trigger-copy,
   .header-search span,
@@ -356,7 +388,7 @@
     padding: 20px 20px 96px;
   }
   .workspace-header-inner {
-    padding: 12px 16px;
+    padding: 10px 14px;
   }
   .workspace-header .primary-navigation {
     display: none;
