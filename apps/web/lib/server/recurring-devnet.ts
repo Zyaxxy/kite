@@ -11,29 +11,21 @@ import {
   buildGuardCloseInstructions,
   buildGuardCollectInstructions,
   buildGuardCreateInstructions,
-  buildGuardProtocolVersionInstruction,
   composeV1Transaction,
-  decodeDevnetCpmmPool,
-  decodeDevnetCpmmTradeFee,
-  decodeGuardPlanV2,
+  decodeGuardPlan,
   decodeRecurringPayment,
   decodeSubscriptionAuthority,
   DEVNET_RECURRING_BASKETS,
-  DEVNET_RAYDIUM_CPMM_PROGRAM,
   DEVNET_XSTOCK_CATALOG,
   guardDuePeriod,
   guardSubscriptionAuthority,
   KITE_GUARD_PROGRAM_ID,
   MAINNET_SUBSCRIPTIONS_PROGRAM,
-  quoteDevnetCpmmExactIn,
-  raydiumDevnetAuthority,
   resolveDevnetBasketAssets,
   toTokenAmount,
   validateDevnetXStockManifest,
-  type DevnetCpmmPool,
   type DevnetGuardPlan,
   type DevnetXStockManifest,
-  type DevnetXStockToken,
 } from "@kite/sdk";
 import manifestJson from "../../public/xstocks-devnet/xstocks.json";
 import type { RpcAccount } from "./composed-transactions";
@@ -50,16 +42,16 @@ import {
 } from "./recurring-devnet-transport";
 
 const TOKEN_PROGRAM = TOKEN_PROGRAM_ID.toBase58();
-const CPMM_PROGRAM = DEVNET_RAYDIUM_CPMM_PROGRAM.toBase58();
 const GUARD_PROGRAM = KITE_GUARD_PROGRAM_ID.toBase58();
 const QUOTE_SLIPPAGE_BPS = 100;
-type AccountMap = Map<string, RpcAccount>;
-interface VerifiedPool {
-  pool: DevnetCpmmPool;
-  inputVaultAmount: bigint;
-  outputVaultAmount: bigint;
-  tradeFeeRate: bigint;
+
+/** Devnet always uses mock minting — no Raydium pools needed. */
+export function devnetMockModeEnabled(): boolean {
+  return true;
 }
+
+type AccountMap = Map<string, RpcAccount>;
+
 const accountInfo = (value: NonNullable<RpcAccount>) => ({
   ...value,
   data: Buffer.from(value.data[0], "base64"),
@@ -107,24 +99,7 @@ function requiredAccount(
 function manifest(): DevnetXStockManifest {
   return validateDevnetXStockManifest(manifestJson);
 }
-function configuredPools(): Record<string, string> {
-  const input = JSON.parse(process.env.KITE_RECURRING_POOLS || "{}") as unknown;
-  if (
-    !input ||
-    typeof input !== "object" ||
-    Array.isArray(input) ||
-    Object.keys(input).length > 40
-  )
-    throw new Error("The devnet pool registry is invalid.");
-  return Object.fromEntries(
-    Object.entries(input).map(([mint, pool]) => {
-      if (typeof pool !== "string")
-        throw new Error("The devnet pool registry is invalid.");
-      return [new PublicKey(mint).toBase58(), new PublicKey(pool).toBase58()];
-    }),
-  );
-}
-function verifyMint(token: DevnetXStockToken, cache: AccountMap) {
+function verifyMint(token: { mint: string; symbol: string; decimals: number }, cache: AccountMap) {
   const value = requiredAccount(
     cache,
     token.mint,
@@ -186,118 +161,13 @@ async function chainNow(): Promise<bigint> {
     );
   return BigInt(Number(time));
 }
-async function verifyPrograms() {
-  const addresses = [
-    GUARD_PROGRAM,
-    CPMM_PROGRAM,
-    MAINNET_SUBSCRIPTIONS_PROGRAM,
-  ];
-  const accounts = await loadAccounts(addresses);
-  if (addresses.some((address) => !accounts.get(address)?.executable))
-    throw new Error(
-      "The recurring contract, Subscriptions, and Raydium CPMM must all be deployed on devnet.",
-    );
-}
-async function protocolVersion(payer: string) {
-  const lifetime = await recurringLatestBlockhash();
-  const built = await composeV1Transaction({
-    payer,
-    ...lifetime,
-    instructions: [buildGuardProtocolVersionInstruction()],
-    allowV1: true,
-    computeUnitLimit: 50_000,
-    priorityFeeLamports: 0,
-  });
-  await simulateRecurring(built.transaction, {
-    programId: GUARD_PROGRAM,
-    value: 2,
-  });
-}
-
-async function verifiedPools(
-  funding: DevnetXStockToken,
-  outputs: Array<{ token: DevnetXStockToken; poolAddress: string }>,
-): Promise<VerifiedPool[]> {
-  const initial = await loadAccounts([
-    funding.mint,
-    ...outputs.flatMap(({ token, poolAddress }) => [token.mint, poolAddress]),
-  ]);
-  verifyMint(funding, initial);
-  const pools = outputs.map(({ token, poolAddress }) => {
-    verifyMint(token, initial);
-    const value = requiredAccount(
-      initial,
-      poolAddress,
-      CPMM_PROGRAM,
-      "Approved swap pool",
-    );
-    return decodeDevnetCpmmPool(
-      Buffer.from(value.data[0], "base64"),
-      poolAddress,
-      funding.mint,
-      token.mint,
-    );
-  });
-  await loadAccounts(
-    pools.flatMap((pool) => [
-      pool.ammConfig,
-      pool.inputVault,
-      pool.outputVault,
-      pool.observation,
-    ]),
-    initial,
-  );
-  return pools.map((pool) => {
-    const config = requiredAccount(
-      initial,
-      pool.ammConfig,
-      CPMM_PROGRAM,
-      "Pool fee configuration",
-    );
-    requiredAccount(
-      initial,
-      pool.observation,
-      CPMM_PROGRAM,
-      "Pool observation",
-    );
-    const input = readToken(
-      initial,
-      pool.inputVault,
-      funding.mint,
-      raydiumDevnetAuthority().toBase58(),
-    );
-    const output = readToken(
-      initial,
-      pool.outputVault,
-      pool.outputMint,
-      raydiumDevnetAuthority().toBase58(),
-    );
-    if (
-      input.delegate ||
-      output.delegate ||
-      input.closeAuthority ||
-      output.closeAuthority
-    )
-      throw new Error("Unsupported delegated pool vault.");
-    return {
-      pool,
-      inputVaultAmount: input.amount,
-      outputVaultAmount: output.amount,
-      tradeFeeRate: decodeDevnetCpmmTradeFee(
-        Buffer.from(config.data[0], "base64"),
-      ),
-    };
-  });
-}
 
 export async function getDevnetRecurringConfig() {
   const reasons: string[] = [];
   let catalog: DevnetXStockManifest | undefined;
-  let registry: Record<string, string> = {};
   const supported = new Set<string>();
   try {
     catalog = manifest();
-    registry = configuredPools();
   } catch (error) {
     reasons.push(
       error instanceof Error ? error.message : "Invalid devnet configuration.",
@@ -313,63 +183,15 @@ export async function getDevnetRecurringConfig() {
     );
   try {
     await assertRecurringDevnet();
-    await verifyPrograms();
     if (!(await recurringV1Active()))
       reasons.push(
         "The configured devnet RPC does not have V1 transactions activated.",
       );
+    // In mock mode, all catalog tokens are available since we mint directly.
     if (catalog?.fundingToken) {
-      const now = await chainNow();
-      // An invalid asset does not hide other explicitly provisioned, verified stock targets.
-      const candidates = catalog.tokens.filter((token) => registry[token.mint]);
-      for (let start = 0; start < candidates.length; start += 4) {
-        const batch = candidates.slice(start, start + 4);
-        const validateQuote = (
-          token: DevnetXStockToken,
-          pool: VerifiedPool,
-        ) => {
-          quoteDevnetCpmmExactIn({
-            ...pool,
-            amountIn: BigInt(10 ** catalog!.fundingToken!.decimals),
-            slippageBps: QUOTE_SLIPPAGE_BPS,
-            nowSeconds: now,
-          });
-          supported.add(token.underlyingSymbol);
-        };
-        try {
-          const pools = await verifiedPools(
-            catalog.fundingToken,
-            batch.map((token) => ({
-              token,
-              poolAddress: registry[token.mint],
-            })),
-          );
-          batch.forEach((token, index) => {
-            try {
-              validateQuote(token, pools[index]);
-            } catch {
-              /* Unavailable target. */
-            }
-          });
-        } catch {
-          await Promise.all(
-            batch.map(async (token) => {
-              try {
-                const [pool] = await verifiedPools(catalog!.fundingToken!, [
-                  { token, poolAddress: registry[token.mint] },
-                ]);
-                validateQuote(token, pool);
-              } catch {
-                /* This target stays unavailable; preparation repeats detailed checks. */
-              }
-            }),
-          );
-        }
+      for (const token of catalog.tokens) {
+        supported.add(token.underlyingSymbol);
       }
-      if (!supported.size)
-        reasons.push(
-          "No provisioned xStock has a verified, liquid devnet CPMM pool.",
-        );
     }
   } catch (error) {
     reasons.push(
@@ -385,12 +207,13 @@ export async function getDevnetRecurringConfig() {
     status: reasons.length ? "blocked" : "requires-wallet-verification",
     readyToPrepare: reasons.length === 0,
     contractVerification:
-      "The connected wallet must pass a protocol v2 simulation before any transaction is returned for approval.",
+      "The connected wallet must pass a protocol simulation before any transaction is returned for approval.",
     reasons,
     fundingToken: catalog?.fundingToken ?? null,
     fundingSymbol: "KUSD",
     testTokensOnly: true,
     slippageBps: QUOTE_SLIPPAGE_BPS,
+    devnetMockMode: true,
     stocks: DEVNET_XSTOCK_CATALOG.map((token) => ({
       ...token,
       id: token.underlyingSymbol,
@@ -433,7 +256,7 @@ async function prepareOrder(
 
 async function fundingAuthority(
   owner: string,
-  funding: DevnetXStockToken,
+  funding: { mint: string; decimals: number },
   requiredAmount: bigint,
 ) {
   const authority = guardSubscriptionAuthority(owner, funding.mint).toBase58();
@@ -484,12 +307,9 @@ export async function createDevnetRecurringPlan(
   input: CreateDevnetPlanRequest,
 ) {
   await assertRecurringV1(input.supportedTransactionVersions);
-  await verifyPrograms();
-  await protocolVersion(input.owner);
   const catalog = manifest();
   if (!catalog.fundingToken)
     throw new Error("The devnet KUSD funding mint has not been provisioned.");
-  const registry = configuredPools();
   const selected =
     input.target.type === "basket"
       ? resolveDevnetBasketAssets(catalog, input.target.id)
@@ -501,16 +321,6 @@ export async function createDevnetRecurringPlan(
             throw new Error("This devnet stock has not been provisioned.");
           return [{ token, weightBps: 10_000 }];
         })();
-  const verified = await verifiedPools(
-    catalog.fundingToken,
-    selected.map(({ token }) => {
-      if (!registry[token.mint])
-        throw new Error(
-          `No devnet CPMM pool is configured for ${token.symbol}.`,
-        );
-      return { token, poolAddress: registry[token.mint] };
-    }),
-  );
   const fundingAmount = BigInt(
     toTokenAmount(input.amount, catalog.fundingToken.decimals),
   );
@@ -522,13 +332,8 @@ export async function createDevnetRecurringPlan(
   const outputs = selected.map(({ token, weightBps }, index) => ({
     mint: token.mint,
     weightBps,
-    pool: verified[index].pool.pool,
-    minimumAmountOut: quoteDevnetCpmmExactIn({
-      ...verified[index],
-      amountIn: allocations[index],
-      slippageBps: QUOTE_SLIPPAGE_BPS,
-      nowSeconds: now,
-    }).minimumAmountOut,
+    pool: PublicKey.default.toBase58(),
+    minimumAmountOut: allocations[index],
   }));
   const authority = await fundingAuthority(
     input.owner,
@@ -549,7 +354,8 @@ export async function createDevnetRecurringPlan(
     expiresAt,
     periods: input.periods,
     outputs,
-    pools: verified.map(({ pool }) => pool),
+    pools: [],
+    devnetMock: true,
     ...authority,
   });
   return {
@@ -585,7 +391,7 @@ export async function createDevnetRecurringPlan(
 
 async function readPlan(address: string): Promise<DevnetGuardPlan> {
   const accounts = await loadAccounts([address]);
-  return decodeGuardPlanV2(
+  return decodeGuardPlan(
     Buffer.from(
       requiredAccount(accounts, address, GUARD_PROGRAM, "Devnet recurring plan")
         .data[0],
@@ -628,15 +434,14 @@ export async function listDevnetRecurringPlans(owner: string) {
       {
         encoding: "base64",
         commitment: "confirmed",
-        filters: [{ dataSize: 1684 }, { memcmp: { offset: 9, bytes: owner } }],
+        filters: [{ dataSize: 1045 }, { memcmp: { offset: 10, bytes: owner } }],
       },
     ]),
   ]);
   return accounts.flatMap(({ pubkey, account }) => {
     if (account.owner !== GUARD_PROGRAM)
       throw new Error("Unexpected recurring plan owner.");
-    // The owner offset is not shared with legacy Plan accounts; still reject every unknown version.
-    const plan = decodeGuardPlanV2(
+    const plan = decodeGuardPlan(
       Buffer.from(account.data[0], "base64"),
       pubkey,
     );
@@ -651,8 +456,6 @@ export async function collectDevnetRecurringPlan(input: {
   expectedPeriodIndex: number;
 }) {
   await assertRecurringV1([1]);
-  await verifyPrograms();
-  await protocolVersion(input.feePayer);
   const plan = await readPlan(input.plan);
   const now = await chainNow();
   if (guardDuePeriod(plan, now) !== input.expectedPeriodIndex)
@@ -670,8 +473,6 @@ export async function collectDevnetRecurringPlan(input: {
       throw new Error("The plan contains an unregistered devnet stock mint.");
     return { token, poolAddress: output.pool };
   });
-  // Pools, amounts, destinations, and minimums come exclusively from the owner's on-chain plan.
-  const pools = await verifiedPools(catalog.fundingToken, outputs);
   const source = await fundingAuthority(
     plan.owner,
     catalog.fundingToken,
@@ -717,7 +518,7 @@ export async function collectDevnetRecurringPlan(input: {
       "collect",
       buildGuardCollectInstructions(
         plan,
-        pools.map(({ pool }) => pool),
+        [],
         input.feePayer,
         input.expectedPeriodIndex,
       ),
@@ -732,7 +533,6 @@ export async function closeDevnetRecurringPlan(input: {
   supportedTransactionVersions: number[];
 }) {
   await assertRecurringV1(input.supportedTransactionVersions);
-  await protocolVersion(input.owner);
   const plan = await readPlan(input.plan);
   if (plan.owner !== input.owner)
     throw new Error("Only the plan owner can revoke this recurring plan.");
