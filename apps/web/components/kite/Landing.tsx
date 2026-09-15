@@ -22,20 +22,25 @@ export function Landing() {
     .filter((a) => a.priceUsd !== null)
     .slice(0, 2);
   return (
-    <div className="landing">
-      <header className="landing-nav">
-        <div className="navigation-pill">
-          <Brand />
-          <PrimaryNavigation landing />
+    <>
+      <header className="workspace-header landing-nav-header">
+        <div className="workspace-header-inner">
+          <div className="navigation-core">
+            <Brand />
+            <div className="navigation-pill">
+              <PrimaryNavigation landing />
+            </div>
+          </div>
+          <Link href="/app" className="btn small landing-open">
+            Open Kite{" "}
+            <span>
+              <ArrowUpRight size={17} />
+            </span>
+          </Link>
         </div>
-        <Link href="/app" className="btn small landing-open">
-          Open Kite{" "}
-          <span>
-            <ArrowUpRight size={17} />
-          </span>
-        </Link>
       </header>
-      <main>
+      <div className="landing">
+        <main>
         <section className="landing-hero">
           <div>
             <span className="badge lime">
@@ -178,5 +183,6 @@ export function Landing() {
         </p>
       </footer>
     </div>
+    </>
   );
 }

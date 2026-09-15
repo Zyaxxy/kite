@@ -421,11 +421,22 @@ export function Plans() {
       />
       <MarketStatus />
       {mode === "actual" ? (
-        <>
-          <section id="new-plan">
-            <RecurringInvestingPanel />
-          </section>
-        </>
+        <div className="plan-layout">
+          <div>
+            <section id="new-plan">
+              <RecurringInvestingPanel />
+            </section>
+          </div>
+          <aside className="stack" style={{ gap: 16 }}>
+            <div className="panel trade-panel">
+              <h3>Onchain Execution</h3>
+              <p className="fineprint" style={{ margin: "10px 0" }}>
+                These Devnet plans delegate to the official Solana Subscriptions program. 
+                There is no web2 cron job—anyone can trigger the collection, and you retain full custody.
+              </p>
+            </div>
+          </aside>
+        </div>
       ) : (
         <div className="plan-layout">
           <div className="stack">

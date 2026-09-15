@@ -252,6 +252,7 @@ export function Shell({
             </div>
           </div>
           <div className="workspace-header-actions">
+            <TradingModeSwitch />
             <button
               className="header-search"
               onClick={() => setSearchOpen(true)}
@@ -266,13 +267,6 @@ export function Shell({
         </div>
       </header>
       <main className="workspace-main">
-        <div className="workspace-context">
-          <div className="breadcrumb">
-            Kite <ChevronRight size={12} />
-            <strong>{title}</strong>
-          </div>
-          <TradingModeSwitch />
-        </div>
         {children}
         <footer className="page-footer">
           <span>

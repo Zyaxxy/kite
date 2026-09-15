@@ -40,7 +40,7 @@
   border: 1px solid var(--line);
 }
 .navigation-pill .kite-brand {
-  display: none;
+  display: flex;
   gap: 7px;
 }
 .navigation-pill .kite-brand > span {
@@ -75,12 +75,12 @@
   align-items: center;
   justify-content: center;
   gap: 7px;
-  min-height: 32px;
-  padding: 5px 12px;
+  min-height: 36px;
+  padding: 6px 14px;
   border-radius: 24px;
   color: var(--muted);
   background: transparent;
-  font-size: 11px;
+  font-size: 13px;
   white-space: nowrap;
   transition:
     color 150ms,
@@ -284,19 +284,14 @@
 .landing {
   max-width: 1440px;
 }
-.landing .landing-nav {
-  padding-top: 24px;
-  padding-bottom: 24px;
-  justify-content: space-between;
-  gap: 20px;
-}
-.landing .landing-nav .primary-navigation {
+
+.landing-nav-header .primary-navigation {
   gap: 4px;
 }
-.landing .landing-nav .navigation-pill {
+.landing-nav-header .navigation-pill {
   gap: 32px;
 }
-.landing .landing-open {
+.landing-open {
   min-height: 50px;
   padding: 5px 5px 5px 20px;
   background: var(--surface);
@@ -379,7 +374,7 @@
   .header-search {
     padding: 10px;
   }
-  .landing .landing-nav .navigation-pill {
+  .landing-nav-header .navigation-pill {
     gap: 16px;
   }
 }
@@ -423,31 +418,32 @@
     width: 36px;
     height: 36px;
   }
-  .landing .landing-nav {
+  .landing-nav-header .workspace-header-inner {
     display: flex;
     flex-wrap: wrap;
-    padding: 20px 0 8px;
+    padding: 20px 20px 8px;
     position: relative;
   }
-  .landing .landing-nav .navigation-pill {
+  .landing-nav-header .navigation-core,
+  .landing-nav-header .navigation-pill {
     display: contents;
   }
-  .landing .landing-nav .primary-navigation {
-    display: flex;
+  .landing-nav-header .primary-navigation {
+    display: flex !important;
     order: 3;
     justify-content: space-between;
     width: 100%;
-    background: var(--surface);
-    border: 1px solid var(--line);
+    background: var(--surface) !important;
+    border: 1px solid var(--line) !important;
     border-radius: 30px;
-    padding: 4px;
+    padding: 4px !important;
     margin-top: 10px;
   }
-  .landing .landing-nav .primary-nav-link {
+  .landing-nav-header .primary-nav-link {
     font-size: 12px;
     padding: 10px 12px;
   }
-  .landing .landing-nav .landing-open {
+  .landing-nav-header .landing-open {
     margin-left: auto;
     min-height: 44px;
     padding-left: 16px;

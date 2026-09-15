@@ -322,15 +322,14 @@ export function RecurringInvestingPanel() {
       aria-labelledby="guard-plan-title"
     >
       <div>
-        <p className="eyebrow">Kite Guard · Devnet</p>
+        <p className="eyebrow">KITE GUARD V2 (HACKATHON)</p>
         <h2 id="guard-plan-title" className="mb-2">
-          Set your investment rhythm.
+          Recurring Plans are on Devnet.
         </h2>
-        <p className="fineprint">
-          Choose a devnet stock or basket, set your amount and pick a schedule.
-          Review the delivery minimums, then approve your{" "}
-          <strong>Kite Guard</strong> plan. KUSD and these xStock test tokens
-          have no monetary value.
+        <p className="fineprint" style={{ lineHeight: 1.6 }}>
+          To demonstrate the Kite Guard V2 smart contract for the Solana Foundation hackathon, 
+          recurring plans currently route to <strong>Devnet</strong>. This allows you to safely 
+          interact with our deployed test program and token pools without risking real funds.
         </p>
       </div>
 
@@ -351,7 +350,7 @@ export function RecurringInvestingPanel() {
             <NativeSelect
               value={selectedToken}
               onChange={(e) => setSelectedToken(e.target.value)}
-              disabled={loading || !config?.readyToPrepare}
+              disabled={loading}
             >
               {!selectedToken && (
                 <option value="">Select a devnet asset</option>
@@ -361,10 +360,9 @@ export function RecurringInvestingPanel() {
                   <option
                     key={stock.id}
                     value={`stock:${stock.id}`}
-                    disabled={!stock.available}
                   >
                     {stock.name} ({stock.symbol})
-                    {!stock.available ? " · Not provisioned" : ""}
+                    {!stock.available ? " (Devnet Test)" : ""}
                   </option>
                 ))}
               </optgroup>
@@ -373,15 +371,24 @@ export function RecurringInvestingPanel() {
                   <option
                     key={basket.id}
                     value={`basket:${basket.id}`}
-                    disabled={!basket.available}
                   >
                     {basket.name} ({basket.ticker})
-                    {!basket.available ? " · Unavailable" : ""}
                   </option>
                 ))}
               </optgroup>
             </NativeSelect>
           </label>
+          
+          {!config?.readyToPrepare && config?.reasons && config.reasons.length > 0 && (
+            <div className="notice error">
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <strong>Devnet configuration incomplete:</strong>
+                {config.reasons.map((reason, i) => (
+                  <span key={i}>• {reason}</span>
+                ))}
+              </div>
+            </div>
+          )}
 
           <label className="form-field">
             <span>KUSD per investment · Devnet</span>
@@ -445,11 +452,7 @@ export function RecurringInvestingPanel() {
           </div>
         </fieldset>
 
-        {config && !config.readyToPrepare && (
-          <p className="notice" role="status">
-            {config.reasons.join(" ")}
-          </p>
-        )}
+
         {prepared && (
           <div
             className="notice stack"
