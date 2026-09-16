@@ -14,7 +14,6 @@ import {
   LogOut,
   Search,
   Settings2,
-  ShieldCheck,
   UserRound,
   Wallet2,
   X,
@@ -24,6 +23,7 @@ import {
 } from "lucide-react";
 import { Brand } from "./Brand";
 import { TradingModeSwitch } from "./TradingModeSwitch";
+import { ThemeToggle } from "./ThemeMode";
 import { AssetName, money } from "./MarketUI";
 import { useKite } from "./State";
 import { useTradingAuth } from "../trading/TradingAuth";
@@ -78,8 +78,8 @@ export function PrimaryNavigation({ landing = false }: { landing?: boolean }) {
               <DropdownMenuLinkItem render={<Link href="/sip" />}>
                 <Repeat2 size={17} />
                 <span>
-                  Your recurring plans
-                  <small>View and manage your schedule</small>
+                  Recurring investments
+                  <small>Devnet setup and paper schedules</small>
                 </span>
                 <ArrowUpRight size={14} />
               </DropdownMenuLinkItem>
@@ -229,7 +229,7 @@ export function Shell({
   title: string;
 }) {
   const path = usePathname();
-  const { snapshot, toast, clearToast } = useKite();
+  const { toast, clearToast } = useKite();
   const [searchOpen, setSearchOpen] = useState(false);
   useEffect(() => {
     const listener = (e: KeyboardEvent) => {
@@ -252,7 +252,7 @@ export function Shell({
             </div>
           </div>
           <div className="workspace-header-actions">
-            <TradingModeSwitch />
+            {path !== "/sip" && <TradingModeSwitch />}
             <button
               className="header-search"
               onClick={() => setSearchOpen(true)}
@@ -262,29 +262,12 @@ export function Shell({
               <span>Search</span>
               <kbd>⌘ K</kbd>
             </button>
+            <ThemeToggle />
             <AccountMenu />
           </div>
         </div>
       </header>
-      <main className="workspace-main">
-        {children}
-        <footer className="page-footer">
-          <span>
-            <ShieldCheck size={12} />
-            Self-custody, by design
-          </span>
-          <span>
-            {snapshot?.status === "live"
-              ? "Live market data"
-              : snapshot?.status === "partial"
-                ? "Some feeds unavailable"
-                : "Connecting to market data"}
-          </span>
-          <Link href="/settings">
-            Data & account settings <ArrowUpRight size={10} />
-          </Link>
-        </footer>
-      </main>
+      <main className="workspace-main">{children}</main>
       <nav
         className="bottom-nav kite-bottom-nav"
         aria-label="Mobile navigation"

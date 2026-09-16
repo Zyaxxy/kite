@@ -14,6 +14,7 @@ test('paginates the issuer catalog, resolves only issuer mints and preserves una
   const flight = '1:' + JSON.stringify({products}) + '\n';
   const html = `<script nonce="example">self.__next_f.push(${JSON.stringify([1,flight])})</script>`;
   const fetcher = async input => {
+    if (String(input).includes('api.backpack.exchange')) return j([]);
     const url = String(input); requested.push(url);
     if (url.includes('xstocks.fi')) return url.includes('page=0') ? j({nodes:[{symbol:'Ax',name:'Issuer A',underlying:{symbol:'A',type:'Equity'},deployments:[{network:'Solana',address:mintA},{network:'Ethereum',address:'0xwrong'}]}],page:{hasNextPage:true}}) : j({nodes:[{symbol:'Bx',name:'Issuer B',deployments:[{network:'Solana',address:mintB}]}],page:{hasNextPage:false}});
     if (url.endsWith('/products')) return new Response(html);
@@ -47,6 +48,7 @@ test('missing basket members do not cause silent weight renormalization', () => 
 
 test('Price V3 recovers token quotes without using underlying references as trade prices', async () => {
   const fetcher = async input => {
+    if (String(input).includes('api.backpack.exchange')) return j([]);
     const url = String(input);
     if (url.includes('xstocks.fi')) return j({nodes:[
       {symbol:'Ax',name:'A',deployments:[{network:'Solana',address:mintA}]},
@@ -84,6 +86,7 @@ test('price requests respect 50-mint limit and retain Tokens V2 prices during a 
   const mints = Array.from({length:101},(_,i)=>'1'.repeat(30)+String(i+100).replaceAll('0','a'));
   const priceBatches = [];
   const fetcher = async input => {
+    if (String(input).includes('api.backpack.exchange')) return j([]);
     const url = new URL(String(input));
     if (url.hostname==='api.xstocks.fi') return j({nodes:mints.map((mint,index)=>({symbol:`T${index}x`,name:`Token ${index}`,deployments:[{network:'Solana',address:mint}]})),page:{hasNextPage:false}});
     if (url.pathname==='/products') return new Response('');
@@ -123,6 +126,7 @@ test('retries a rate-limited price batch using the provider reset window', async
   let priceCalls=0;
   const startedAt=Date.now();
   const fetcher=async input=>{
+    if (String(input).includes('api.backpack.exchange')) return j([]);
     const url=String(input);
     if(url.includes('xstocks.fi'))return j({nodes:[{symbol:'Ax',name:'A',deployments:[{network:'Solana',address:mintA}]}],page:{hasNextPage:false}});
     if(url.endsWith('/products'))return new Response('');
@@ -142,6 +146,7 @@ test('request cancellation stops quota waiting and preserves completed token quo
   const controller=new AbortController();
   let priceCalls=0;
   const fetcher=async input=>{
+    if (String(input).includes('api.backpack.exchange')) return j([]);
     const url=String(input);
     if(url.includes('xstocks.fi'))return j({nodes:[{symbol:'Ax',name:'A',deployments:[{network:'Solana',address:mintA}]}],page:{hasNextPage:false}});
     if(url.endsWith('/products'))return new Response('');

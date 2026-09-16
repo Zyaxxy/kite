@@ -10,26 +10,33 @@ import {
   View,
 } from "react-native";
 import { executePaperBasket, type MarketBasket } from "@kite/sdk";
-import {
-  Button,
-  Chip,
-  EmptyState,
-  OrbitArt,
-  FilterRow,
-} from "../components/Primitives";
+import { Button, Chip, EmptyState, FilterRow } from "../components/Primitives";
 import { AssetLogo, MarketStatus } from "../components/Market";
 import { useKite } from "../state/KiteProvider";
-import { NativeComposedPanel } from "../components/NativeComposedPanel";
-import { colors, money, ui } from "../theme";
+import { NativeBasketPanel } from "../components/NativeBasketPanel";
+import { money, useTheme } from "../theme";
 
 export function BasketsScreen({
   onPlan,
 }: {
   onPlan: (basket: MarketBasket, mode?: "Paper" | "Actual") => void;
 }) {
+  const { colors, ui } = useTheme();
   const { market, account, updateAccount, ready, loading, refresh } = useKite();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState("Paper");
+  const [category, setCategory] = useState("All themes");
+  const categories = [
+    "All themes",
+    ...new Set(
+      (market?.baskets ?? []).map((basket) => basket.category ?? "diversified"),
+    ),
+  ];
+  const baskets = (market?.baskets ?? []).filter(
+    (basket) =>
+      category === "All themes" ||
+      (basket.category ?? "diversified") === category,
+  );
   const [amount, setAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -71,18 +78,21 @@ export function BasketsScreen({
         }
       >
         <View style={ui.stack}>
-          <Text style={ui.eyebrow}>CURATED CONVICTION</Text>
-          <Text style={ui.title}>
-            Invest in an idea.{"\n"}Own its possibilities.
-          </Text>
+          <Text style={ui.eyebrow}>INVEST IN AN IDEA</Text>
+          <Text style={ui.title}>Baskets</Text>
           <Text style={ui.body}>
-            Thematic allocations across real mainnet assets. Start with paper
-            funds and see how your ideas take shape.
+            Explore a theme, review every holding, and own the underlying tokens
+            in your wallet.
           </Text>
         </View>
+        <FilterRow
+          options={categories}
+          selected={category}
+          onSelect={setCategory}
+        />
         <MarketStatus />
-        {market?.baskets.length ? (
-          market.baskets.map((basket) => (
+        {baskets.length ? (
+          baskets.map((basket) => (
             <Pressable
               key={basket.id}
               accessibilityRole="button"
@@ -102,9 +112,11 @@ export function BasketsScreen({
                   <Text style={ui.eyebrow}>{basket.ticker}</Text>
                   <Text style={ui.heading}>{basket.name}</Text>
                 </View>
-                <OrbitArt small />
+                <Text style={[ui.heading, { color: colors.accent }]}>↗</Text>
               </View>
-              <Text style={ui.body}>{basket.description}</Text>
+              <Text style={ui.body} numberOfLines={2}>
+                {basket.description}
+              </Text>
               <View style={ui.between}>
                 <View style={{ flexDirection: "row", gap: 5 }}>
                   {basket.assets.slice(0, 4).map(({ asset }) => (
@@ -160,10 +172,10 @@ export function BasketsScreen({
             />
             {selected && mode === "Actual" ? (
               <>
-                <NativeComposedPanel basket={selected} />
+                <NativeBasketPanel basket={selected} />
                 <Button
                   secondary
-                  label="Set up recurring investment"
+                  label="Explore devnet recurring"
                   onPress={() => {
                     setSelectedId(null);
                     onPlan(selected, "Actual");

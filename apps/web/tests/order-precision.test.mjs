@@ -32,6 +32,8 @@ function createRoute({
   haltedMint = null,
   unknownToken = false,
   incompleteCatalog = false,
+  backpackDiscoveryMint = null,
+  backpackMappingConflict = false,
   simulationStatus = "passed",
   supportsV1 = true,
   tradeSecret = "test-only-trade-secret-with-32-characters",
@@ -57,6 +59,17 @@ function createRoute({
           sources: incompleteCatalog
             ? []
             : ["xStocks issuer catalog", "PreStocks issuer catalog"],
+          backpackSecurities: backpackDiscoveryMint
+            ? [
+                {
+                  solanaMint: backpackMappingConflict
+                    ? null
+                    : backpackDiscoveryMint,
+                  candidateSolanaMints: [backpackDiscoveryMint],
+                  discoveryOnly: true,
+                },
+              ]
+            : undefined,
           assets: [
             {
               mint,
@@ -303,6 +316,34 @@ test("an incomplete issuer catalog cannot bypass issuer halt checks through toke
     (await route.swap(sdk.MAINNET_SOL_MINT, sdk.MAINNET_USDC_MINT)).status,
     200,
   );
+});
+
+test("discovery-only Backpack mints are rejected before token search, precision or routing", async () => {
+  for (const [input, output] of [
+    [arbitraryMint, sdk.MAINNET_USDC_MINT],
+    [sdk.MAINNET_USDC_MINT, arbitraryMint],
+  ]) {
+    const route = createRoute({ backpackDiscoveryMint: arbitraryMint });
+    const response = await route.swap(input, output);
+    assert.equal(response.status, 422);
+    assert.match((await response.json()).error, /discovery-only/);
+    assert.equal(route.calls.discovery.length, 0);
+    assert.equal(route.calls.precision.length, 0);
+    assert.equal(route.calls.quotes.length, 0);
+  }
+});
+
+test("ambiguous official Backpack mint candidates remain blocked despite having no canonical mint", async () => {
+  const route = createRoute({
+    backpackDiscoveryMint: arbitraryMint,
+    backpackMappingConflict: true,
+  });
+  assert.equal(
+    (await route.swap(arbitraryMint, sdk.MAINNET_USDC_MINT)).status,
+    422,
+  );
+  assert.equal(route.calls.discovery.length, 0);
+  assert.equal(route.calls.quotes.length, 0);
 });
 
 test("mint precision overrides stale metadata and rejects amounts beyond the actual precision", async () => {

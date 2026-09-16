@@ -1,0 +1,542 @@
+{
+  "observedAt": "2026-09-16T16:30:10.354Z",
+  "sources": [
+    {
+      "url": "https://api.backpack.exchange/api/v1/securities",
+      "observedAt": "2026-09-16T16:30:10.186Z",
+      "sha256": "506225a9d50b3f939dc103bbc2994e2a13c7902af0690ad0ab5f527650d00e6b",
+      "rows": 1165
+    },
+    {
+      "url": "https://api.backpack.exchange/api/v1/assets",
+      "observedAt": "2026-09-16T16:30:10.302Z",
+      "sha256": "669cb87ee831e6e61f2b4254b4f21ac326134a0146bb18bbcaf1c208b9f03bad",
+      "rows": 7263
+    },
+    {
+      "url": "https://api.backpack.exchange/api/v1/markets",
+      "observedAt": "2026-09-16T16:30:10.180Z",
+      "sha256": "15d922cc98a0bc3ed8c93f59dabcf7a799d64ea8f6ee32ba2a24cbb0295504dc",
+      "rows": 190
+    }
+  ],
+  "counts": {
+    "securities": 1165,
+    "solanaMappings": 1155,
+    "transferEnabledMappings": 49,
+    "spotListings": 4
+  },
+  "supportedTokens": [
+    {
+      "symbol": "AMC.US",
+      "mint": "AMC1qwR9KhiyrQBRPrxnfo4JfMeMZqEBvt5tgTytNNoc",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "AMD.US",
+      "mint": "AMD8XwJXgQ9WV45Wyj9yFLejxzf2J6VM1PJY8bJEjeES",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "BA.US",
+      "mint": "BArimz1PcKZr8PcPh3tcZ2dg4S7FJLk3cw6R5F8GsHKg",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "BABA.US",
+      "mint": "BABANGA4JE7Kkam4nTrALAwAVgsNJUuFJnnkF7S16BZp",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "BOT.US",
+      "mint": "BoTx8y9ynfdxf5ZjWtCoBVkff52qKA82ysaLU8ZM6d8T",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "BROS.US",
+      "mint": "BRVaZKg6J9iF2BEsdpsxJ9NyvN9PPxPZuoQUX2v8qqkk",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "BULL.US",
+      "mint": "BULL151gUXcFV5wXEUqu9Am2L7Qt4bTJRLRuAUjkcspC",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "COST.US",
+      "mint": "CZEB3WNZuF2Yz1z2H81RcCk8T7fsw82KB33zqamASVsg",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "DELL.US",
+      "mint": "DELL2aRKQz7DMq5DrKLtkn47ZCnbxXPZXrSGbkmd13wy",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "DJT.US",
+      "mint": "DJTu7vi8norVzdVAffgvb39VP7wjKeTsgaMBJrzfxvoF",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "DKNG.US",
+      "mint": "DKNGQFNGQmoBdXSRGKJ8tTu7uPDasw5JDcfMmWniNfow",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "DNUT.US",
+      "mint": "DNUTsCvKbKwu2RM72cUuW3TD9YpzArzACcqYQssjPLSk",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "DRAM.US",
+      "mint": "DRAMjSWR7HRfJKjRkvQWYL2bcaejaVhuxEcjf4pAY4Cw",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "FLWS.US",
+      "mint": "FLWSojG1gB5VStYR3Sb4nQFRt43UBYkqih1j2CpVLqgd",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "FLY.US",
+      "mint": "FLYRq3en8r2Z69gN3KyAnDrvnitEJNkwPYY7favinHeD",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "GPRO.US",
+      "mint": "GPRR2u6NS5yBQHWGauoJ9HXgjrTH8dDsrBfTV5zAYvDH",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "GRND.US",
+      "mint": "GRNDYDpqwpCm6jVxpbh4xT5AM4r3p391qYsKTHqgaET2",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "HIMS.US",
+      "mint": "HiMSSzzwkZkrXJ4PGVJRdtfLaANeAztjjcgk5Dxe7Lwx",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "HOOD.US",
+      "mint": "HooDYv5RewLRiMLnEVq3VJqdqxhuE6c5eYvqejMC3e9A",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "HTZ.US",
+      "mint": "HTZsLG4zqaNvWMwXSLHH3GG5KyJpKwpBRsKVdMG6hvzP",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "IBM.US",
+      "mint": "BMKdM4yUxX12moFqVk195k7coMbaybd4RUKCUdm7D1Sk",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "INTC.US",
+      "mint": "iNTCy1qTsUEZQe3DSocLz1ZXXai34Gdw8THQh5rxFaF",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "JNJ.US",
+      "mint": "JNJg1znKdF712Phe7L7z52AATAvEjEytBdN2w8Lnh1Y",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "LLY.US",
+      "mint": "LLYuwZ33keFihgwoxXsBawy31AiRFLFSva32TYq5TvD",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "LMT.US",
+      "mint": "LMT3i1BHgixFqPUgcyteJhnEz2dpy9i3cYy4pi9BoeV",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "LULU.US",
+      "mint": "LULUmT9VMttkfAJE236LXJcYJ2tTP7nunrSWR5G1BdS",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "MGM.US",
+      "mint": "MGMuubtUEirmkhfEQdmGUh4pr7HuUdMWcZXFtpPbVJD",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "MRNA.US",
+      "mint": "MRNAzXzhNcaEXJPibHEn8cd4vyekCDiivTyEwswLUCT",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "MRVL.US",
+      "mint": "MRVLSjkR2ceUBukujaD3xCyHP1H3B2SzpsNTZF546jo",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "MSTR.US",
+      "mint": "MSTRdWXMeZxdE8osAQy3fA4rvTY5rgummDSMEx6U7Nz",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "MU.US",
+      "mint": "MUxEsUKSMACyw5fZf68wxf5FLnZVhtU9CwH8uNNGay1",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "NBIS.US",
+      "mint": "NBiSF3UaVUFtRzHwAfxyHsBCAZWGEKnMpewAE4oh7BG",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "NKE.US",
+      "mint": "NKEda5nHhNGgjrE9nDdMvaEmkmJ96qqxzBVZEcKmjSg",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "PFE.US",
+      "mint": "PFER6ENqP8r8NF3CqVt4mFowxsin3V5MLidBNQFCC3x",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "PTN.US",
+      "mint": "PTNzAfFAB4LvoUQEUUGrFMyUoRLExMYjH6CcfyQfsVP",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "QUBT.US",
+      "mint": "QUBTAD8C9bMU9LvmMNgKPhrmBGbHvxpu6vfWQtThxxw",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "RBLX.US",
+      "mint": "RBLXDGRD64AtRamHMFVcjqne3Ar7NLWtFtYNtsrf1cE",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "RDDT.US",
+      "mint": "RDDTGbhHwVXfyCvQMXzzowKjf5qrYBZAnehoXW83ooh",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "RIVN.US",
+      "mint": "RcZmt84VMJv9bDhKqmw1uWDahYrUT468VwAChTnfD8p",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "SCHH.US",
+      "mint": "SCHHJ3jRdSjeFEVAaLrnYdx3Brphn92Ys7z1qkiCtPX",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "SHOP.US",
+      "mint": "SH55hfaipFAbwT42nQYhRoM5o5t61QpkmJ6p62vXB3m",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "SKHY.US",
+      "mint": "SKHYhSjuRWHgikq8eRKbtBbpABgJSkd7ytQV14i9EQ3",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "SNAP.US",
+      "mint": "SNAPcESrvnH8yUdgeMF6xm1hym9b6hW6s8YeqeHdZFz",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "SNDK.US",
+      "mint": "SNDKbwMUQvZhnLnxLduradgLHG5KrPuKwpnrkkGRhfH",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "SPCX.US",
+      "mint": "SPCXxcqXj6e5dJDVNovHN8744zkbhM2bYudU45BimGb",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "SPHR.US",
+      "mint": "SPHRp8cZaSQBTp1KMNP4V1X821SXhXWt4Q2yLdyHzju",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "TTWO.US",
+      "mint": "TTWofwAge91oFhZs7kpQdyrVRkmevgM88xijGvQFbKo",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "UPS.US",
+      "mint": "UPSqUeMHcWbkdg784XuBUEF9DtySSnW9ur5LAVdcuB9",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    },
+    {
+      "symbol": "WEN.US",
+      "mint": "WENAZ2WyPbmgvUcKfQ8hyMDfBQP9bZ65hsZ5KTFrRGZ",
+      "decimals": 6,
+      "depositEnabled": true,
+      "withdrawEnabled": true
+    }
+  ],
+  "spotListings": [
+    {
+      "symbol": "MU.US",
+      "spotMarkets": [
+        {
+          "symbol": "MU.US_USDC",
+          "state": "Open"
+        }
+      ]
+    },
+    {
+      "symbol": "SKHY.US",
+      "spotMarkets": [
+        {
+          "symbol": "SKHY.US_USDC",
+          "state": "Open"
+        }
+      ]
+    },
+    {
+      "symbol": "SNDK.US",
+      "spotMarkets": [
+        {
+          "symbol": "SNDK.US_USDC",
+          "state": "Open"
+        }
+      ]
+    },
+    {
+      "symbol": "SPCX.US",
+      "spotMarkets": [
+        {
+          "symbol": "SPCX.US_USDC",
+          "state": "Open"
+        }
+      ]
+    }
+  ],
+  "exampleDiscoveryListings": [
+    {
+      "id": "backpack:AAPL.US",
+      "issuer": "backpack",
+      "symbol": "AAPL.US",
+      "underlyingSymbol": "AAPL",
+      "name": "Apple Inc.",
+      "cusip": "037833100",
+      "sessions": [
+        {
+          "name": "US_EQUITIES_PRE_MARKET",
+          "minQuantity": "1",
+          "maxQuantity": "1000",
+          "stepSize": "1"
+        },
+        {
+          "name": "US_EQUITIES_REGULAR",
+          "minQuantity": "0.01",
+          "maxQuantity": "10000",
+          "stepSize": "0.00001"
+        },
+        {
+          "name": "US_EQUITIES_POST_MARKET",
+          "minQuantity": "1",
+          "maxQuantity": "1000",
+          "stepSize": "1"
+        },
+        {
+          "name": "US_EQUITIES_OVERNIGHT",
+          "minQuantity": "1",
+          "maxQuantity": "1000",
+          "stepSize": "1"
+        }
+      ],
+      "sourceUrl": "https://api.backpack.exchange/api/v1/securities",
+      "solanaMint": "AAPLEDt8RpzPgXyhvFzkMBofvFSQw9gpeMCoUdPdLnB8",
+      "decimals": 6,
+      "depositEnabled": false,
+      "withdrawEnabled": false,
+      "spotMarkets": [],
+      "discoveryOnly": true
+    },
+    {
+      "id": "backpack:MSFT.US",
+      "issuer": "backpack",
+      "symbol": "MSFT.US",
+      "underlyingSymbol": "MSFT",
+      "name": "Microsoft Corporation",
+      "cusip": "594918104",
+      "sessions": [
+        {
+          "name": "US_EQUITIES_PRE_MARKET",
+          "minQuantity": "1",
+          "maxQuantity": "1000",
+          "stepSize": "1"
+        },
+        {
+          "name": "US_EQUITIES_REGULAR",
+          "minQuantity": "0.01",
+          "maxQuantity": "10000",
+          "stepSize": "0.00001"
+        },
+        {
+          "name": "US_EQUITIES_POST_MARKET",
+          "minQuantity": "1",
+          "maxQuantity": "1000",
+          "stepSize": "1"
+        },
+        {
+          "name": "US_EQUITIES_OVERNIGHT",
+          "minQuantity": "1",
+          "maxQuantity": "1000",
+          "stepSize": "1"
+        }
+      ],
+      "sourceUrl": "https://api.backpack.exchange/api/v1/securities",
+      "solanaMint": "MSFThX899B1DddH5jkyMpdArWXzP85VXLYDrbGGcRJM",
+      "decimals": 6,
+      "depositEnabled": false,
+      "withdrawEnabled": false,
+      "spotMarkets": [],
+      "discoveryOnly": true
+    },
+    {
+      "id": "backpack:NVDA.US",
+      "issuer": "backpack",
+      "symbol": "NVDA.US",
+      "underlyingSymbol": "NVDA",
+      "name": "NVIDIA Corporation",
+      "cusip": "67066G104",
+      "sessions": [
+        {
+          "name": "US_EQUITIES_PRE_MARKET",
+          "minQuantity": "1",
+          "maxQuantity": "1000",
+          "stepSize": "1"
+        },
+        {
+          "name": "US_EQUITIES_REGULAR",
+          "minQuantity": "0.01",
+          "maxQuantity": "10000",
+          "stepSize": "0.00001"
+        },
+        {
+          "name": "US_EQUITIES_POST_MARKET",
+          "minQuantity": "1",
+          "maxQuantity": "1000",
+          "stepSize": "1"
+        },
+        {
+          "name": "US_EQUITIES_OVERNIGHT",
+          "minQuantity": "1",
+          "maxQuantity": "1000",
+          "stepSize": "1"
+        }
+      ],
+      "sourceUrl": "https://api.backpack.exchange/api/v1/securities",
+      "solanaMint": "NVDAVuiB7hwd3m5Wa1JuHNovPaPG6BH1QNztbKFxNjv",
+      "decimals": 6,
+      "depositEnabled": false,
+      "withdrawEnabled": false,
+      "spotMarkets": [],
+      "discoveryOnly": true
+    }
+  ],
+  "limitations": [
+    "Official mappings are discovery evidence, not RPC verification of deployed mint accounts or proof of DEX liquidity.",
+    "Only transfer-enabled mappings enter Kite token pricing; runtime mint and quote checks remain required.",
+    "No exchange orders, RFQs, wallet signatures, or transactions are submitted."
+  ]
+}

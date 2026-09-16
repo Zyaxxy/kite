@@ -16,9 +16,8 @@ import {
 } from "@kite/sdk";
 import { Button, Chip, EmptyState, FilterRow } from "../components/Primitives";
 import { useKite } from "../state/KiteProvider";
-import { NativeComposedPanel } from "../components/NativeComposedPanel";
-import { NativeInvestingPanel } from "../components/NativeInvestingPanel";
-import { colors, money, ui } from "../theme";
+import { NativeRecurringPanel } from "../components/NativeRecurringPanel";
+import { money, useTheme } from "../theme";
 
 export type PlanTarget = {
   targetId: string;
@@ -38,9 +37,11 @@ export function SipScreen({
 }: {
   initialTarget: PlanTarget | null;
 }) {
+  const { colors, ui } = useTheme();
   const { account, market, ready, updateAccount } = useKite();
-  const [mode, setMode] = useState(initialTarget?.mode ?? "Paper");
-  const [advanced, setAdvanced] = useState(false);
+  const [mode, setMode] = useState(
+    initialTarget?.mode === "Paper" ? "Paper" : "Devnet",
+  );
   const [target, setTarget] = useState<PlanTarget | null>(initialTarget);
   const [frequency, setFrequency] = useState<PaperFrequency>("weekly");
   const [amount, setAmount] = useState("");
@@ -62,7 +63,7 @@ export function SipScreen({
       targetType: "asset" as const,
       name: asset.name,
       available: asset.priceUsd !== null && !asset.tradingHalted,
-      subtitle: `${asset.symbol} · ${asset.issuer === "prestocks" ? "PreStocks" : "xStocks"}`,
+      subtitle: `${asset.symbol} · ${asset.issuer === "prestocks" ? "PreStocks" : asset.issuer === "backpack" ? "Backpack" : "xStocks"}`,
     })),
   ];
   const availableTarget = target
@@ -107,46 +108,26 @@ export function SipScreen({
         automaticallyAdjustKeyboardInsets
       >
         <View style={ui.stack}>
-          <Text style={ui.eyebrow}>SMALL STEPS. LONGER HORIZONS.</Text>
-          <Text style={ui.title}>Find your rhythm.</Text>
+          <Text style={ui.eyebrow}>INVEST ON YOUR SCHEDULE</Text>
+          <Text style={ui.title}>Recurring</Text>
           <Text style={ui.body}>
             {mode === "Paper"
               ? "Put a recurring paper investment behind the ideas you believe in."
-              : "Choose a basket or a stock and invest on your own schedule."}
+              : "Test a recurring stock or basket investment on Solana devnet."}
           </Text>
         </View>
         <FilterRow
-          options={["Paper", "Actual"]}
+          options={["Devnet", "Paper"]}
           selected={mode}
-          onSelect={(value) => setMode(value === "Actual" ? "Actual" : "Paper")}
+          onSelect={(value) => setMode(value === "Devnet" ? "Devnet" : "Paper")}
         />
-        {mode === "Actual" ? (
-          <>
-            <NativeInvestingPanel initialTarget={initialTarget} />
-            <Button
-              secondary
-              label={
-                advanced
-                  ? "Close direct payment permissions"
-                  : "Advanced: direct token payment permissions"
-              }
-              onPress={() => setAdvanced((value) => !value)}
-            />
-            {advanced ? (
-              <>
-                <Text style={ui.small}>
-                  Direct payment permissions authorize your chosen buyer to
-                  collect tokens. They do not create an investment plan.
-                </Text>
-                <NativeComposedPanel />
-              </>
-            ) : null}
-          </>
+        {mode === "Devnet" ? (
+          <NativeRecurringPanel initialTarget={initialTarget} />
         ) : (
           <>
             <View style={ui.card}>
               <Chip label="Paper plans" selected />
-              <Text style={ui.heading}>Consistency starts here.</Text>
+              <Text style={ui.heading}>Practice a recurring investment</Text>
               <Text style={ui.body}>
                 Plans use virtual funds and live mainnet prices. Due
                 installments run when the app is open. Missed cycles are never
@@ -169,14 +150,14 @@ export function SipScreen({
             ) : null}
             {showForm ? (
               <View style={ui.card}>
-                <Text style={ui.heading}>Build your plan.</Text>
+                <Text style={ui.heading}>Plan details</Text>
                 <Text style={ui.label}>Your investment</Text>
                 <Button
                   secondary
                   label={target?.name ?? "Choose an asset or basket"}
                   onPress={() => setPicker(true)}
                 />
-                <Text style={ui.label}>Your rhythm</Text>
+                <Text style={ui.label}>Schedule</Text>
                 <FilterRow
                   options={FREQUENCIES.map((item) => item.label)}
                   selected={
@@ -282,7 +263,7 @@ export function SipScreen({
               ))
             ) : (
               <EmptyState
-                title="A little, at your own pace."
+                title="No paper plans yet"
                 description="Choose an asset or a basket, an amount and a cadence. Your recurring paper investments will live here."
               />
             )}

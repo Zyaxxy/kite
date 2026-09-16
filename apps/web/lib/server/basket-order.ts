@@ -196,6 +196,19 @@ async function prepareAllocationOrder(
     );
   await assertMainnetV1Ready(input.supportedTransactionVersions);
   const market = await getServerMarketCatalog();
+  if (
+    market.backpackSecurities?.some(
+      (security) =>
+        security.discoveryOnly &&
+        (security.candidateSolanaMints ?? [security.solanaMint]).some(
+          (mint) =>
+            mint !== null && (mint === inputMint || mint === outputToken?.mint),
+        ),
+    )
+  )
+    throw new Error(
+      "This Backpack security is discovery-only until Solana transfers can be verified.",
+    );
   const basket = outputToken
     ? {
         id: outputToken.mint,

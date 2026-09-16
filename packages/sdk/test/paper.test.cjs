@@ -56,3 +56,20 @@ test('persisted state rejects corruption and migrates a valid version-one accoun
   assert.equal(parsePaperAccount({...account,orders:[{}]}),null);
   const {plans, ...legacy} = account; assert.deepEqual(parsePaperAccount(legacy).plans,[]);
 });
+
+test('an existing paper basket plan retains all seven original members after mainnet publication is narrowed', () => {
+  const { resolveReviewedMarketBaskets } = require('../dist/markets.js');
+  const symbols = ['AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'META', 'TSLA'];
+  const assets = symbols.map(symbol => asset({ mint: symbol, symbol: `${symbol}x`, underlyingSymbol: symbol, issuer: 'xstocks' }));
+  const account = createPaperPlan(createPaperAccount(1000), { targetId: 'sol-mag7', targetType: 'basket', name: 'The Magnificent Seven', amountUsd: 100, frequency: 'daily' }, '2026-09-01T12:00:00Z');
+  const snapshot = { assets, baskets: resolveReviewedMarketBaskets(assets) };
+  const result = runDuePaperPlans(account, snapshot, now);
+  assert.equal(result.plans[0].lastError, null);
+  assert.equal(result.orders.length, 7);
+  assert.deepEqual(result.positions.map(position => position.mint).sort(), [...symbols].sort());
+  assert.ok(Math.abs(result.cashUsd - 900) < 1e-8);
+  assets[6].priceUsd = null;
+  const blocked = runDuePaperPlans(account, snapshot, now);
+  assert.equal(blocked.orders.length, 0, 'missing historical leg still fails the complete paper installment');
+  assert.equal(blocked.cashUsd, 1000);
+});

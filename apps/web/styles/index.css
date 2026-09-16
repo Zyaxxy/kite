@@ -1,0 +1,18 @@
+/* Ordered once here. Component-local styles remain CSS modules. */
+@import "./wallet-adapter.css";
+@import "./fonts.css";
+@import "./foundation.css";
+@import "./workspace-base.css";
+@import "./market-base.css";
+@import "./account-forms.css";
+@import "./overlays.css";
+@import "./landing-base.css";
+@import "./wallet-overrides.css";
+@import "./responsive.css";
+@import "./trading.css";
+@import "./research.css";
+@import "./privacy.css";
+@import "./recurring.css";
+@import "./navigation.css";
+@import "./discovery.css";
+@import "./theme-surfaces.css";

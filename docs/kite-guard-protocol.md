@@ -1,5 +1,7 @@
 # Kite Guard Protocol: Devnet Recurring Stocks and Baskets
 
+> Status — 16 September 2026: this document describes the intended mock-mint flow. The current implementation has creation and execution blockers; see [the source and devnet audit](devnet-contract-audit.md) before testing or deployment. Correct mint authorities do not establish successful execution.
+
 The **Kite Guard** program (`8Fm9HENPAFnyo6L8cHJFx62HHsZ6ez6CPUDuzgKAzrjs`) is an on-chain execution guard for trustless recurring investments (SIP / DCA) on Solana. It enables non-custodial scheduled purchases of tokenized equity baskets and individual stocks directly into the user's wallet without holding user funds in any Kite vault.
 
 ---

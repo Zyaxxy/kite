@@ -1,7 +1,7 @@
 import {
   getMainnetCatalog,
   getMainnetMarkets,
-  resolveMarketBaskets,
+  resolveReviewedMarketBaskets,
   type MarketSnapshot,
 } from "@kite/sdk";
 
@@ -55,7 +55,7 @@ function retainReferences(value: MarketSnapshot): MarketSnapshot {
       underlyingMarketCapUsd: old.underlyingMarketCapUsd,
     };
   });
-  return { ...value, assets, baskets: resolveMarketBaskets(assets) };
+  return { ...value, assets, baskets: resolveReviewedMarketBaskets(assets) };
 }
 
 function refresh(initial?: MarketSnapshot): Promise<MarketSnapshot> {

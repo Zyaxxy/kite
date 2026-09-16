@@ -85,6 +85,22 @@ export async function POST(request: NextRequest) {
     await assertMainnetV1Ready(supportedTransactionVersions);
     const markets = await getServerMarketCatalog();
     const mints = [inputMint, outputMint];
+    if (
+      markets.backpackSecurities?.some(
+        (security) =>
+          security.discoveryOnly &&
+          (security.candidateSolanaMints ?? [security.solanaMint]).some(
+            (mint) => mint !== null && mints.includes(mint),
+          ),
+      )
+    )
+      return NextResponse.json(
+        {
+          error:
+            "This Backpack security is discovery-only. Its Solana transfers are not verified as available.",
+        },
+        { status: 422 },
+      );
     const issuerAssets = mints.map((address) =>
       markets.assets.find((asset) => asset.mint === address),
     );

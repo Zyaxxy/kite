@@ -18,7 +18,7 @@
 .workspace-header-inner {
   max-width: 1440px;
   margin: 0 auto;
-  padding: 14px 32px;
+  padding: 12px 28px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -34,13 +34,13 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 9px;
+  padding: 5px 10px;
   border-radius: 40px;
   background: var(--surface);
   border: 1px solid var(--line);
 }
 .navigation-pill .kite-brand {
-  display: flex;
+  display: inline-flex;
   gap: 7px;
 }
 .navigation-pill .kite-brand > span {
@@ -55,32 +55,37 @@
   align-items: center;
   gap: 6px;
   margin-right: 2px;
+  font-family: var(--font-nav);
 }
 .navigation-core .kite-brand > span {
-  font-size: 23px;
+  font-size: 22px;
   letter-spacing: -0.06em;
   line-height: 1;
+  font-weight: 700;
 }
 .navigation-core .kite-brand > svg {
-  width: 20px;
-  height: 24px;
+  width: 18px;
+  height: 21px;
 }
 .primary-navigation {
   display: flex;
   align-items: center;
   gap: 2px;
+  font-family: var(--font-nav);
 }
 .primary-nav-link {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 7px;
-  min-height: 36px;
-  padding: 6px 14px;
+  min-height: 30px;
+  padding: 4px 10px;
   border-radius: 24px;
   color: var(--muted);
   background: transparent;
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
   white-space: nowrap;
   transition:
     color 150ms,
@@ -100,14 +105,49 @@
   align-items: center;
   gap: 20px;
 }
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--surface);
+}
+.theme-option {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 30px;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  transition:
+    background-color 160ms cubic-bezier(0.23, 1, 0.32, 1),
+    color 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.theme-option:hover {
+  color: var(--ink);
+}
+.theme-option[data-pressed] {
+  color: var(--accent);
+  background: var(--raised);
+}
+.landing-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
 .header-search {
   display: flex;
   gap: 10px;
   align-items: center;
-  min-height: 34px;
+  min-height: 32px;
+  font-family: var(--font-nav);
   background: transparent;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
 }
 .header-search:hover {
   color: var(--ink);
@@ -123,10 +163,11 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  font-family: var(--font-nav);
   background: transparent;
   border-radius: 28px;
-  min-height: 40px;
-  padding: 4px 8px;
+  min-height: 36px;
+  padding: 3px 8px;
 }
 .account-trigger:hover {
   background: var(--surface);
@@ -182,7 +223,7 @@
   border: 1px solid var(--line);
   border-radius: 20px;
   padding: 8px;
-  box-shadow: 0 20px 64px #0006;
+  box-shadow: var(--shadow-float);
   transform-origin: var(--transform-origin);
   transition:
     opacity 160ms,
@@ -310,37 +351,9 @@
   background: var(--accent);
   color: var(--accent-ink);
 }
-.landing .landing-hero {
-  gap: 56px;
-  padding-top: 76px;
-}
-.landing .landing-hero h1 {
-  font-size: clamp(48px, 5.4vw, 78px);
-  line-height: 1.06;
-}
-.landing .landing-hero p {
-  font-size: 16px;
-  line-height: 1.75;
-}
-.landing .landing-actions {
-  align-items: center;
-  gap: 24px;
-}
-.landing .landing-actions .btn {
-  border-radius: 28px;
-  min-height: 48px;
-  padding: 12px 22px;
-  font-size: 13px;
-}
-.landing .landing-hero small {
-  font-size: 12px;
-}
-.landing .landing-footer {
-  align-items: flex-start;
-}
 @media (max-width: 1200px) {
   .workspace-header-inner {
-    padding: 12px 20px;
+    padding: 10px 16px;
     gap: 12px;
   }
   .navigation-core {
@@ -380,7 +393,7 @@
 }
 @media (max-width: 760px) {
   .kite-workspace .workspace-main {
-    padding: 20px 20px 96px;
+    padding: 20px 20px 0;
   }
   .workspace-header-inner {
     padding: 10px 14px;
@@ -452,23 +465,6 @@
     width: 32px;
     height: 32px;
   }
-  .landing .landing-hero {
-    padding-top: 44px;
-    gap: 32px;
-  }
-  .landing .landing-hero p {
-    font-size: 14px;
-  }
-  .landing .landing-actions {
-    gap: 18px;
-    flex-wrap: wrap;
-  }
-  .landing .landing-actions .text-link {
-    font-size: 12px;
-  }
-  .landing .landing-art {
-    min-height: 340px;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   .kite-menu,
@@ -479,5 +475,77 @@
 
 /* Keep the compact mode control separate from the breadcrumb on phones. */
 @media (max-width: 760px) {
-  .workspace-context .header-mode-caption { display: none; }
+  .workspace-context .header-mode-caption {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .theme-option {
+    width: 30px;
+    height: 32px;
+  }
+  .landing-nav-actions {
+    gap: 10px;
+    margin-left: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .theme-option {
+    transition: none;
+  }
+}
+
+/* Phone controls fit one row; the account mode gets its own labeled row. */
+@media (max-width: 760px) {
+  .kite-workspace .workspace-header-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 40px 80px 44px;
+    gap: 8px;
+  }
+  .kite-workspace .workspace-header-actions {
+    display: contents;
+  }
+  .kite-workspace .navigation-core {
+    grid-column: 1;
+    grid-row: 1;
+    gap: 0;
+  }
+  .kite-workspace .header-search {
+    grid-column: 2;
+    grid-row: 1;
+    min-height: 40px;
+    justify-content: center;
+  }
+  .kite-workspace .theme-toggle {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .kite-workspace .theme-option {
+    width: 35px;
+    height: 36px;
+  }
+  .kite-workspace .account-trigger {
+    grid-column: 4;
+    grid-row: 1;
+    min-height: 40px;
+    padding: 0;
+    justify-content: center;
+  }
+  .kite-workspace .account-trigger > svg {
+    display: none;
+  }
+  .kite-workspace .header-mode {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: space-between;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
+  }
+  .kite-workspace .header-mode-caption {
+    display: block;
+  }
+  .kite-workspace .workspace-main {
+    padding-bottom: 90px;
+  }
 }

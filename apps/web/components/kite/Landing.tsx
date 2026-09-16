@@ -3,24 +3,29 @@ import Link from "next/link";
 import {
   ArrowRight,
   ArrowUpRight,
-  Globe2,
+  BookOpen,
+  CalendarDays,
+  Check,
   Layers3,
-  Repeat2,
   ShieldCheck,
+  Wallet2,
 } from "lucide-react";
-import { Brand, OrbitArt } from "./Brand";
+import { Brand } from "./Brand";
 import { useKite } from "./State";
 import { useBaskets } from "./useBaskets";
-import { WatchRow } from "./MarketUI";
-import { BasketMarquee } from "./BasketMarquee";
+import { AssetAvatar, Change, money } from "./MarketUI";
 import { PrimaryNavigation } from "./Shell";
+import { ThemeToggle } from "./ThemeMode";
+import styles from "./Landing.module.css";
 
 export function Landing() {
   const { snapshot, loading } = useKite();
   const baskets = useBaskets();
   const assets = (snapshot?.assets ?? [])
-    .filter((a) => a.priceUsd !== null)
-    .slice(0, 2);
+    .filter((asset) => asset.priceUsd != null && !asset.tradingHalted)
+    .slice(0, 4);
+  const featured = assets[0];
+  const basket = baskets.find((item) => item.assets.length >= 3) ?? baskets[0];
   return (
     <>
       <header className="workspace-header landing-nav-header">
@@ -31,158 +36,308 @@ export function Landing() {
               <PrimaryNavigation landing />
             </div>
           </div>
-          <Link href="/app" className="btn small landing-open">
-            Open Kite{" "}
-            <span>
-              <ArrowUpRight size={17} />
-            </span>
-          </Link>
+          <div className="landing-nav-actions">
+            <ThemeToggle />
+            <Link href="/app" className="btn small landing-open">
+              Open Kite <ArrowUpRight size={17} />
+            </Link>
+          </div>
         </div>
       </header>
-      <div className="landing">
-        <main>
-        <section className="landing-hero">
-          <div>
-            <span className="badge lime">
-              <span className="status-dot" /> YOUR WORLD, ONCHAIN
-            </span>
+      <main className={styles.page}>
+        <section className={styles.hero}>
+          <div className={styles.heroCopy}>
+            <p className={styles.kicker}>
+              <span /> YOUR WORLD, ONCHAIN
+            </p>
             <h1>
               Your ideas.
               <br />
               Your next move.
               <br />
-              <span>Your Kite.</span>
+              <em>Your Kite.</em>
             </h1>
             <p>
-              A clearer view of the markets. Discover companies, explore what
-              moves them, and bring your investments together on Solana.
+              A clearer view of the companies you believe in. Discover tokenized
+              stocks, explore ideas, and bring your investments together on
+              Solana.
             </p>
-            <div className="landing-actions">
+            <div className={styles.actions}>
               <Link href="/app" className="btn">
-                Start with Kite <ArrowUpRight size={16} />
+                Explore the markets <ArrowUpRight size={16} />
               </Link>
-              <Link href="/app#all-assets" className="text-link">
-                Explore the markets <ArrowRight size={15} />
+              <Link href="/baskets" className="text-link">
+                Find your theme <ArrowRight size={15} />
               </Link>
             </div>
-            <small>One place for the companies and ideas you believe in.</small>
+            <div className={styles.heroNote}>
+              <ShieldCheck size={16} /> Your assets stay in your wallet.
+            </div>
           </div>
-          <div className="landing-art">
-            <div className="landing-art-label">
-              <span className="eyebrow">THE WORLD IS OPEN</span>
+          <div
+            className={styles.product}
+            aria-label="Preview of current Kite market data"
+          >
+            <div className={styles.productTop}>
+              <Brand />
+              <span>
+                <span className="status-dot" /> MARKET SNAPSHOT
+              </span>
             </div>
-            <OrbitArt />
-            <div className="landing-live-list">
-              {assets.length ? (
-                assets.map((a) => <WatchRow key={a.mint} asset={a} />)
-              ) : (
-                <div style={{ padding: "21px 0" }}>
-                  <p className="eyebrow">LIVE MARKET CONNECTION</p>
-                  <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-                    {loading
-                      ? "Discovering issuer-listed mainnet assets…"
-                      : "Market prices are temporarily unavailable."}
-                  </p>
-                  <Link
-                    href="/app#all-assets"
-                    className="text-link"
-                    style={{ marginTop: 12 }}
-                  >
-                    Explore the catalog <ArrowRight size={13} />
-                  </Link>
+            <div className={styles.productHeading}>
+              <div>
+                <small>YOUR NEXT IDEA</small>
+                <h2>A world to explore.</h2>
+              </div>
+              <BookOpen size={22} />
+            </div>
+            {featured ? (
+              <Link
+                href={`/stock/${featured.mint}`}
+                className={styles.featured}
+              >
+                <div className={styles.featuredName}>
+                  <AssetAvatar asset={featured} />
+                  <div>
+                    <strong>{featured.name.replace(/ xStock$/i, "")}</strong>
+                    <small>{featured.symbol} · Token price</small>
+                  </div>
+                  <ArrowUpRight size={18} />
                 </div>
-              )}
+                <div className={styles.featuredPrice}>
+                  <strong>{money(featured.priceUsd)}</strong>
+                  <span>
+                    <Change value={featured.change24hPct} /> <small>24h</small>
+                  </span>
+                </div>
+                <div className={styles.priceCaption}>
+                  Latest available market price <ArrowRight size={15} />
+                </div>
+              </Link>
+            ) : (
+              <div className={styles.unavailable} role="status">
+                <BookOpen size={28} />
+                <strong>
+                  {loading
+                    ? "Connecting to the markets…"
+                    : "Your research starts here."}
+                </strong>
+                <p>
+                  {loading
+                    ? "Loading issuer-listed companies and observed prices."
+                    : "Live prices are temporarily unavailable. Explore the issuer catalog in Kite."}
+                </p>
+              </div>
+            )}
+            <div className={styles.marketList}>
+              {assets.slice(1).map((asset) => (
+                <Link key={asset.mint} href={`/stock/${asset.mint}`}>
+                  <AssetAvatar asset={asset} small />
+                  <div>
+                    <strong>{asset.name.replace(/ xStock$/i, "")}</strong>
+                    <small>{asset.symbol}</small>
+                  </div>
+                  <span>
+                    {money(asset.priceUsd)}
+                    <small>
+                      <Change value={asset.change24hPct} />
+                    </small>
+                  </span>
+                </Link>
+              ))}
+            </div>
+            <div className={styles.productBottom}>
+              <ShieldCheck size={14} /> Issuer-listed assets. Observed prices.
             </div>
           </div>
         </section>
-        <div className="landing-strip">
+        <div className={styles.strip}>
           <span>
-            <ShieldCheck />
-            Your assets. Your wallet.
+            <Wallet2 /> Self-custody on Solana
           </span>
           <span>
-            <Layers3 />
-            Curated thematic baskets
+            <BookOpen /> Research before you invest
           </span>
           <span>
-            <Globe2 />
-            Tokenized equities
-          </span>
-          <span>
-            <Repeat2 />
-            Build an investing habit
+            <Layers3 /> Ideas, brought together
           </span>
         </div>
-        <section
-          className="landing-section landing-baskets"
-          aria-labelledby="featured-baskets-heading"
-        >
-          <div className="section-head">
-            <div>
-              <p className="eyebrow" style={{ marginBottom: 13 }}>
-                INVEST IN A POINT OF VIEW
-              </p>
-              <h2 id="featured-baskets-heading">Themes worth exploring.</h2>
-              <p className="landing-section-intro">
-                Find your perspective. Explore the full collection.
-              </p>
-            </div>
-            <Link className="text-link" href="/baskets">
-              All baskets <ArrowUpRight size={15} />
+        <section className={styles.research}>
+          <div>
+            <p className={styles.kicker}>01 / GET THE FULL PICTURE</p>
+            <h2>
+              Go beyond
+              <br />
+              the ticker.
+            </h2>
+            <p>
+              Get to know the company behind your next idea. Bring price
+              history, fundamentals, headlines, and corporate events into one
+              view.
+            </p>
+            <Link href="/app" className="text-link">
+              Find a company <ArrowRight size={16} />
             </Link>
           </div>
-          <BasketMarquee baskets={baskets} />
-        </section>
-        <section className="landing-section" style={{ paddingTop: 15 }}>
-          <p className="eyebrow" style={{ marginBottom: 14 }}>
-            YOUR NEXT CHAPTER STARTS HERE
-          </p>
-          <h2>From a spark to a stake.</h2>
-          <div className="how-grid">
-            <div className="how-item">
-              <span>01 / DISCOVER</span>
-              <h3>Follow your curiosity.</h3>
-              <p>
-                Explore issuer-listed xStocks and PreStocks. Look inside each
-                basket and get to know what you’re investing in.
-              </p>
-            </div>
-            <div className="how-item">
-              <span>02 / UNDERSTAND</span>
-              <h3>See the bigger picture.</h3>
-              <p>
-                Put prices in context. Read company news, compare assets, and
-                understand the ideas behind your next move.
-              </p>
-            </div>
-            <div className="how-item">
-              <span>03 / OWN</span>
-              <h3>Make it yours.</h3>
-              <p>
-                Bring your investments together in one portfolio. Choose your
-                pace, set a recurring plan, and keep control of your wallet.
-              </p>
-            </div>
+          <div className={styles.researchTools}>
+            {[
+              {
+                icon: BookOpen,
+                title: "Understand the business",
+                text: "Company profiles, revenue, earnings, and financial history.",
+              },
+              {
+                icon: CalendarDays,
+                title: "Follow what matters",
+                text: "Company news, dividends, splits, and upcoming events.",
+              },
+              {
+                icon: Layers3,
+                title: "See more of the market",
+                text: "Explore xStocks, PreStocks, and Backpack’s securities catalog.",
+              },
+            ].map(({ icon: Icon, title, text }) => (
+              <div key={title}>
+                <span>
+                  <Icon size={22} />
+                </span>
+                <div>
+                  <h3>{title}</h3>
+                  <p>{text}</p>
+                </div>
+                <ArrowUpRight size={16} />
+              </div>
+            ))}
           </div>
         </section>
-        <section className="landing-cta">
+        <section className={styles.themes}>
+          <div className={styles.allocation}>
+            <div className={styles.allocationTitle}>
+              <span className="eyebrow">INSIDE A KITE BASKET</span>
+              <Layers3 size={20} />
+            </div>
+            <h3>{basket?.name ?? "An idea, shared across companies."}</h3>
+            <p>Individual assets. One clear allocation.</p>
+            {basket?.assets.length ? (
+              <>
+                <div className={styles.allocationBar} aria-hidden="true">
+                  {basket.source.assets.map((item, index) => (
+                    <span
+                      key={item.asset.mint}
+                      style={{
+                        flex: item.weight,
+                        opacity: 1 - (index % 5) * 0.13,
+                      }}
+                    />
+                  ))}
+                </div>
+                <div className={styles.allocationRows}>
+                  {basket.source.assets.slice(0, 5).map((item) => (
+                    <div key={item.asset.mint}>
+                      <AssetAvatar asset={item.asset} small />
+                      <span>{item.asset.symbol}</span>
+                      <strong>
+                        {(item.weight / 100).toLocaleString(undefined, {
+                          maximumFractionDigits: 2,
+                        })}
+                        %
+                      </strong>
+                    </div>
+                  ))}
+                  {basket.assets.length > 5 && (
+                    <small>
+                      + {basket.assets.length - 5} more assets in the full
+                      allocation
+                    </small>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className={styles.allocationEmpty}>
+                <Layers3 size={32} />
+                <p>
+                  Explore each theme to see its constituent companies and
+                  weights.
+                </p>
+              </div>
+            )}
+            <div className={styles.allocationFoot}>
+              <Check size={15} /> Delivered as individual tokens to your wallet
+            </div>
+          </div>
+          <div className={styles.themeCopy}>
+            <p className={styles.kicker}>02 / INVEST IN A POINT OF VIEW</p>
+            <h2>
+              Big ideas.
+              <br />
+              Thoughtful baskets.
+            </h2>
+            <p>
+              From the next wave of technology to everyday essentials. Look
+              inside a theme, understand its companies, and review the complete
+              allocation before investing.
+            </p>
+            <Link href="/baskets" className="btn">
+              Explore the collection <ArrowUpRight size={16} />
+            </Link>
+            <small>
+              Availability depends on each asset and the complete trading route.
+            </small>
+          </div>
+        </section>
+        <section className={styles.ownership}>
           <div>
-            <h2>Your next idea is waiting.</h2>
-            <p>Follow the markets, find your perspective, and make it yours.</p>
+            <p className={styles.kicker}>03 / KEEP IT YOURS</p>
+            <h2>
+              A clearer portfolio.
+              <br />A wallet you control.
+            </h2>
+            <p>
+              Bring your holdings and activity together. Review every trade in
+              your own wallet and see where each investment takes you.
+            </p>
+            <Link href="/portfolio" className="text-link">
+              Your portfolio on Kite <ArrowRight size={16} />
+            </Link>
           </div>
+          <div
+            className={styles.walletDiagram}
+            aria-label="Investments are delivered directly to your own wallet"
+          >
+            <div>
+              <Layers3 size={24} />
+              <span>Your selected assets</span>
+            </div>
+            <span className={styles.walletArrow}>
+              <ArrowRight size={28} />
+            </span>
+            <div>
+              <Wallet2 size={28} />
+              <span>Your Solana wallet</span>
+              <small>You hold the keys</small>
+            </div>
+          </div>
+        </section>
+        <section className={styles.cta}>
+          <span className={styles.kicker}>FOLLOW YOUR CURIOSITY</span>
+          <h2>Your next idea is waiting.</h2>
+          <p>Find the companies and themes that mean something to you.</p>
           <Link href="/app" className="btn">
-            Open Kite <ArrowUpRight size={16} />
+            Start exploring <ArrowUpRight size={17} />
           </Link>
         </section>
+        <footer className={styles.footer}>
+          <Brand />
+          <p>
+            Kite is a self-custody interface for tokenized assets.
+            <br />
+            Issuer eligibility and trading restrictions apply.
+          </p>
+          <Link href="/privacy">
+            Data &amp; privacy <ArrowUpRight size={13} />
+          </Link>
+        </footer>
       </main>
-      <footer className="landing-footer">
-        <Brand />
-        <p>
-          Kite is a self-custody interface for tokenized assets. Issuer
-          eligibility and trading restrictions apply.
-        </p>
-      </footer>
-    </div>
     </>
   );
 }

@@ -177,13 +177,19 @@ export function classifyTradeExecution(value: unknown): MainnetTradeResult {
 
 /** Missing issuer catalogs must not turn existing holdings into an apparent zero balance. */
 export function hasCompleteIssuerCatalogs(
-  snapshot: Pick<MarketSnapshot, "sources" | "status">,
+  snapshot: Pick<MarketSnapshot, "sources" | "status" | "backpackSecurities">,
 ): boolean {
   return (
     snapshot.status !== "unavailable" &&
     ["xStocks issuer catalog", "PreStocks issuer catalog"].every((source) =>
       snapshot.sources.includes(source),
-    )
+    ) &&
+    // Older persisted snapshots did not include Backpack. New server snapshots
+    // must not silently downgrade its known securities into arbitrary tokens.
+    (snapshot.backpackSecurities === undefined ||
+      ["Backpack securities catalog", "Backpack Solana mappings"].every(
+        (source) => snapshot.sources.includes(source),
+      ))
   );
 }
 export interface MainnetHolding {

@@ -35,6 +35,26 @@ export async function GET(request: NextRequest) {
       if (matches(token) || results.has(token.mint))
         results.set(token.mint, token);
     }
+    // An index result cannot override a known discovery-only Backpack listing.
+    for (const security of markets.value.backpackSecurities ?? []) {
+      if (!security.discoveryOnly) continue;
+      for (const mint of security.candidateSolanaMints ?? [
+        security.solanaMint,
+      ]) {
+        if (!mint) continue;
+        const indexed = results.get(mint);
+        if (indexed)
+          results.set(mint, {
+            ...indexed,
+            symbol: security.symbol,
+            name: security.name,
+            decimals: security.decimals,
+            source: "issuer",
+            priceUsd: null,
+            tradingHalted: true,
+          });
+      }
+    }
   }
   const tokens = [...results.values()].sort((a, b) => {
     const rank = (token: SwapToken) =>

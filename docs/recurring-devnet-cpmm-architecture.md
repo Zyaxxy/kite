@@ -1,5 +1,7 @@
 # Recurring investing on devnet (CPMM + contract execution)
 
+> Historical design: main was changed to a devnet subscription + mock-mint demonstration in `1048632`. This CPMM document is retained as design history, not current setup instructions. See [the current protocol](kite-guard-protocol.md) and [execution blockers](devnet-contract-audit.md).
+
 This document captures the currently implemented devnet recurring model that uses a dedicated contract execution path for plan-driven basket and stock investments.
 
 ## What is implemented

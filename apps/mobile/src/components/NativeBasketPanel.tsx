@@ -1,38 +1,25 @@
 import React, { useEffect, useRef, useState } from "react";
-import {
-  Linking,
-  Pressable,
-  Text,
-  TextInput,
-  View,
-  Switch,
-} from "react-native";
+import { Linking, Pressable, Text, TextInput, View } from "react-native";
 import {
   fromTokenAmount,
-  MAINNET_SOL_MINT,
   maxSwapAmount,
   type MarketBasket,
   type MainnetHolding,
-  type RecurringPayment,
   type WalletTransactionOrder,
 } from "@kite/sdk";
-import { Button, FilterRow } from "./Primitives";
+import { Button } from "./Primitives";
 import { useMobileTrading } from "../state/MobileTradingProvider";
 import { kiteClient, WEB_URL } from "../lib/config";
-import { colors, ui } from "../theme";
+import { useTheme } from "../theme";
 
-export function NativeComposedPanel({ basket }: { basket?: MarketBasket }) {
+export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
+  const { colors, ui } = useTheme();
   const wallet = useMobileTrading(),
     version = useRef(0);
   const [holdings, setHoldings] = useState<MainnetHolding[]>([]),
     [mint, setMint] = useState(""),
-    [amount, setAmount] = useState(""),
-    [buyer, setBuyer] = useState(""),
-    [period, setPeriod] = useState("Weekly"),
-    [periods, setPeriods] = useState("4"),
-    [consent, setConsent] = useState(false);
-  const [payments, setPayments] = useState<RecurringPayment[]>([]),
-    [order, setOrder] = useState<WalletTransactionOrder | null>(null),
+    [amount, setAmount] = useState("");
+  const [order, setOrder] = useState<WalletTransactionOrder | null>(null),
     [summary, setSummary] = useState<string[]>([]),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
@@ -43,45 +30,26 @@ export function NativeComposedPanel({ basket }: { basket?: MarketBasket }) {
   useEffect(() => {
     version.current++;
     setOrder(null);
-    setConsent(false);
-  }, [
-    mint,
-    amount,
-    buyer,
-    period,
-    periods,
-    basket?.id,
-    wallet.account?.address,
-  ]);
+  }, [mint, amount, basket.id, wallet.account?.address]);
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
   useEffect(() => {
     setHoldings([]);
-    setPayments([]);
     setMint("");
     if (!wallet.account) return;
     const controller = new AbortController();
     setBusy(true);
-    Promise.all([
-      kiteClient.getPortfolio(wallet.account.address, controller.signal),
-      basket
-        ? Promise.resolve([])
-        : kiteClient.getRecurringPayments(
-            wallet.account.address,
-            controller.signal,
-          ),
-    ])
-      .then(([p, plans]) => {
+    kiteClient
+      .getPortfolio(wallet.account.address, controller.signal)
+      .then((portfolio) => {
         if (controller.signal.aborted) return;
-        const list = p.holdings.filter(
-          (h) =>
-            maxSwapAmount(h) !== "0" && (basket || h.mint !== MAINNET_SOL_MINT),
+        const list = portfolio.holdings.filter(
+          (holding) => maxSwapAmount(holding) !== "0",
         );
         setHoldings(list);
         setMint(list[0]?.mint ?? "");
-        setPayments(plans);
       })
       .catch((e) => {
         if (!controller.signal.aborted)
@@ -93,8 +61,8 @@ export function NativeComposedPanel({ basket }: { basket?: MarketBasket }) {
         if (!controller.signal.aborted) setBusy(false);
       });
     return () => controller.abort();
-  }, [wallet.account?.address, refresh, basket?.id]);
-  async function prepare(revoke?: string) {
+  }, [wallet.account?.address, refresh, basket.id]);
+  async function prepare() {
     if (!wallet.account || disabled) return;
     const request = version.current;
     setBusy(true);
@@ -105,54 +73,24 @@ export function NativeComposedPanel({ basket }: { basket?: MarketBasket }) {
         throw new Error(
           "Reconnect an updated wallet that supports V1 signing, or open Kite web.",
         );
-      let result: WalletTransactionOrder;
-      let lines: string[];
-      if (revoke) {
-        result = await kiteClient.revokeRecurringPayment(
-          wallet.account.address,
-          revoke,
-          wallet.supportedTransactionVersions,
-        );
-        lines = [
-          "Revoke this payment permission. Previously collected payments cannot be reversed.",
-        ];
-      } else if (basket) {
-        const b = await kiteClient.requestBasketOrder({
-          basketId: basket.id,
-          inputMint: mint,
-          amount,
-          taker: wallet.account.address,
-          slippageBps: 100,
-          supportedTransactionVersions: wallet.supportedTransactionVersions,
-        });
-        result = b;
-        lines = [
-          `Pay ${fromTokenAmount(b.inAmount, b.inputDecimals)} ${token?.symbol}`,
-          "Minimum received at 1% slippage:",
-          ...b.outputs.map(
-            (o) =>
-              `${fromTokenAmount(o.minimumAmount, o.decimals)} ${o.symbol}${o.mint === b.inputMint ? " (retained)" : ""}`,
-          ),
-          "Priority fee up to 0.00001 SOL, plus network fees and token-account rent.",
-        ];
-      } else {
-        const p = await kiteClient.requestRecurringPayment({
-          taker: wallet.account.address,
-          buyer: buyer.trim(),
-          mint,
-          amount,
-          periodSeconds:
-            period === "Daily" ? 86400 : period === "Weekly" ? 604800 : 2592000,
-          periods: Number(periods),
-          supportedTransactionVersions: wallet.supportedTransactionVersions,
-        });
-        result = p;
-        lines = [
-          `Buyer: ${p.payment.buyer}`,
-          `Up to ${fromTokenAmount(p.payment.amountPerPeriod, p.decimals)} ${token?.symbol} per period, starting on confirmation.`,
-          `Expires ${new Date(p.payment.expiresAt * 1000).toLocaleString()}. No vault deposit; network fees and rent apply.`,
-        ];
-      }
+      const b = await kiteClient.requestBasketOrder({
+        basketId: basket.id,
+        inputMint: mint,
+        amount,
+        taker: wallet.account.address,
+        slippageBps: 100,
+        supportedTransactionVersions: wallet.supportedTransactionVersions,
+      });
+      const result = b;
+      const lines = [
+        `Pay ${fromTokenAmount(b.inAmount, b.inputDecimals)} ${token?.symbol}`,
+        "Minimum received at 1% slippage:",
+        ...b.outputs.map(
+          (o) =>
+            `${fromTokenAmount(o.minimumAmount, o.decimals)} ${o.symbol}${o.mint === b.inputMint ? " (retained)" : ""}`,
+        ),
+        "Priority fee up to 0.00001 SOL, plus network fees and token-account rent.",
+      ];
       if (request === version.current) {
         setOrder(result);
         setSummary(lines);
@@ -169,17 +107,16 @@ export function NativeComposedPanel({ basket }: { basket?: MarketBasket }) {
   if (!wallet.supported)
     return (
       <View style={ui.card}>
-        <Text style={ui.heading}>
-          {basket ? "Buy the whole basket" : "Recurring token payments"}
-        </Text>
+        <Text style={ui.heading}>Buy the whole basket</Text>
         <Text style={ui.body}>
           Open Kite web with a wallet that supports V1 transaction signing.
         </Text>
         <Button
           label="Continue in Kite web"
+          disabled={!WEB_URL}
           onPress={() => {
             void Linking.openURL(
-              `${WEB_URL}/${basket ? `basket/${basket.id}` : "sip"}?mode=actual`,
+              `${WEB_URL}/basket/${basket.id}?mode=actual`,
             ).catch(() => setMessage("Unable to open Kite web."));
           }}
         />
@@ -188,15 +125,10 @@ export function NativeComposedPanel({ basket }: { basket?: MarketBasket }) {
     );
   return (
     <View style={ui.card}>
-      <Text style={ui.heading}>
-        {basket
-          ? "One basket. One approval."
-          : "Set a recurring payment limit."}
-      </Text>
+      <Text style={ui.heading}>One basket. One approval.</Text>
       <Text style={ui.body}>
-        {basket
-          ? "Every asset settles in one atomic transaction. If any swap fails, all swaps revert; network fees may still apply."
-          : "Authorize a buyer to collect tokens each period. Your buyer runs the collection schedule; Kite holds no tokens or signing keys."}
+        Every asset settles in one atomic transaction. If any swap fails, all
+        swaps revert; network fees may still apply.
       </Text>
       {!wallet.account ? (
         <Button
@@ -247,8 +179,7 @@ export function NativeComposedPanel({ basket }: { basket?: MarketBasket }) {
             ))}
           </View>
           <Text style={ui.label}>
-            {basket ? "Basket amount" : "Maximum per period"} in{" "}
-            {token?.symbol ?? "tokens"}
+            Basket amount in {token?.symbol ?? "tokens"}
           </Text>
           <TextInput
             style={ui.input}
@@ -261,66 +192,10 @@ export function NativeComposedPanel({ basket }: { basket?: MarketBasket }) {
             placeholder="0.00"
             placeholderTextColor={colors.muted}
           />
-          {!basket && (
-            <>
-              <Text style={ui.label}>Buyer’s Solana wallet</Text>
-              <TextInput
-                style={ui.input}
-                accessibilityLabel="Buyer wallet"
-                value={buyer}
-                onChangeText={setBuyer}
-                editable={!disabled}
-                autoCapitalize="none"
-                maxLength={44}
-              />
-              <FilterRow
-                options={["Daily", "Weekly", "Every 30 days"]}
-                selected={period}
-                onSelect={(v) => {
-                  if (!disabled) setPeriod(v);
-                }}
-              />
-              <Text style={ui.label}>
-                Number of periods (expiry within one year)
-              </Text>
-              <TextInput
-                style={ui.input}
-                accessibilityLabel="Number of periods"
-                keyboardType="number-pad"
-                value={periods}
-                onChangeText={setPeriods}
-                editable={!disabled}
-                maxLength={3}
-              />
-              <View style={ui.row}>
-                <Switch
-                  value={consent}
-                  onValueChange={(value) => {
-                    setConsent(value);
-                    if (!value) setOrder(null);
-                  }}
-                  disabled={disabled}
-                  accessibilityLabel="Consent to buyer withdrawals"
-                />
-                <Text style={[ui.small, { flex: 1 }]}>
-                  I trust this buyer to withdraw the period limit. Stock
-                  purchases and delivery are not enforced. The shared program
-                  receives token delegate permission; its records enforce the
-                  buyer’s limits. I can revoke it.
-                </Text>
-              </View>
-            </>
-          )}
           <Button
             label="Review transaction"
             loading={busy}
-            disabled={
-              disabled ||
-              !wallet.canSignV1 ||
-              !token ||
-              !amount ||
-              (!basket && (!buyer || !consent))
-            }
+            disabled={disabled || !wallet.canSignV1 || !token || !amount}
             onPress={() => {
               void prepare();
             }}
@@ -365,28 +240,6 @@ export function NativeComposedPanel({ basket }: { basket?: MarketBasket }) {
               />
             </View>
           )}
-          {payments.map((p) => (
-            <View key={p.address} style={ui.card}>
-              <Text style={ui.label}>
-                Permission to {p.buyer.slice(0, 5)}…{p.buyer.slice(-4)}
-              </Text>
-              <Text style={ui.small}>
-                {p.amountPerPeriod} base units every {p.periodSeconds / 86400}{" "}
-                days ·{" "}
-                {p.expiresAt
-                  ? `Expires ${new Date(p.expiresAt * 1000).toLocaleDateString()}`
-                  : "No expiry"}
-              </Text>
-              <Button
-                secondary
-                label="Review revocation"
-                disabled={disabled}
-                onPress={() => {
-                  void prepare(p.address);
-                }}
-              />
-            </View>
-          ))}
           <Button
             secondary
             label="Refresh wallet data"

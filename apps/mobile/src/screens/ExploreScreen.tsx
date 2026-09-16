@@ -1,16 +1,28 @@
 import React, { useMemo, useState } from "react";
-import { FlatList, RefreshControl, Text, TextInput, View } from "react-native";
-import type { MarketAsset } from "@kite/sdk";
+import {
+  FlatList,
+  Linking,
+  Pressable,
+  RefreshControl,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import type { BackpackSecurity, MarketAsset } from "@kite/sdk";
 import { AssetRow, MarketStatus } from "../components/Market";
-import { EmptyState, FilterRow, Button } from "../components/Primitives";
+import { EmptyState, FilterRow } from "../components/Primitives";
 import { useKite } from "../state/KiteProvider";
-import { colors, ui } from "../theme";
+import { useTheme } from "../theme";
 
+type Entry =
+  | { kind: "asset"; asset: MarketAsset }
+  | { kind: "security"; security: BackpackSecurity };
 const FILTERS = [
   "All assets",
   "With prices",
   "xStocks",
   "PreStocks",
+  "Backpack",
   "ETFs",
 ] as const;
 export function ExploreScreen({
@@ -22,49 +34,114 @@ export function ExploreScreen({
   onBaskets: () => void;
   watchlistOnly?: boolean;
 }) {
+  const { colors, ui } = useTheme();
   const { market, watchlist, loading, refresh, error } = useKite();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("All assets");
-  const assets = useMemo(
-    () =>
-      (market?.assets ?? [])
-        .filter((asset) => {
-          if (
-            filter === "With prices" &&
-            (asset.priceUsd === null || asset.tradingHalted)
+  const [linkError, setLinkError] = useState("");
+  const entries = useMemo(() => {
+    const search = query.trim().toLowerCase();
+    const matches = (value: string) => value.toLowerCase().includes(search);
+    const assets = (market?.assets ?? [])
+      .filter((asset) => {
+        if (watchlistOnly && !watchlist.includes(asset.mint)) return false;
+        if (
+          filter === "With prices" &&
+          (asset.priceUsd === null || asset.tradingHalted)
+        )
+          return false;
+        if (filter === "xStocks" && asset.issuer !== "xstocks") return false;
+        if (filter === "PreStocks" && asset.issuer !== "prestocks")
+          return false;
+        if (filter === "Backpack" && asset.issuer !== "backpack") return false;
+        if (filter === "ETFs" && asset.kind !== "etf") return false;
+        return matches(
+          `${asset.symbol} ${asset.name} ${asset.underlyingSymbol} ${asset.mint}`,
+        );
+      })
+      .sort(
+        (a, b) =>
+          Number(b.priceUsd !== null && !b.tradingHalted) -
+            Number(a.priceUsd !== null && !a.tradingHalted) ||
+          (b.volume24hUsd ?? 0) - (a.volume24hUsd ?? 0) ||
+          a.name.localeCompare(b.name),
+      );
+    const result: Entry[] = assets.map((asset) => ({ kind: "asset", asset }));
+    if (filter === "Backpack" && !watchlistOnly) {
+      const executable = new Set(
+        (market?.assets ?? [])
+          .filter((asset) => asset.issuer === "backpack")
+          .map((asset) => asset.mint),
+      );
+      result.push(
+        ...(market?.backpackSecurities ?? [])
+          .filter(
+            (security) =>
+              (!security.solanaMint || !executable.has(security.solanaMint)) &&
+              matches(
+                `${security.symbol} ${security.name} ${security.underlyingSymbol}`,
+              ),
           )
-            return false;
-          if (watchlistOnly && !watchlist.includes(asset.mint)) return false;
-          if (filter === "xStocks" && asset.issuer !== "xstocks") return false;
-          if (filter === "PreStocks" && asset.issuer !== "prestocks")
-            return false;
-          if (filter === "ETFs" && asset.kind !== "etf") return false;
-          return `${asset.symbol} ${asset.name} ${asset.underlyingSymbol} ${asset.mint}`
-            .toLowerCase()
-            .includes(query.trim().toLowerCase());
-        })
-        .sort(
-          (left, right) =>
-            Number(right.priceUsd !== null && !right.tradingHalted) -
-              Number(left.priceUsd !== null && !left.tradingHalted) ||
-            (right.volume24hUsd ?? 0) - (left.volume24hUsd ?? 0) ||
-            left.name.localeCompare(right.name),
-        ),
-    [market, watchlist, watchlistOnly, filter, query],
-  );
+          .map((security) => ({ kind: "security" as const, security })),
+      );
+    }
+    return result;
+  }, [market, watchlist, watchlistOnly, filter, query]);
   return (
-    <FlatList
+    <FlatList<Entry>
       style={ui.screen}
       contentContainerStyle={[ui.content, { gap: 0 }]}
       keyboardShouldPersistTaps="handled"
       initialNumToRender={12}
       maxToRenderPerBatch={12}
       windowSize={7}
-      data={assets}
-      keyExtractor={(asset) => asset.mint}
-      renderItem={({ item }) => (
-        <AssetRow asset={item} onPress={() => onAsset(item)} />
-      )}
+      data={entries}
+      keyExtractor={(entry) =>
+        entry.kind === "asset"
+          ? `asset:${entry.asset.mint}`
+          : `security:${entry.security.id}`
+      }
+      renderItem={({ item }) =>
+        item.kind === "asset" ? (
+          <AssetRow asset={item.asset} onPress={() => onAsset(item.asset)} />
+        ) : (
+          <View
+            style={{
+              paddingVertical: 16,
+              borderBottomWidth: 1,
+              borderColor: colors.line,
+              gap: 8,
+            }}
+          >
+            <View style={ui.between}>
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={ui.label}>{item.security.symbol}</Text>
+                <Text style={ui.small} numberOfLines={1}>
+                  {item.security.name}
+                </Text>
+              </View>
+              <Text style={ui.small}>Discovery only</Text>
+            </View>
+            <Text style={ui.small}>
+              No transferable, supported Solana token is available in Kite.
+            </Text>
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel={`View ${item.security.name} on Backpack`}
+              onPress={() => {
+                void Linking.openURL(item.security.sourceUrl).catch(() =>
+                  setLinkError("Backpack could not open. Please try again."),
+                );
+              }}
+              style={{ minHeight: 44, justifyContent: "center" }}
+            >
+              <Text style={[ui.small, { color: colors.accent }]}>
+                View issuer details ↗
+              </Text>
+            </Pressable>
+          </View>
+        )
+      }
       refreshControl={
         <RefreshControl
           refreshing={loading}
@@ -75,24 +152,24 @@ export function ExploreScreen({
         />
       }
       ListHeaderComponent={
-        <View style={{ gap: 20, paddingBottom: 10 }}>
+        <View style={{ gap: 20, paddingBottom: 16 }}>
           <View style={ui.stack}>
             <Text style={ui.eyebrow}>
-              {watchlistOnly ? "YOUR RADAR" : "IDEAS WITHOUT BORDERS"}
+              {watchlistOnly ? "YOUR SAVED IDEAS" : "DISCOVER / STOCKS"}
             </Text>
             <Text style={ui.title}>
-              {watchlistOnly ? "Worth watching." : "Find your next conviction."}
+              {watchlistOnly ? "Watchlist" : "Explore stocks"}
             </Text>
             <Text style={ui.body}>
               {watchlistOnly
-                ? "A personal collection of the companies you are following."
-                : "Public markets. Private frontiers. Tokenized on Solana."}
+                ? "Keep the companies you follow in one place."
+                : "Public companies, funds and private-market exposure."}
             </Text>
           </View>
           <TextInput
             accessibilityLabel="Search assets"
             style={ui.input}
-            placeholder="Search companies, symbols or mints"
+            placeholder="Search companies or symbols"
             placeholderTextColor={colors.muted}
             value={query}
             onChangeText={setQuery}
@@ -101,19 +178,34 @@ export function ExploreScreen({
             clearButtonMode="while-editing"
           />
           <FilterRow options={FILTERS} selected={filter} onSelect={setFilter} />
-          {!watchlistOnly ? (
-            <Button
-              secondary
-              label="Explore thematic baskets"
-              onPress={onBaskets}
-            />
+          {filter === "Backpack" ? (
+            <Text style={ui.small}>
+              Backpack securities use a separate issuer catalog. Only supported
+              Solana mints can open an investment page; all other listings
+              remain discovery only.
+            </Text>
           ) : null}
           <MarketStatus />
-          <View style={ui.between}>
-            <Text style={ui.eyebrow}>{filter.toUpperCase()}</Text>
-            <Text style={ui.small}>
-              {assets.length} {assets.length === 1 ? "asset" : "assets"}
+          {linkError ? (
+            <Text accessibilityRole="alert" style={[ui.small, ui.negative]}>
+              {linkError}
             </Text>
+          ) : null}
+          <View style={ui.between}>
+            <Text style={ui.eyebrow}>
+              {entries.length} {entries.length === 1 ? "RESULT" : "RESULTS"}
+            </Text>
+            {!watchlistOnly ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={onBaskets}
+                hitSlop={12}
+              >
+                <Text style={[ui.small, { color: colors.accent }]}>
+                  Browse baskets →
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
       }
@@ -121,19 +213,19 @@ export function ExploreScreen({
         <EmptyState
           title={
             loading
-              ? "Opening the market."
+              ? "Loading the market"
               : watchlistOnly && !query
-                ? "Make room for your next idea."
-                : "No assets to show."
+                ? "No saved stocks yet"
+                : "No matching assets"
           }
           description={
             loading
-              ? "Fetching the latest issuer catalogs and available prices."
+              ? "Fetching issuer catalogs and available prices."
               : error
-                ? "The live market connection is unavailable. Pull down to retry."
+                ? "The market feed is unavailable. Pull down to retry."
                 : watchlistOnly && !query
-                  ? "Open any asset and save it to your watchlist."
-                  : "Try another search or filter. Assets appear only when supplied by the live catalog."
+                  ? "Open a stock and tap Add to watchlist to save it here."
+                  : "Try a different search or issuer. Unavailable listings are never replaced with sample data."
           }
         />
       }

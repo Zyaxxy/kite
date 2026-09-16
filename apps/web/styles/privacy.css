@@ -1,0 +1,191 @@
+/* Public information and consent use the same spacing and contrast tokens. */
+.legal-content {
+  max-width: 820px;
+  padding: 70px 28px;
+  margin: 0 auto;
+}
+.legal-content h1 {
+  font-size: clamp(36px, 6vw, 66px);
+  margin: 16px 0;
+}
+.legal-intro {
+  color: var(--ink);
+  font-size: 19px;
+  margin-bottom: 18px;
+}
+.legal-content section {
+  margin-top: 42px;
+}
+.legal-content section h2 {
+  font-size: 24px;
+  margin-bottom: 12px;
+}
+.legal-content section p {
+  color: var(--muted);
+  line-height: 1.8;
+  margin-top: 12px;
+}
+.legal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  padding: 20px 24px;
+  color: var(--muted);
+}
+.legal-footer a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.site-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px 32px;
+  max-width: 1344px;
+  margin: 48px auto 0;
+  padding: 28px 0 32px;
+  border-top: 1px solid var(--line);
+}
+.footer-security {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.footer-security-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  color: var(--accent);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.footer-security h2 {
+  color: var(--ink);
+  font-family: var(--font-nav);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.footer-security p {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.footer-links {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.footer-links a,
+.footer-links button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+}
+.footer-links a:hover,
+.footer-links button:hover {
+  color: var(--ink);
+}
+.footer-links button {
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+}
+.footer-links button:hover {
+  background: var(--surface);
+}
+.privacy-save-error {
+  width: 100%;
+  font-size: 12px;
+  color: var(--muted);
+}
+.privacy-banner {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 300;
+  width: min(400px, calc(100% - 32px));
+  padding: 24px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow-float);
+}
+.privacy-banner h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-family: var(--font-nav);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.privacy-banner h2 svg {
+  color: var(--accent);
+}
+.privacy-banner p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.75;
+}
+.privacy-banner p a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  color: var(--ink);
+}
+.privacy-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+.privacy-actions button {
+  flex: 1;
+  min-height: 40px;
+}
+@media (max-width: 1440px) {
+  .site-footer {
+    margin-inline: 48px;
+  }
+}
+@media (max-width: 1200px) {
+  .site-footer {
+    margin-inline: 28px;
+  }
+}
+@media (max-width: 760px) {
+  .site-footer {
+    margin: 36px 20px 0;
+    padding: 24px 0 calc(100px + env(safe-area-inset-bottom));
+    gap: 18px;
+  }
+  .footer-links {
+    gap: 4px 18px;
+  }
+  .footer-links a,
+  .footer-links button {
+    min-height: 44px;
+  }
+  .privacy-banner {
+    bottom: calc(84px + env(safe-area-inset-bottom));
+    right: 16px;
+    padding: 20px;
+  }
+  .legal-content {
+    padding: 42px 24px;
+  }
+}

@@ -1,12 +1,14 @@
 import React, { useState } from "react";
 import { Linking, ScrollView, Text, View } from "react-native";
-import { Button, Chip } from "../components/Primitives";
+import { Button, Chip, FilterRow } from "../components/Primitives";
 import { API_BASE_URL, WEB_URL, API_CONFIGURATION_ERROR } from "../lib/config";
 import { useMobileTrading } from "../state/MobileTradingProvider";
-import { ui } from "../theme";
+import { useTheme } from "../theme";
 
 export function SettingsScreen({ onReset }: { onReset: () => void }) {
+  const { colors, ui, mode, setMode } = useTheme();
   const wallet = useMobileTrading();
+  const [showConnection, setShowConnection] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [error, setError] = useState<string | null>(null);
   async function open(path: string) {
@@ -20,15 +22,25 @@ export function SettingsScreen({ onReset }: { onReset: () => void }) {
   return (
     <ScrollView style={ui.screen} contentContainerStyle={ui.content}>
       <View style={ui.stack}>
-        <Text style={ui.eyebrow}>YOUR SPACE</Text>
-        <Text style={ui.title}>Make it yours.</Text>
-        <Text style={ui.body}>
-          Practice on your terms. Connect when you are ready.
-        </Text>
+        <Text style={ui.eyebrow}>PREFERENCES & ACCOUNT</Text>
+        <Text style={ui.title}>Settings</Text>
+        <Text style={ui.body}>Your appearance, wallet and device data.</Text>
       </View>
       <View style={ui.card}>
-        <Chip label="Paper trading" selected />
-        <Text style={ui.heading}>A little room to explore.</Text>
+        <Text style={ui.heading}>Appearance</Text>
+        <Text style={ui.small}>
+          Choose a theme for every screen. Your preference is saved on this
+          device.
+        </Text>
+        <FilterRow
+          options={["Light", "Dark"]}
+          selected={mode === "dark" ? "Dark" : "Light"}
+          onSelect={(value) => setMode(value === "Dark" ? "dark" : "light")}
+        />
+      </View>
+      <View style={ui.card}>
+        <Text style={ui.eyebrow}>DATA & SECURITY</Text>
+        <Text style={ui.heading}>Your device, your data</Text>
         <Text style={ui.body}>
           Your paper cash, holdings, orders and plans are saved on this device.
           Virtual funding is a simulation; prices come from the live mainnet
@@ -63,7 +75,7 @@ export function SettingsScreen({ onReset }: { onReset: () => void }) {
       </View>
       <View style={ui.card}>
         <Text style={ui.eyebrow}>ACTUAL TRADING</Text>
-        <Text style={ui.heading}>Your keys. Your next move.</Text>
+        <Text style={ui.heading}>Connected wallet</Text>
         <Text style={ui.body}>
           Every actual swap needs your approval. Your tokens stay in your
           wallet. Paper activity stays separate.
@@ -124,7 +136,7 @@ export function SettingsScreen({ onReset }: { onReset: () => void }) {
         <Text style={ui.eyebrow}>CONNECTION</Text>
         <View style={ui.between}>
           <Text style={ui.label}>Network</Text>
-          <Text style={ui.body}>Solana mainnet</Text>
+          <Text style={ui.body}>Mainnet · spot trades</Text>
         </View>
         <View style={ui.between}>
           <Text style={ui.label}>Market service</Text>
@@ -132,13 +144,29 @@ export function SettingsScreen({ onReset }: { onReset: () => void }) {
             {API_BASE_URL ? "Configured" : "Needs setup"}
           </Text>
         </View>
-        <Text selectable style={ui.small}>
-          {API_CONFIGURATION_ERROR || API_BASE_URL}
-        </Text>
-        <Text style={ui.small}>
-          The app talks to Kite’s web API. An Expo tunnel serves the app bundle;
-          a separate HTTPS API tunnel or deployment serves live data.
-        </Text>
+        <View style={ui.between}>
+          <Text style={ui.label}>Recurring</Text>
+          <Text style={ui.body}>Devnet · test tokens</Text>
+        </View>
+        <Button
+          secondary
+          label={
+            showConnection ? "Hide connection details" : "Connection details"
+          }
+          onPress={() => setShowConnection((value) => !value)}
+        />
+        {showConnection ? (
+          <>
+            <Text selectable style={ui.small}>
+              {API_CONFIGURATION_ERROR || API_BASE_URL}
+            </Text>
+            <Text style={ui.small}>
+              The app talks to Kite’s web API. An Expo tunnel serves the app
+              bundle; a separate HTTPS API tunnel or deployment serves live
+              data.
+            </Text>
+          </>
+        ) : null}
       </View>
       <View style={ui.card}>
         <Text style={ui.eyebrow}>ABOUT KITE</Text>
