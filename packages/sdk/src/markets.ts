@@ -653,18 +653,28 @@ export function resolveReviewedMarketBaskets(
 export async function getMainnetCatalog(
   options: MarketOptions = {},
 ): Promise<MarketSnapshot> {
-  const deadline = AbortSignal.timeout(8_000);
-  options = {
-    ...options,
-    signal: options.signal
-      ? AbortSignal.any([options.signal, deadline])
-      : deadline,
+  const withDeadline = (milliseconds: number): MarketOptions => {
+    const deadline = AbortSignal.timeout(milliseconds);
+    return {
+      ...options,
+      signal: options.signal
+        ? AbortSignal.any([options.signal, deadline])
+        : deadline,
+    };
   };
+  // xStocks requires several paginated batches. An eight-second total deadline
+  // could discard a healthy catalog while its final response bodies arrived.
+  // Other issuer metadata keeps its shorter budget; caller cancellation wins.
+  const paginatedOptions = withDeadline(20_000);
+  const metadataOptions = withDeadline(8_000);
   const warnings: string[] = [];
   const sources: string[] = [];
   const [catalogs, backpack] = await Promise.all([
-    Promise.allSettled([xstockCatalog(options), prestockCatalog(options)]),
-    getBackpackCatalog(options).then(
+    Promise.allSettled([
+      xstockCatalog(paginatedOptions),
+      prestockCatalog(metadataOptions),
+    ]),
+    getBackpackCatalog(metadataOptions).then(
       (value) => ({ status: "fulfilled" as const, value }),
       () => ({ status: "rejected" as const }),
     ),
