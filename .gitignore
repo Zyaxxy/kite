@@ -28,3 +28,4 @@ apps/mobile/ios/
 .kite-worker-state/
 .kite-executor-keypair.json
 internal-docs/*
+.superstack/
