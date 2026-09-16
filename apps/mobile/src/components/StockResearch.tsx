@@ -14,7 +14,7 @@ import type {
 } from "@kite/sdk";
 import { cachedResearch, loadResearch } from "../lib/research-cache";
 import { Button, FilterRow } from "./Primitives";
-import { colors, ui } from "../theme";
+import { useTheme } from "../theme";
 
 const TABS = [
   "Overview",
@@ -53,6 +53,8 @@ function fundamentalValue(fact: ResearchFundamental): string {
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
+  const { colors, ui } = useTheme();
+  const styles = useStyles();
   return (
     <View style={styles.metric}>
       <Text style={ui.small}>{label}</Text>
@@ -70,6 +72,8 @@ function Link({
   url: string;
   onError: () => void;
 }) {
+  const { colors, ui } = useTheme();
+  const styles = useStyles();
   return (
     <Pressable
       accessibilityRole="link"
@@ -95,6 +99,8 @@ export function StockResearch({
   asset: MarketAsset;
   refreshKey?: number;
 }) {
+  const { colors, ui } = useTheme();
+  const styles = useStyles();
   const [tab, setTab] = useState<ResearchTab>("Overview");
   const [result, setResult] = useState<StockResearchData | null>(() =>
     cachedResearch(asset.mint),
@@ -461,41 +467,44 @@ export function StockResearch({
   );
 }
 
-const styles = StyleSheet.create({
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  metric: {
-    minWidth: 115,
-    flexBasis: "45%",
-    flexGrow: 1,
-    gap: 5,
-    paddingVertical: 6,
-  },
-  inset: {
-    backgroundColor: colors.raised,
-    borderRadius: 12,
-    padding: 14,
-    gap: 8,
-  },
-  fact: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderColor: colors.line,
-  },
-  factValue: {
-    flexShrink: 1,
-    textAlign: "right",
-    fontVariant: ["tabular-nums"],
-  },
-  article: {
-    gap: 8,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderColor: colors.line,
-  },
-  sources: { flexDirection: "row", flexWrap: "wrap", gap: 16 },
-  link: { minHeight: 36, justifyContent: "center" },
-});
+function useStyles() {
+  const { colors } = useTheme();
+  return StyleSheet.create({
+    grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+    metric: {
+      minWidth: 115,
+      flexBasis: "45%",
+      flexGrow: 1,
+      gap: 5,
+      paddingVertical: 6,
+    },
+    inset: {
+      backgroundColor: colors.raised,
+      borderRadius: 12,
+      padding: 14,
+      gap: 8,
+    },
+    fact: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      alignItems: "center",
+      gap: 12,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderColor: colors.line,
+    },
+    factValue: {
+      flexShrink: 1,
+      textAlign: "right",
+      fontVariant: ["tabular-nums"],
+    },
+    article: {
+      gap: 8,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderColor: colors.line,
+    },
+    sources: { flexDirection: "row", flexWrap: "wrap", gap: 16 },
+    link: { minHeight: 36, justifyContent: "center" },
+  });
+}

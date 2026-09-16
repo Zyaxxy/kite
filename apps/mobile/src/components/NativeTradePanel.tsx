@@ -21,9 +21,11 @@ import {
 import { Button, Chip, EmptyState } from "./Primitives";
 import { useMobileTrading } from "../state/MobileTradingProvider";
 import { kiteClient, WEB_URL } from "../lib/config";
-import { colors, money, ui } from "../theme";
+import { money, useTheme } from "../theme";
 
 export function NativeTradePanel({ asset }: { asset: MarketAsset }) {
+  const { colors, ui } = useTheme();
+  const styles = useStyles();
   const wallet = useMobileTrading();
   const [portfolio, setPortfolio] = useState<MainnetPortfolio | null>(null);
   const [input, setInput] = useState<MainnetHolding | null>(null);
@@ -468,22 +470,25 @@ export function NativeTradePanel({ asset }: { asset: MarketAsset }) {
     </View>
   );
 }
-const styles = StyleSheet.create({
-  tokens: { gap: 8 },
-  token: {
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: 12,
-    padding: 14,
-    gap: 4,
-    minHeight: 64,
-  },
-  selected: { borderColor: colors.accent, backgroundColor: colors.raised },
-  amount: { fontSize: 30, fontVariant: ["tabular-nums"] },
-  notice: {
-    backgroundColor: colors.raised,
-    borderRadius: 12,
-    padding: 16,
-    gap: 12,
-  },
-});
+function useStyles() {
+  const { colors } = useTheme();
+  return StyleSheet.create({
+    tokens: { gap: 8 },
+    token: {
+      borderWidth: 1,
+      borderColor: colors.line,
+      borderRadius: 12,
+      padding: 14,
+      gap: 4,
+      minHeight: 64,
+    },
+    selected: { borderColor: colors.accent, backgroundColor: colors.raised },
+    amount: { fontSize: 30, fontVariant: ["tabular-nums"] },
+    notice: {
+      backgroundColor: colors.raised,
+      borderRadius: 12,
+      padding: 16,
+      gap: 12,
+    },
+  });
+}

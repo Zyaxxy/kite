@@ -1,5 +1,32 @@
-html, body, #root { height: 100%; background: #101311; }
-#root { display: flex; flex-direction: column; }
-body { margin: 0; overscroll-behavior: none; }
-*:focus-visible { outline: 2px solid #D5F478; outline-offset: 3px; }
-input { font: inherit; }
+html,
+body,
+#root {
+  height: 100%;
+  background: var(--mobile-bg, #101311);
+}
+#root {
+  display: flex;
+  flex-direction: column;
+}
+body {
+  margin: 0;
+  overscroll-behavior: none;
+}
+*:focus-visible {
+  outline: 2px solid var(--mobile-focus, #d5f478);
+  outline-offset: 3px;
+}
+input {
+  font: inherit;
+}
+
+html[data-kite-theme="light"] {
+  --mobile-bg: #f5f6f2;
+  --mobile-focus: #426c2f;
+  color-scheme: light;
+}
+html[data-kite-theme="dark"] {
+  --mobile-bg: #101311;
+  --mobile-focus: #d5f478;
+  color-scheme: dark;
+}

@@ -13,7 +13,7 @@ import { Button, Chip, FilterRow } from "../components/Primitives";
 import { StockResearch } from "../components/StockResearch";
 import { useKite } from "../state/KiteProvider";
 import { NativeTradePanel } from "../components/NativeTradePanel";
-import { colors, money, percentage, ui } from "../theme";
+import { money, percentage, useTheme } from "../theme";
 
 export function AssetScreen({
   asset,
@@ -24,6 +24,7 @@ export function AssetScreen({
   onClose: () => void;
   onPlan: (asset: MarketAsset, mode?: "Paper" | "Actual") => void;
 }) {
+  const { colors, ui } = useTheme();
   const {
     account,
     watchlist,
@@ -57,7 +58,9 @@ export function AssetScreen({
       );
       setAmount("");
       setError(null);
-      setNotice(`${side === "buy" ? "Bought" : "Sold"} ${money(numericAmount)} of ${asset.symbol} using virtual funds. View the fill in Portfolio.`);
+      setNotice(
+        `${side === "buy" ? "Bought" : "Sold"} ${money(numericAmount)} of ${asset.symbol} using virtual funds. View the fill in Portfolio.`,
+      );
     } catch (failure) {
       setError(
         failure instanceof Error
@@ -66,7 +69,6 @@ export function AssetScreen({
       );
     }
   }
-
 
   return (
     <ScrollView
@@ -102,7 +104,7 @@ export function AssetScreen({
         <Text style={ui.eyebrow}>
           {asset.issuer === "prestocks"
             ? "PRIVATE FRONTIERS · PRESTOCKS"
-            : `${asset.kind === "etf" ? "ETF" : asset.kind === "equity" ? "EQUITY" : "TOKENIZED ASSET"} · XSTOCKS`}
+            : `${asset.kind === "etf" ? "ETF" : asset.kind === "equity" ? "EQUITY" : "TOKENIZED ASSET"} · ${asset.issuer === "backpack" ? "BACKPACK" : "XSTOCKS"}`}
         </Text>
         <Text style={ui.title}>{asset.name}</Text>
         <Text style={ui.body}>{asset.symbol}</Text>
@@ -171,87 +173,112 @@ export function AssetScreen({
           </Text>
         ) : null}
       </View>
-      <FilterRow options={["Paper", "Actual"]} selected={mode} onSelect={setMode} />
-      {mode === "Paper" ? <>
-      <View style={ui.card}>
-        <View style={ui.between}>
-          <Text style={ui.heading}>Your next move.</Text>
-          <Chip label="Paper trade" selected />
-        </View>
-        <FilterRow
-          options={["Buy", "Sell"]}
-          selected={side === "buy" ? "Buy" : "Sell"}
-          onSelect={(value) => {
-            setSide(value === "Buy" ? "buy" : "sell");
-            setError(null);
-          }}
-        />
-        <Text style={ui.small}>
-          {side === "buy"
-            ? `${money(account.cashUsd)} virtual buying power`
-            : `${(held?.quantity ?? 0).toLocaleString("en-US", { maximumFractionDigits: 6 })} ${asset.symbol} paper units held`}
-        </Text>
-        <Text style={ui.label}>Amount in virtual USD</Text>
-        <TextInput
-          accessibilityLabel="Paper trade amount in dollars"
-          value={amount}
-          onChangeText={(value) => { setAmount(value); setNotice(null); }}
-          keyboardType="decimal-pad"
-          placeholder="0.00"
-          placeholderTextColor={colors.muted}
-          style={[ui.input, { fontSize: 30 }]}
-        />
-        <View style={ui.between}>
-          <Text style={ui.body}>Estimated units</Text>
-          <Text style={ui.label}>
-            {asset.priceUsd && numericAmount > 0
-              ? (numericAmount / asset.priceUsd).toLocaleString("en-US", {
-                  maximumFractionDigits: 6,
-                })
-              : "—"}
-          </Text>
-        </View>
-        {notice ? <Text accessibilityRole="alert" style={[ui.small, ui.positive]}>{notice}</Text> : null}
-        {error ? (
-          <Text accessibilityRole="alert" style={[ui.small, ui.negative]}>
-            {error}
-          </Text>
-        ) : null}
-        {!canTrade ? (
-          <Text style={[ui.small, ui.negative]}>
-            {!ready
-              ? "Paper account is not ready."
-              : asset.tradingHalted
-                ? asset.tradingNotice ||
-                  "Trading is currently halted for this asset."
-                : "A live price is required to place a paper trade."}
-          </Text>
-        ) : null}
-        <Button
-          label={`Paper ${side} ${asset.symbol}`}
-          onPress={trade}
-          disabled={
-            !canTrade || !Number.isFinite(numericAmount) || numericAmount <= 0
-          }
-        />
-        <Text style={ui.small}>
-          Simulated fill at the observed price. No tokens move and no wallet
-          signature is requested. Real execution may include fees and slippage.
-        </Text>
-      </View>
-      <View style={ui.card}>
-        <Text style={ui.heading}>Build a rhythm.</Text>
-        <Text style={ui.body}>
-          Turn this idea into a recurring paper investment.
-        </Text>
-        <Button
-          secondary
-          label="Create a paper plan"
-          onPress={() => onPlan(asset)}
-          disabled={!canTrade}
-        />
-      </View>
-      </> : <><NativeTradePanel asset={asset} /><Button secondary label="Set up recurring investment" onPress={() => onPlan(asset, "Actual")} /></>}
+      <FilterRow
+        options={["Paper", "Actual"]}
+        selected={mode}
+        onSelect={setMode}
+      />
+      {mode === "Paper" ? (
+        <>
+          <View style={ui.card}>
+            <View style={ui.between}>
+              <Text style={ui.heading}>Your next move.</Text>
+              <Chip label="Paper trade" selected />
+            </View>
+            <FilterRow
+              options={["Buy", "Sell"]}
+              selected={side === "buy" ? "Buy" : "Sell"}
+              onSelect={(value) => {
+                setSide(value === "Buy" ? "buy" : "sell");
+                setError(null);
+              }}
+            />
+            <Text style={ui.small}>
+              {side === "buy"
+                ? `${money(account.cashUsd)} virtual buying power`
+                : `${(held?.quantity ?? 0).toLocaleString("en-US", { maximumFractionDigits: 6 })} ${asset.symbol} paper units held`}
+            </Text>
+            <Text style={ui.label}>Amount in virtual USD</Text>
+            <TextInput
+              accessibilityLabel="Paper trade amount in dollars"
+              value={amount}
+              onChangeText={(value) => {
+                setAmount(value);
+                setNotice(null);
+              }}
+              keyboardType="decimal-pad"
+              placeholder="0.00"
+              placeholderTextColor={colors.muted}
+              style={[ui.input, { fontSize: 30 }]}
+            />
+            <View style={ui.between}>
+              <Text style={ui.body}>Estimated units</Text>
+              <Text style={ui.label}>
+                {asset.priceUsd && numericAmount > 0
+                  ? (numericAmount / asset.priceUsd).toLocaleString("en-US", {
+                      maximumFractionDigits: 6,
+                    })
+                  : "—"}
+              </Text>
+            </View>
+            {notice ? (
+              <Text accessibilityRole="alert" style={[ui.small, ui.positive]}>
+                {notice}
+              </Text>
+            ) : null}
+            {error ? (
+              <Text accessibilityRole="alert" style={[ui.small, ui.negative]}>
+                {error}
+              </Text>
+            ) : null}
+            {!canTrade ? (
+              <Text style={[ui.small, ui.negative]}>
+                {!ready
+                  ? "Paper account is not ready."
+                  : asset.tradingHalted
+                    ? asset.tradingNotice ||
+                      "Trading is currently halted for this asset."
+                    : "A live price is required to place a paper trade."}
+              </Text>
+            ) : null}
+            <Button
+              label={`Paper ${side} ${asset.symbol}`}
+              onPress={trade}
+              disabled={
+                !canTrade ||
+                !Number.isFinite(numericAmount) ||
+                numericAmount <= 0
+              }
+            />
+            <Text style={ui.small}>
+              Simulated fill at the observed price. No tokens move and no wallet
+              signature is requested. Real execution may include fees and
+              slippage.
+            </Text>
+          </View>
+          <View style={ui.card}>
+            <Text style={ui.heading}>Build a rhythm.</Text>
+            <Text style={ui.body}>
+              Turn this idea into a recurring paper investment.
+            </Text>
+            <Button
+              secondary
+              label="Create a paper plan"
+              onPress={() => onPlan(asset)}
+              disabled={!canTrade}
+            />
+          </View>
+        </>
+      ) : (
+        <>
+          <NativeTradePanel asset={asset} />
+          <Button
+            secondary
+            label="Set up recurring investment"
+            onPress={() => onPlan(asset, "Actual")}
+          />
+        </>
+      )}
       <StockResearch asset={asset} refreshKey={researchRefresh} />
       <View style={ui.card}>
         <Text style={ui.eyebrow}>KNOW WHAT YOU OWN</Text>
