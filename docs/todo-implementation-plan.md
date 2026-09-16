@@ -14,7 +14,7 @@ Source: `TODO.md` at upstream `6dc2d2e`. Work branch: `codex/todo-release-readin
 ## Work sequence
 
 1. [x] Preserve completed light/dark theme work and integrate latest upstream main. Back up incompatible pnpm 11 lockfile churn separately; retain the pinned pnpm 10 lockfile.
-2. [ ] Audit mock-mint contract, mint authorities, official Subscriptions integration, and recurring network isolation. Record findings and owner-run commands.
+2. [x] Audit mock-mint contract, mint authorities, official Subscriptions integration, and recurring network isolation. Record findings and owner-run commands.
 3. [ ] Audit and implement Backpack discovery with truthful availability/benefits and a dedicated catalog UI on web/mobile.
 4. [ ] Run read-only Jupiter basket route checks; document amounts, timestamps and results; restrict live baskets using evidence without silently changing an existing basket allocation.
 5. [ ] Align mobile navigation, typography, panels and recurring screen with the web product.
@@ -27,3 +27,5 @@ Source: `TODO.md` at upstream `6dc2d2e`. Work branch: `codex/todo-release-readin
 ## Completion evidence
 
 Each item will link to its implementation/audit documentation and validation result as it lands. External dependencies that cannot be verified will remain explicitly blocked, rather than be called production-ready.
+
+- Contract review: [devnet audit](devnet-contract-audit.md). 40 stock authorities verified; four high execution blockers documented without changing contract logic. SDK build and 29 focused checks pass; SBF runtime fixtures/toolchain are unavailable.
