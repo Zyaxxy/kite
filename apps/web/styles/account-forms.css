@@ -1,0 +1,323 @@
+/* Detail, account and forms */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 28px;
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 26px;
+}
+.detail-title {
+  display: flex;
+  align-items: center;
+  gap: 17px;
+  margin: 0 0 24px;
+}
+.detail-title h1 {
+  font-size: 35px;
+}
+.detail-title p {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.detail-price {
+  font-size: 48px;
+  font-weight: 400;
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+.detail-price-caption {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 11px;
+  margin-top: 8px;
+}
+.quote-space {
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+  padding: 28px;
+  min-height: 260px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+}
+.quote-space .orbit-art {
+  height: 220px;
+  width: 320px;
+  right: 0;
+  opacity: 0.2;
+}
+.quote-space-content {
+  z-index: 1;
+  position: relative;
+}
+.quote-space .quote-note {
+  margin-top: 25px;
+  max-width: 330px;
+  font-size: 11px;
+  color: var(--muted);
+  position: relative;
+  line-height: 1.8;
+}
+.quote-live {
+  font-size: 10px;
+  color: var(--up);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 18px;
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  padding: 24px 0;
+}
+.stats-grid dt {
+  font-size: 10px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.stats-grid dd {
+  font-size: 16px;
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.trade-panel {
+  padding: 24px;
+  position: sticky;
+  top: 24px;
+}
+.trade-panel h2 {
+  font-size: 22px;
+  margin-bottom: 5px;
+}
+.trade-panel > p.muted {
+  margin-bottom: 22px;
+}
+.trade-panel .field-label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 9px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.amount-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 17px;
+  background: var(--bg);
+  margin-bottom: 10px;
+}
+.amount-field input {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  font-size: 28px;
+  letter-spacing: -0.035em;
+  outline: none;
+}
+.amount-field span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.amount-presets {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+.amount-presets button {
+  flex: 1;
+  padding: 6px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.trade-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  font-size: 11px;
+  margin: 18px 0;
+}
+.trade-summary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.trade-summary > div > span:first-child {
+  color: var(--muted);
+}
+.fineprint {
+  font-size: 10px;
+  line-height: 1.8;
+  color: var(--muted);
+  margin-top: 13px;
+}
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.form-field input,
+.form-field select {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 12px;
+  color: var(--ink);
+  font-size: 13px;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.form-wide {
+  grid-column: 1/-1;
+}
+.portfolio-overview {
+  display: grid;
+  grid-template-columns: 1.7fr 1fr;
+  gap: 24px;
+  margin-bottom: 30px;
+}
+.portfolio-balance {
+  padding: 29px;
+  min-height: 212px;
+  position: relative;
+  overflow: hidden;
+}
+.portfolio-balance .detail-price {
+  margin: 15px 0 22px;
+}
+.portfolio-balance .orbit-art {
+  opacity: 0.3;
+  right: 0;
+}
+.portfolio-balance > *:not(svg) {
+  position: relative;
+  z-index: 1;
+}
+.portfolio-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 25px;
+  padding: 25px;
+}
+.portfolio-metrics dt {
+  font-size: 10px;
+  color: var(--muted);
+  margin-bottom: 9px;
+}
+.portfolio-metrics dd {
+  margin: 0;
+  font-size: 21px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.035em;
+}
+.plan-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 25px;
+}
+.plan-card {
+  padding: 21px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.plan-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  font-size: 12px;
+}
+.plan-stats small {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  margin-bottom: 5px;
+}
+.plan-actions {
+  display: flex;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 15px;
+}
+.settings-layout {
+  max-width: 830px;
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 21px 0;
+  border-bottom: 1px solid var(--line);
+}
+.settings-row:last-child {
+  border: 0;
+}
+.settings-row h3 {
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+.settings-row p {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 5px;
+  max-width: 450px;
+  line-height: 1.7;
+}
+.address {
+  font-family: monospace;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+}
+.composition {
+  list-style: none;
+  padding: 0;
+  margin: 18px 0;
+}
+.composition li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--line);
+}
+.allocation-bar {
+  height: 4px;
+  width: 100px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--raised);
+  margin-top: 6px;
+}
+.allocation-bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}

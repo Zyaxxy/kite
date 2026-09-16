@@ -3,11 +3,7 @@ import { Providers } from "./providers";
 import { ThemeProvider } from "../components/kite/ThemeMode";
 import { PrivacyChoices } from "../components/kite/PrivacyChoices";
 import { siteUrl } from "../lib/site";
-import "./wallet-adapter.css";
 import "./globals.css";
-import "./navigation-redesign.css";
-import "./discover-redesign.css";
-import "./theme-surfaces.css";
 export const metadata: Metadata = {
   metadataBase: siteUrl(),
   title: { default: "Kite — Your ideas. Onchain.", template: "%s | Kite" },

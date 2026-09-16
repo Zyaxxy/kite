@@ -1,0 +1,21 @@
+/* The landing page uses the same product materials. */
+.landing {
+  max-width: 1440px;
+  margin: auto;
+  padding: 0 48px;
+}
+.landing-nav {
+  height: 98px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  gap: 25px;
+}
+.landing-nav nav {
+  display: flex;
+  align-items: center;
+  gap: 33px;
+  font-size: 12px;
+  color: var(--muted);
+}

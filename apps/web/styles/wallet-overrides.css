@@ -1,0 +1,23 @@
+/* Wallet and Privy surfaces inherit the shared design. */
+.wallet-adapter-button {
+  background: var(--accent) !important;
+  color: var(--accent-ink) !important;
+  font-family: inherit !important;
+  font-size: 12px !important;
+  border-radius: 11px !important;
+  height: 42px !important;
+}
+.wallet-adapter-modal-wrapper {
+  background: var(--surface) !important;
+  font-family: inherit !important;
+  border: 1px solid var(--line);
+  border-radius: 20px !important;
+}
+.actual-trade-panel input {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  width: 100%;
+  color: var(--ink);
+}

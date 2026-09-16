@@ -78,8 +78,8 @@ export function PrimaryNavigation({ landing = false }: { landing?: boolean }) {
               <DropdownMenuLinkItem render={<Link href="/sip" />}>
                 <Repeat2 size={17} />
                 <span>
-                  Your recurring plans
-                  <small>View and manage your schedule</small>
+                  Recurring investments
+                  <small>Devnet setup and paper schedules</small>
                 </span>
                 <ArrowUpRight size={14} />
               </DropdownMenuLinkItem>
@@ -252,7 +252,7 @@ export function Shell({
             </div>
           </div>
           <div className="workspace-header-actions">
-            <TradingModeSwitch />
+            {path !== "/sip" && <TradingModeSwitch />}
             <button
               className="header-search"
               onClick={() => setSearchOpen(true)}
@@ -267,9 +267,7 @@ export function Shell({
           </div>
         </div>
       </header>
-      <main className="workspace-main">
-        {children}
-      </main>
+      <main className="workspace-main">{children}</main>
       <nav
         className="bottom-nav kite-bottom-nav"
         aria-label="Mobile navigation"

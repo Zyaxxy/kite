@@ -351,34 +351,6 @@
   background: var(--accent);
   color: var(--accent-ink);
 }
-.landing .landing-hero {
-  gap: 56px;
-  padding-top: 76px;
-}
-.landing .landing-hero h1 {
-  font-size: clamp(48px, 5.4vw, 78px);
-  line-height: 1.06;
-}
-.landing .landing-hero p {
-  font-size: 16px;
-  line-height: 1.75;
-}
-.landing .landing-actions {
-  align-items: center;
-  gap: 24px;
-}
-.landing .landing-actions .btn {
-  border-radius: 28px;
-  min-height: 48px;
-  padding: 12px 22px;
-  font-size: 13px;
-}
-.landing .landing-hero small {
-  font-size: 12px;
-}
-.landing .landing-footer {
-  align-items: flex-start;
-}
 @media (max-width: 1200px) {
   .workspace-header-inner {
     padding: 10px 16px;
@@ -493,23 +465,6 @@
     width: 32px;
     height: 32px;
   }
-  .landing .landing-hero {
-    padding-top: 44px;
-    gap: 32px;
-  }
-  .landing .landing-hero p {
-    font-size: 14px;
-  }
-  .landing .landing-actions {
-    gap: 18px;
-    flex-wrap: wrap;
-  }
-  .landing .landing-actions .text-link {
-    font-size: 12px;
-  }
-  .landing .landing-art {
-    min-height: 340px;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   .kite-menu,
@@ -538,5 +493,59 @@
 @media (prefers-reduced-motion: reduce) {
   .theme-option {
     transition: none;
+  }
+}
+
+/* Phone controls fit one row; the account mode gets its own labeled row. */
+@media (max-width: 760px) {
+  .kite-workspace .workspace-header-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 40px 80px 44px;
+    gap: 8px;
+  }
+  .kite-workspace .workspace-header-actions {
+    display: contents;
+  }
+  .kite-workspace .navigation-core {
+    grid-column: 1;
+    grid-row: 1;
+    gap: 0;
+  }
+  .kite-workspace .header-search {
+    grid-column: 2;
+    grid-row: 1;
+    min-height: 40px;
+    justify-content: center;
+  }
+  .kite-workspace .theme-toggle {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .kite-workspace .theme-option {
+    width: 35px;
+    height: 36px;
+  }
+  .kite-workspace .account-trigger {
+    grid-column: 4;
+    grid-row: 1;
+    min-height: 40px;
+    padding: 0;
+    justify-content: center;
+  }
+  .kite-workspace .account-trigger > svg {
+    display: none;
+  }
+  .kite-workspace .header-mode {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: space-between;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
+  }
+  .kite-workspace .header-mode-caption {
+    display: block;
+  }
+  .kite-workspace .workspace-main {
+    padding-bottom: 90px;
   }
 }
