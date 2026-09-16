@@ -20,6 +20,13 @@ export type RpcAccount = {
   executable: boolean;
   lamports: number;
 } | null;
+export class RpcError extends Error {
+  constructor(message: string, public readonly data?: unknown) {
+    super(message);
+    this.name = "RpcError";
+  }
+}
+
 export async function mainnetRpc<T>(
   method: string,
   params: unknown[] = [],
@@ -35,9 +42,16 @@ export async function mainnetRpc<T>(
       signal: AbortSignal.timeout(12_000),
     });
     const data = await response.json();
-    if (!response.ok || data.error || !("result" in data)) throw new Error();
+    if (data.error) {
+      throw new RpcError(
+        typeof data.error.message === "string" ? data.error.message : "RPC Error",
+        data.error
+      );
+    }
+    if (!response.ok || !("result" in data)) throw new Error("Invalid RPC response");
     return data.result as T;
-  } catch {
+  } catch (err) {
+    if (err instanceof RpcError) throw err;
     throw new Error("The mainnet RPC is unavailable.");
   }
 }

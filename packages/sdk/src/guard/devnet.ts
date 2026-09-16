@@ -127,7 +127,7 @@ export function findGuardPlanPda(
 ): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [
-      Buffer.from("plan"),
+      Buffer.from("plan_v2"),
       key(owner).toBuffer(),
       key(fundingMint).toBuffer(),
       u64(nonce),

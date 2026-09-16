@@ -115,7 +115,11 @@ async function recurringRequest<T>(path: string, body: unknown): Promise<T> {
   return data as T;
 }
 
-export function RecurringInvestingPanel() {
+export function RecurringInvestingPanel({
+  onPlanConfirmed,
+}: {
+  onPlanConfirmed?: () => void;
+} = {}) {
   const auth = useTradingAuth();
   const activeWallet = useRef(auth.walletAddress);
   activeWallet.current = auth.walletAddress;
@@ -133,6 +137,49 @@ export function RecurringInvestingPanel() {
   const [prepared, setPrepared] = useState<PreparedPlan | null>(null);
   const [pending, setPending] = useState<PendingPlan | null>(null);
   const [pendingUnreadable, setPendingUnreadable] = useState(false);
+  const [faucetLoading, setFaucetLoading] = useState(false);
+  const [faucetMessage, setFaucetMessage] = useState("");
+  const [faucetUrl, setFaucetUrl] = useState("");
+  const [faucetAvailable, setFaucetAvailable] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/faucet")
+      .then((res) => res.json())
+      .then((data) => setFaucetAvailable(Boolean(data.available)))
+      .catch(() => setFaucetAvailable(false));
+  }, []);
+
+  const handleClaimFaucet = async () => {
+    if (!auth.walletAddress) {
+      setError("Connect wallet first to claim devnet test tokens.");
+      return;
+    }
+    setFaucetLoading(true);
+    setFaucetMessage("");
+    setFaucetUrl("");
+    try {
+      const res = await fetch("/api/faucet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipient: auth.walletAddress, amount: 500 }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Faucet claim failed.");
+      }
+      setFaucetMessage(`Received 500 KUSD${data.solAirdropped ? " and 0.1 devnet SOL" : ""}!`);
+      setFaucetUrl(data.solscanUrl || "");
+      if (error && error.includes("KUSD")) {
+        setError("");
+      }
+    } catch (err) {
+      setFaucetMessage(
+        err instanceof Error ? err.message : "Failed to claim test tokens.",
+      );
+    } finally {
+      setFaucetLoading(false);
+    }
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -312,6 +359,9 @@ export function RecurringInvestingPanel() {
           ? "Devnet recurring plan confirmed."
           : "Devnet confirmation is pending. Check submission status to reuse this exact transaction; a second plan will not be created.",
       );
+      if (result.status === "confirmed" && onPlanConfirmed) {
+        onPlanConfirmed();
+      }
     } catch (cause) {
       if (record && activeWallet.current === order.signer)
         setSuccess(
@@ -379,6 +429,64 @@ export function RecurringInvestingPanel() {
           Configuration loaded. A wallet simulation is still required to verify
           this plan.
         </p>
+      )}
+
+      {faucetAvailable && (
+        <div
+          className="notice stack"
+          style={{
+            gap: 8,
+            padding: 14,
+            borderRadius: 8,
+            border: "1px solid var(--color-border-subtle, rgba(255,255,255,0.08))",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 8,
+            }}
+          >
+            <div>
+              <strong style={{ fontSize: "0.9rem" }}>Devnet Test Faucet</strong>
+              <p className="fineprint" style={{ margin: 0 }}>
+                Claim 500 test KUSD and gas SOL to test recurring investing.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={faucetLoading || !auth.walletAddress}
+              onClick={() => void handleClaimFaucet()}
+              style={{
+                fontSize: "0.85rem",
+                padding: "6px 14px",
+                height: "auto",
+                minHeight: "unset",
+              }}
+            >
+              {faucetLoading ? "Claiming…" : "Claim 500 KUSD"}
+            </button>
+          </div>
+          {faucetMessage && (
+            <p className="fineprint" style={{ margin: 0 }}>
+              {faucetMessage}{" "}
+              {faucetUrl && (
+                <a
+                  href={faucetUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-link"
+                >
+                  View on explorer
+                </a>
+              )}
+            </p>
+          )}
+        </div>
       )}
 
       <form

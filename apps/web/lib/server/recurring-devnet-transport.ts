@@ -109,10 +109,12 @@ export async function simulateRecurring(
       replaceRecentBlockhash: false,
     },
   ]);
-  if (value.err !== null)
+  if (value.err !== null) {
+    console.error("Devnet simulation failed:", JSON.stringify({ err: value.err, logs: (value as { logs?: string[] }).logs }, null, 2));
     throw new Error(
       "The devnet transaction failed simulation. Check test-token balances, pool liquidity, account rent, and the deployed recurring contract version.",
     );
+  }
   if (expectedReturn) {
     const returned = value.returnData;
     const data =

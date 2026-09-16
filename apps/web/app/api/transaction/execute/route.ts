@@ -93,17 +93,19 @@ export async function POST(request: NextRequest) {
       202,
     );
   } catch (error) {
+    const isRpcReject = error instanceof Error && error.name === "RpcError";
+    const effectivelySubmitted = submitted && !isRpcReject;
     return reply(
       {
-        status: submitted ? "Unknown" : "Failed",
+        status: effectivelySubmitted ? "Unknown" : "Failed",
         signature,
-        error: submitted
+        error: effectivelySubmitted
           ? UNKNOWN_TRADE_MESSAGE
           : error instanceof Error
             ? error.message
             : "Unable to prepare execution.",
       },
-      submitted ? 502 : 400,
+      effectivelySubmitted ? 502 : 400,
     );
   }
 }

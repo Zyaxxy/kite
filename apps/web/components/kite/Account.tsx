@@ -26,6 +26,7 @@ import { OrbitArt } from "./Brand";
 import { NativeSelect, NativeSelectOption } from "../ui/native-select";
 import { useTradingAuth } from "../trading/TradingAuth";
 import { RecurringInvestingPanel } from "../trading/RecurringInvestingPanel";
+import { DevnetPlansList } from "../trading/DevnetPlansList";
 import { ActualPortfolio } from "../trading/ActualPortfolio";
 const WalletButton = dynamic(
   () =>
@@ -366,6 +367,7 @@ export function Plans() {
   const [amount, setAmount] = useState("25");
   const [frequency, setFrequency] = useState<PaperFrequency>("weekly");
   const [error, setError] = useState<string | null>(null);
+  const [devnetPlanRefresh, setDevnetPlanRefresh] = useState(0);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const basket = params.get("basket"),
@@ -457,9 +459,17 @@ export function Plans() {
       </div>
       {mode === "actual" ? (
         <div className={planStyles.layout}>
-          <section id="new-plan">
-            <RecurringInvestingPanel />
-          </section>
+          <div className="stack" style={{ gap: 32 }}>
+            <DevnetPlansList
+              refreshTrigger={devnetPlanRefresh}
+              onPlanRevoked={() => setDevnetPlanRefresh((k) => k + 1)}
+            />
+            <section id="new-plan">
+              <RecurringInvestingPanel
+                onPlanConfirmed={() => setDevnetPlanRefresh((k) => k + 1)}
+              />
+            </section>
+          </div>
           <aside className={planStyles.aside}>
             <div className={planStyles.guide}>
               <span className={planStyles.guideIcon}>

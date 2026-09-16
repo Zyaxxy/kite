@@ -127,22 +127,40 @@ pub fn validate_subscription(
         KiteGuardError::InvalidDelegation
     );
     let (expected_authority, _) = Pubkey::find_program_address(
-        &[b"authority", owner.as_ref(), mint.as_ref(), &nonce.to_le_bytes()],
+        &[b"SubscriptionAuthority", owner.as_ref(), mint.as_ref()],
         &SUBSCRIPTIONS_PROGRAM,
     );
     require!(
         authority.key() == expected_authority,
         KiteGuardError::InvalidDelegation
     );
+    let (expected_delegation, _) = Pubkey::find_program_address(
+        &[
+            b"delegation",
+            expected_authority.as_ref(),
+            owner.as_ref(),
+            buyer.as_ref(),
+            &nonce.to_le_bytes(),
+        ],
+        &SUBSCRIPTIONS_PROGRAM,
+    );
+    require!(
+        delegation.key() == expected_delegation,
+        KiteGuardError::InvalidDelegation
+    );
+
     let authority_data = authority.try_borrow_data()?;
-    let current_init_id = i64::from_le_bytes(authority_data[41..49].try_into().unwrap());
-    
+    require!(authority_data.len() >= 106, KiteGuardError::InvalidDelegation);
+    let current_init_id = i64::from_le_bytes(authority_data[98..106].try_into().unwrap());
+
     let delegation_data = delegation.try_borrow_data()?;
-    let del_owner = Pubkey::try_from(&delegation_data[9..41]).unwrap();
-    let del_buyer = Pubkey::try_from(&delegation_data[41..73]).unwrap();
-    let del_mint = Pubkey::try_from(&delegation_data[105..137]).unwrap();
-    let init_id = i64::from_le_bytes(delegation_data[137..145].try_into().unwrap());
-    
+    require!(delegation_data.len() >= 211, KiteGuardError::InvalidDelegation);
+    let del_owner = Pubkey::try_from(&delegation_data[3..35]).unwrap();
+    let del_buyer = Pubkey::try_from(&delegation_data[35..67]).unwrap();
+    let del_payer = Pubkey::try_from(&delegation_data[67..99]).unwrap();
+    let init_id = i64::from_le_bytes(delegation_data[99..107].try_into().unwrap());
+    let del_mint = Pubkey::try_from(&delegation_data[139..171]).unwrap();
+
     require!(
         del_owner == *owner
             && del_buyer == *buyer
@@ -153,15 +171,15 @@ pub fn validate_subscription(
     Ok(DelegationData {
         owner: del_owner,
         delegatee: del_buyer,
-        payer: Pubkey::try_from(&delegation_data[73..105]).unwrap(),
+        payer: del_payer,
         authority: expected_authority,
         mint: del_mint,
         init_id,
-        current_period_start: i64::from_le_bytes(delegation_data[145..153].try_into().unwrap()),
-        period_seconds: u64::from_le_bytes(delegation_data[153..161].try_into().unwrap()),
-        expires_at: i64::from_le_bytes(delegation_data[161..169].try_into().unwrap()),
-        amount: u64::from_le_bytes(delegation_data[169..177].try_into().unwrap()),
-        pulled: u64::from_le_bytes(delegation_data[177..185].try_into().unwrap()),
+        current_period_start: i64::from_le_bytes(delegation_data[171..179].try_into().unwrap()),
+        period_seconds: u64::from_le_bytes(delegation_data[179..187].try_into().unwrap()),
+        expires_at: i64::from_le_bytes(delegation_data[187..195].try_into().unwrap()),
+        amount: u64::from_le_bytes(delegation_data[195..203].try_into().unwrap()),
+        pulled: u64::from_le_bytes(delegation_data[203..211].try_into().unwrap()),
     })
 }
 

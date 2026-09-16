@@ -267,10 +267,15 @@ async function fundingAuthority(
     TOKEN_PROGRAM_ID,
   ).toBase58();
   const accounts = await loadAccounts([source, authority]);
+  const tokenAccount = accounts.get(source);
+  if (!tokenAccount)
+    throw new Error(
+      "Devnet KUSD token account not found. Claim test KUSD using the faucet to fund your wallet.",
+    );
   const token = readToken(accounts, source, funding.mint, owner);
   if (token.amount < requiredAmount)
     throw new Error(
-      "Fund your wallet with enough devnet KUSD for the next investment.",
+      "Fund your wallet with enough devnet KUSD for the next investment. Use the faucet below to claim test KUSD.",
     );
   const existing = accounts.get(authority);
   if (!existing) {
