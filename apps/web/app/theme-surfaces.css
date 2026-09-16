@@ -1,0 +1,87 @@
+/* Floating surfaces share the theme, including portals rendered outside the shell. */
+:root {
+  --scrim: rgb(3 6 3 / 66%);
+  --shadow-float: 0 16px 48px rgb(3 6 3 / 28%);
+}
+
+:root[data-theme="light"] {
+  --scrim: rgb(28 38 29 / 30%);
+  --shadow-float: 0 16px 48px rgb(28 38 29 / 12%);
+}
+
+.modal-backdrop {
+  background: var(--scrim);
+}
+
+.modal {
+  border-color: var(--line);
+  box-shadow: var(--shadow-float);
+}
+
+.toast {
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--line));
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  box-shadow: var(--shadow-float);
+}
+
+.more-links {
+  box-shadow: var(--shadow-float);
+}
+
+.recurring-devnet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: var(--scrim);
+  backdrop-filter: blur(4px);
+}
+
+.recurring-devnet-dialog {
+  width: 100%;
+  max-width: 448px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-float);
+}
+
+.recurring-devnet-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.recurring-devnet-heading > svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.recurring-devnet-heading h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.recurring-devnet-copy {
+  margin-bottom: 24px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.recurring-devnet-actions .btn {
+  font-size: 14px;
+}
+
+@media (max-width: 760px) {
+  .bottom-nav {
+    background: color-mix(in srgb, var(--surface) 96%, transparent);
+  }
+}

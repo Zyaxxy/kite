@@ -9,3 +9,5 @@
 - Screenshots/GrowwUI: reference for market overview, compact stock cards, aligned market tables, and the account/tools/news rail. All figures and headlines come from Kite’s existing data services.
 
 The navigation contains Discover, Baskets, Recurring, and Portfolio. Markets redirects into Discover. Activity is included in Portfolio and accessible separately from the account menu. Saved assets remain a Discover filter. Trading mode controls appear only inside the app.
+
+- [shadcn/ui Toggle Group](https://ui.shadcn.com/docs/components/base/toggle-group): compact appearance selector composed with the existing Base UI ToggleGroup and Toggle primitives, using Kite theme tokens. [Dark mode guidance](https://ui.shadcn.com/docs/dark-mode/next) informed root provider placement and hydration-safe initialization; no new dependency is required.

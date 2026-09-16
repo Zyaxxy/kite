@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { ArrowUpRight, ShieldCheck, SlidersHorizontal } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useReportWebVitals } from "next/web-vitals";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -129,27 +130,44 @@ export function PrivacyChoices() {
   };
   return (
     <>
-      <div className="privacy-links">
-        <Link href="/privacy">Privacy</Link>
-        <Link href="/terms">Terms</Link>
-        <button type="button" onClick={() => setVisible(true)}>
-          Privacy choices
-        </button>
-        {saveError && (
-          <span role="status">
-            Your choice applies for this visit; device storage is unavailable.
+      <footer className="site-footer" aria-label="Data and security">
+        <div className="footer-security">
+          <span className="footer-security-icon">
+            <ShieldCheck size={20} strokeWidth={1.5} aria-hidden="true" />
           </span>
+          <div>
+            <h2>Data & security</h2>
+            <p>Your wallet stays yours. You decide what to share.</p>
+          </div>
+        </div>
+        <nav className="footer-links" aria-label="Privacy and account links">
+          <Link href="/privacy">Privacy policy</Link>
+          <Link href="/terms">Terms</Link>
+          <Link href="/settings">
+            Data controls <ArrowUpRight size={13} aria-hidden="true" />
+          </Link>
+          <button type="button" onClick={() => setVisible(true)}>
+            <SlidersHorizontal size={14} aria-hidden="true" /> Privacy choices
+          </button>
+        </nav>
+        {saveError && (
+          <p className="privacy-save-error" role="status">
+            Your choice applies for this visit; device storage is unavailable.
+          </p>
         )}
-      </div>
+      </footer>
       {visible && (
         <section className="privacy-banner" aria-labelledby="privacy-title">
           <div>
-            <h2 id="privacy-title">Your privacy choices</h2>
+            <h2 id="privacy-title">
+              <ShieldCheck size={18} aria-hidden="true" /> Your data. Your
+              choice.
+            </h2>
             <p>
-              Essential storage keeps your paper activity and sign-in working.{" "}
+              Essential storage keeps your preferences and sign-in working.{" "}
               {DOMAIN
-                ? "Allow optional usage analytics to help improve Kite."
-                : "Optional analytics are not configured on this deployment."}{" "}
+                ? "Usage analytics stay off unless you opt in."
+                : "Only essential storage is used on this deployment."}{" "}
               <Link href="/privacy">Read the privacy policy</Link>.
             </p>
           </div>

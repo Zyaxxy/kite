@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { Providers } from "./providers";
+import { ThemeProvider } from "../components/kite/ThemeMode";
 import { PrivacyChoices } from "../components/kite/PrivacyChoices";
 import { siteUrl } from "../lib/site";
 import "./wallet-adapter.css";
 import "./globals.css";
 import "./navigation-redesign.css";
 import "./discover-redesign.css";
+import "./theme-surfaces.css";
 export const metadata: Metadata = {
   metadataBase: siteUrl(),
   title: { default: "Kite — Your ideas. Onchain.", template: "%s | Kite" },
@@ -26,10 +28,39 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" data-scroll-behavior="smooth">
+    <html
+      lang="en"
+      data-scroll-behavior="smooth"
+      data-theme="dark"
+      suppressHydrationWarning
+    >
+      <head>
+        <script
+          // Keep the first paint aligned with a saved user preference.
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function () {
+                try {
+                  var storedTheme;
+                  try { storedTheme = localStorage.getItem("kite-theme"); } catch {}
+                  var theme = storedTheme === "light" || storedTheme === "dark"
+                    ? storedTheme
+                    : (window.matchMedia("(prefers-color-scheme: dark)").matches
+                        ? "dark"
+                        : "light");
+                  document.documentElement.setAttribute("data-theme", theme);
+                  document.documentElement.style.colorScheme = theme;
+                } catch {}
+              })();
+            `,
+          }}
+        />
+      </head>
       <body>
-        <Providers>{children}</Providers>
-        <PrivacyChoices />
+        <ThemeProvider>
+          <Providers>{children}</Providers>
+          <PrivacyChoices />
+        </ThemeProvider>
       </body>
     </html>
   );

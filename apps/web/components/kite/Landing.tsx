@@ -14,6 +14,7 @@ import { useBaskets } from "./useBaskets";
 import { WatchRow } from "./MarketUI";
 import { BasketMarquee } from "./BasketMarquee";
 import { PrimaryNavigation } from "./Shell";
+import { ThemeToggle } from "./ThemeMode";
 
 export function Landing() {
   const { snapshot, loading } = useKite();
@@ -28,12 +29,15 @@ export function Landing() {
           <Brand />
           <PrimaryNavigation landing />
         </div>
-        <Link href="/app" className="btn small landing-open">
-          Open Kite{" "}
-          <span>
-            <ArrowUpRight size={17} />
-          </span>
-        </Link>
+        <div className="landing-nav-actions">
+          <ThemeToggle />
+          <Link href="/app" className="btn small landing-open">
+            Open Kite{" "}
+            <span>
+              <ArrowUpRight size={17} />
+            </span>
+          </Link>
+        </div>
       </header>
       <main>
         <section className="landing-hero">

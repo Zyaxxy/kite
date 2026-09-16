@@ -17,25 +17,23 @@ export function RecurringDevnetDialog() {
       role="dialog"
       aria-modal="true"
       aria-labelledby="devnet-recurring-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      className="recurring-devnet-backdrop"
     >
-      <div className="w-full max-w-md rounded-2xl border border-[#2f3b2f] bg-[#1d261e] p-6 shadow-2xl">
-        <div className="mb-4 flex items-center gap-3 text-amber-300">
+      <div className="recurring-devnet-dialog">
+        <div className="recurring-devnet-heading">
           <Beaker size={24} />
-          <h2
-            id="devnet-recurring-title"
-            className="m-0 text-lg font-semibold text-[#f5f8f0]"
-          >
-            Devnet Test Feature
-          </h2>
+          <h2 id="devnet-recurring-title">Devnet Test Feature</h2>
         </div>
-        <p className="mb-6 text-sm leading-relaxed text-[#a6b2a4]">
-          The trustless on-chain smart-contract for recurring investments is currently in development. This feature is only available on <strong>Devnet</strong> with devnet test features. Actual mainnet recurring execution is disabled during this period.
+        <p className="recurring-devnet-copy">
+          The trustless on-chain smart-contract for recurring investments is
+          currently in development. This feature is only available on{" "}
+          <strong>Devnet</strong> with devnet test features. Actual mainnet
+          recurring execution is disabled during this period.
         </p>
-        <div className="flex justify-end">
+        <div className="recurring-devnet-actions">
           <button
             type="button"
-            className="btn full text-sm"
+            className="btn full"
             onClick={() => setOpen(false)}
           >
             I understand

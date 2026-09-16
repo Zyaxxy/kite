@@ -9,6 +9,7 @@ import {
 } from "@privy-io/react-auth/solana";
 import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
 import { TradingAuthProvider, type PrivySession } from "../trading/TradingAuth";
+import { useTheme } from "../kite/ThemeMode";
 
 const connectors = toSolanaWalletConnectors({ shouldAutoConnect: false });
 
@@ -68,11 +69,28 @@ export default function PrivyAuthProvider({
   appId: string;
   endpoint: string;
 }) {
+  const { theme } = useTheme();
+  const solana = useMemo(
+    () => ({
+      rpcs: {
+        "solana:mainnet": {
+          rpc: createSolanaRpc(endpoint),
+          rpcSubscriptions: createSolanaRpcSubscriptions(
+            process.env.NEXT_PUBLIC_SOLANA_WS_URL ||
+              endpoint.replace(/^http/, "ws"),
+          ),
+        },
+      },
+    }),
+    [endpoint],
+  );
   const config = useMemo(
     () => ({
       appearance: {
-        theme: "dark" as const,
-        accentColor: "#D5F478" as const,
+        theme,
+        accentColor: (theme === "light"
+          ? "#426C2F"
+          : "#D5F478") as `#${string}`,
         walletChainType: "solana-only" as const,
       },
       loginMethods: ["email", "wallet"] as ("email" | "wallet")[],
@@ -80,19 +98,9 @@ export default function PrivyAuthProvider({
       embeddedWallets: {
         solana: { createOnLogin: "users-without-wallets" as const },
       },
-      solana: {
-        rpcs: {
-          "solana:mainnet": {
-            rpc: createSolanaRpc(endpoint),
-            rpcSubscriptions: createSolanaRpcSubscriptions(
-              process.env.NEXT_PUBLIC_SOLANA_WS_URL ||
-                endpoint.replace(/^http/, "ws"),
-            ),
-          },
-        },
-      },
+      solana,
     }),
-    [endpoint],
+    [solana, theme],
   );
 
   return (
