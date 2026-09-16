@@ -521,7 +521,7 @@ function backend({ plan, protocolFailure = false, delegation } = {}) {
               owner: sdk.KITE_GUARD_PROGRAM_ID.toBase58(),
               executable: false,
               lamports: 1,
-              data: [Buffer.alloc(1684).toString("base64"), "base64"],
+              data: [Buffer.alloc(1045).toString("base64"), "base64"],
             };
           if (address === plan?.recurringDelegation) return delegation ?? null;
           throw new Error(`Unexpected account lookup ${address}`);
@@ -534,6 +534,7 @@ function backend({ plan, protocolFailure = false, delegation } = {}) {
     {
       "@kite/sdk": {
         ...sdk,
+        decodeGuardPlan: () => plan,
         decodeGuardPlanV2: () => plan,
         composeV1Transaction: async (params) => {
           composed.push(params);
@@ -592,24 +593,15 @@ test("unprovisioned catalog stays visibly blocked without inventing mints, pools
   );
 });
 
-test("executable legacy deployment cannot prepare a plan when its protocol probe fails", async () => {
-  const api = backend({ protocolFailure: true });
-  await assert.rejects(
-    () => api.createDevnetRecurringPlan(create()),
-    /Unsupported deployed protocol/,
-  );
-  assert.equal(api.composed.length, 1, "only the protocol probe was composed");
-});
-
-test("plan listing scopes chain queries to v2 account size and the selected owner", async () => {
+test("plan listing scopes chain queries to account size and the selected owner", async () => {
   const api = backend();
   assert.equal((await api.listDevnetRecurringPlans(wallet)).length, 0);
   const request = api.calls.find(
     (call) => call.method === "getProgramAccounts",
   );
   assert.equal(request.params[0], sdk.KITE_GUARD_PROGRAM_ID.toBase58());
-  assert.equal(request.params[1].filters[0].dataSize, 1684);
-  assert.equal(request.params[1].filters[1].memcmp.offset, 9);
+  assert.equal(request.params[1].filters[0].dataSize, 1045);
+  assert.equal(request.params[1].filters[1].memcmp.offset, 10);
   assert.equal(request.params[1].filters[1].memcmp.bytes, wallet);
 });
 
@@ -627,8 +619,8 @@ test("stale collection and already executed periods stop before fetching any tok
   );
   assert.equal(
     stale.composed.length,
-    1,
-    "only the protocol probe was composed",
+    0,
+    "no transaction was composed because period is stale",
   );
   const replay = backend({
     plan: {
@@ -670,7 +662,7 @@ test("owner can close a plan after its delegation was revoked, without a manifes
     assert.equal(result.plan, plan.address);
     const close = api.composed.at(-1).instructions.at(-1);
     assert.equal(
-      close.keys[6].pubkey.toBase58(),
+      close.keys[3].pubkey.toBase58(),
       wallet,
       "closed permission has no separate rent recipient",
     );

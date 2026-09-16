@@ -36,7 +36,7 @@ function createParams(symbols = ['AAPL'], overrides = {}) {
   return {
     owner, fundingMint, nonce: 77n, fundingAmount: 100_000_007n, periodSeconds: 60n,
     startsAt: 1_800_000_000n, expiresAt: 1_800_000_180n, periods: 3, initializeAuthority: true,
-    outputs: symbols.map((symbol, index) => ({ mint: fixtureKey(symbol), weightBps: Math.floor(10000 / count) + (index < 10000 % count ? 1 : 0), pool: pools[index].pool, minimumAmountOut: 100n + BigInt(index) })),
+    outputs: symbols.map((symbol, index) => ({ mint: fixtureKey(symbol), weightBps: Math.floor(10000 / count) + (index < 10000 % count ? 1 : 0), pool: overrides.devnetMock ? PublicKey.default.toBase58() : pools[index].pool, minimumAmountOut: 100n + BigInt(index) })),
     pools, ...overrides,
   };
 }
@@ -49,20 +49,41 @@ function integer(value, bytes, signed = false) {
 }
 const publicKeyBytes = (key) => new PublicKey(key).toBuffer();
 function encodeOutputs(outputs) {
-  return Buffer.concat([integer(outputs.length, 4), ...outputs.map((output) => Buffer.concat([publicKeyBytes(output.mint), integer(output.weightBps, 2), publicKeyBytes(output.pool), integer(output.minimumAmountOut, 8)]))]);
+  return Buffer.concat([
+    integer(outputs.length, 4),
+    ...outputs.map((output) =>
+      Buffer.concat([
+        publicKeyBytes(output.mint),
+        integer(output.weightBps, 2),
+        integer(output.minimumAmountOut, 8),
+      ]),
+    ),
+  ]);
 }
-// Borsh fixture follows Rust PlanV2 field order and allocated 8 + 196 + 20*74 space.
+// Borsh fixture follows Rust Plan field order and allocated 8 + Plan::MAX_SIZE (1045) space.
 function encodeRustPlan(plan) {
   const value = Buffer.concat([
-    discriminator('account:PlanV2'), Buffer.from([2]), publicKeyBytes(plan.owner), publicKeyBytes(plan.fundingMint),
-    integer(plan.nonce, 8), integer(plan.fundingAmount, 8), integer(plan.periodSeconds, 8),
-    integer(plan.startsAt, 8, true), integer(plan.expiresAt, 8, true), integer(plan.periods, 2),
-    integer(plan.executedPeriods, 2), integer(plan.lastExecutedPeriod, 2), integer(plan.lastExecutedAt, 8, true),
-    publicKeyBytes(plan.subscriptionAuthority), publicKeyBytes(plan.recurringDelegation), integer(plan.subscriptionInitId, 8, true),
-    Buffer.from([plan.bump]), encodeOutputs(plan.outputs),
+    discriminator('account:Plan'),
+    Buffer.from([2]),
+    Buffer.from([plan.devnetMock ? 1 : 0]),
+    publicKeyBytes(plan.owner),
+    publicKeyBytes(plan.fundingMint),
+    integer(plan.nonce, 8),
+    integer(plan.fundingAmount, 8),
+    integer(plan.periodSeconds, 8),
+    integer(plan.startsAt, 8, true),
+    integer(plan.expiresAt, 8, true),
+    integer(plan.periods, 2),
+    integer(plan.executedPeriods, 2),
+    integer(plan.lastExecutedPeriod, 2),
+    integer(plan.lastExecutedAt, 8, true),
+    publicKeyBytes(plan.subscriptionAuthority),
+    publicKeyBytes(plan.recurringDelegation),
+    integer(plan.subscriptionInitId, 8, true),
+    Buffer.from([plan.bump]),
+    encodeOutputs(plan.outputs),
   ]);
-  assert.equal(value.length, 204 + 74 * plan.outputs.length);
-  const allocated = Buffer.alloc(1684);
+  const allocated = Buffer.alloc(1045);
   value.copy(allocated);
   return allocated;
 }
@@ -115,30 +136,23 @@ test('existing authority setup pins its observed init generation and does not re
   await assert.rejects(guard.buildGuardCreateInstructions({ ...params, expectedInitId: undefined }), /generation/);
 });
 
-test('Guard create data and account prefix match the Rust V2 ABI', async () => {
+test('Guard create data and account prefix match the Rust ABI', async () => {
   const params = createParams(['AAPL', 'NVDA']);
   const { instructions, plan } = await guard.buildGuardCreateInstructions(params);
   const create = instructions.at(-1);
   assert.equal(create.programId.toBase58(), KITE_GUARD_PROGRAM_ID.toBase58());
   assert.deepEqual(create.data, Buffer.concat([
-    discriminator('global:create_plan_v2'), integer(params.nonce, 8), integer(params.fundingAmount, 8), integer(params.periodSeconds, 8),
-    integer(params.startsAt, 8, true), integer(params.expiresAt, 8, true), integer(params.periods, 2), encodeOutputs(params.outputs),
+    discriminator('global:create_plan'), integer(params.nonce, 8), integer(params.fundingAmount, 8), integer(params.periodSeconds, 8),
+    integer(params.startsAt, 8, true), integer(params.expiresAt, 8, true), integer(params.periods, 2), Buffer.from([0]), encodeOutputs(params.outputs),
   ]));
   assert.deepEqual(metas(create).slice(0, 8).map((meta) => meta.address), [owner, fundingMint, plan.subscriptionAuthority, plan.recurringDelegation, plan.address, ownerAta(fundingMint, plan.address), SystemProgram.programId.toBase58(), TOKEN_PROGRAM_ID.toBase58()]);
-  for (let index = 0; index < params.outputs.length; index++) {
-    const output = params.outputs[index], pool = params.pools[index];
-    const leg = metas(create).slice(8 + index * 7, 8 + (index + 1) * 7);
-    assert.deepEqual(leg.map((meta) => meta.address), [output.mint, ownerAta(output.mint), pool.pool, pool.ammConfig, pool.inputVault, pool.outputVault, pool.observation]);
-    assert.deepEqual(leg.map((meta) => meta.isWritable), [false, true, true, false, true, true, true]);
-  }
-  assert.deepEqual(guard.buildGuardProtocolVersionInstruction().data, discriminator('global:protocol_version'));
 });
 
 test('collect supplies every official CPI account without requiring a keeper token authority', async () => {
   const params = createParams(['AAPL', 'MSFT']);
   const { plan } = await guard.buildGuardCreateInstructions(params);
   const collect = guard.buildGuardCollectInstructions(plan, params.pools, feePayer, 0)[0];
-  assert.deepEqual(collect.data, Buffer.concat([discriminator('global:execute_swap_v2'), integer(0, 2)]));
+  assert.deepEqual(collect.data, Buffer.concat([discriminator('global:execute_swap'), integer(0, 2)]));
   assert.deepEqual(metas(collect).filter((meta) => meta.isSigner).map((meta) => meta.address), [feePayer]);
   const transfer = await subscriptions.getTransferRecurringOverlayInstructionAsync({
     amount: plan.fundingAmount, delegatee: createNoopSigner(address(plan.address)), delegationPda: address(plan.recurringDelegation),
@@ -151,8 +165,7 @@ test('collect supplies every official CPI account without requiring a keeper tok
     if ((account.role & 1) !== 0) assert.equal(available.get(account.address).isWritable, true);
     if ((account.role & 2) !== 0) assert.equal(account.address, plan.address, 'the PDA signs only within the Guard CPI');
   }
-  assert.equal(collect.keys[9].pubkey.toBase58(), guard.DEVNET_RAYDIUM_CPMM_PROGRAM.toBase58());
-  assert.equal(collect.keys[10].pubkey.toBase58(), guard.raydiumDevnetAuthority().toBase58());
+  assert.equal(collect.keys[9].pubkey.toBase58(), guard.guardMockMintAuthority().toBase58());
 });
 
 test('close recreates the owner funding ATA and preserves the recorded delegation rent recipient', async () => {
@@ -162,13 +175,13 @@ test('close recreates the owner funding ATA and preserves the recorded delegatio
   assert.equal(instructions[0].programId.toBase58(), ASSOCIATED_TOKEN_PROGRAM_ID.toBase58());
   assert.equal(instructions[0].keys[1].pubkey.toBase58(), ownerAta(fundingMint));
   const close = instructions.at(-1);
-  assert.deepEqual(close.data, discriminator('global:close_plan_v2'));
-  assert.equal(close.keys[6].pubkey.toBase58(), rentPayer);
+  assert.deepEqual(close.data, discriminator('global:close_plan'));
+  assert.equal(close.keys[3].pubkey.toBase58(), rentPayer);
   assert.ok(instructions.flatMap(metas).filter((meta) => meta.isSigner).every((meta) => meta.address === owner));
 });
 
-test('Rust PlanV2 account fixtures decode all identity, schedule, execution, and basket fields', async () => {
-  const { plan: preview } = await guard.buildGuardCreateInstructions(createParams(['AAPL', 'MSFT', 'NVDA']));
+test('Rust Plan account fixtures decode all identity, schedule, execution, and basket fields', async () => {
+  const { plan: preview } = await guard.buildGuardCreateInstructions(createParams(['AAPL', 'MSFT', 'NVDA'], { devnetMock: true }));
   const plan = { ...preview, subscriptionInitId: 987654321n, executedPeriods: 1, lastExecutedPeriod: 1, lastExecutedAt: preview.startsAt + 61n };
   const decoded = guard.decodeGuardPlanV2(encodeRustPlan(plan), plan.address);
   for (const field of ['address', 'version', 'owner', 'fundingMint', 'nonce', 'fundingAmount', 'periodSeconds', 'startsAt', 'expiresAt', 'periods', 'executedPeriods', 'lastExecutedPeriod', 'lastExecutedAt', 'subscriptionAuthority', 'recurringDelegation', 'subscriptionInitId', 'bump', 'outputs']) assert.deepEqual(decoded[field], plan[field], field);
@@ -176,7 +189,7 @@ test('Rust PlanV2 account fixtures decode all identity, schedule, execution, and
   assert.throws(() => guard.decodeGuardPlanV2(bytes.subarray(0, bytes.length - 1), plan.address), /version/);
   const legacy = Buffer.from(bytes); legacy[8] = 1;
   assert.throws(() => guard.decodeGuardPlanV2(legacy, plan.address), /version/);
-  const badCount = Buffer.from(bytes); badCount.writeUInt32LE(21, 200);
+  const badCount = Buffer.from(bytes); badCount.writeUInt32LE(21, 201);
   assert.throws(() => guard.decodeGuardPlanV2(badCount, plan.address), /basket size/);
   assert.throws(() => guard.decodeGuardPlanV2(bytes, fixtureKey('wrong-plan')), /identity/);
 });

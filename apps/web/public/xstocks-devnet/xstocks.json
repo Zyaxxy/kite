@@ -2,10 +2,420 @@
   "schemaVersion": 1,
   "network": "devnet",
   "genesisHash": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
-  "status": "unprovisioned",
+  "status": "ready",
   "description": "Valueless Kite test instruments for devnet recurring integration tests. No tokens are available until their mint accounts have been provisioned and verified on devnet. These are not issuer-backed xStocks.",
-  "tokens": [],
-  "fundingToken": null,
+  "tokens": [
+    {
+      "underlyingSymbol": "AAPL",
+      "symbol": "xAAPL",
+      "name": "Kite Devnet Apple",
+      "decimals": 6,
+      "logo": "/company-logos/aapl.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "BjHgkKRRWoK3UAKKkN8wF3Co8XJoVL8QvzhrQy83ZWdC"
+    },
+    {
+      "underlyingSymbol": "MSFT",
+      "symbol": "xMSFT",
+      "name": "Kite Devnet Microsoft",
+      "decimals": 6,
+      "logo": "/company-logos/msft.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "9JWqjaPoczcTrUzTpMu91VDPJUesthB3ozDX426KkbWc"
+    },
+    {
+      "underlyingSymbol": "NVDA",
+      "symbol": "xNVDA",
+      "name": "Kite Devnet NVIDIA",
+      "decimals": 6,
+      "logo": "/company-logos/nvda.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "9HNnDApGfPSti4ZqNkctbDjoYdfEUyPvgYGEz5RfRYqP"
+    },
+    {
+      "underlyingSymbol": "AMZN",
+      "symbol": "xAMZN",
+      "name": "Kite Devnet Amazon",
+      "decimals": 6,
+      "logo": "/company-logos/amzn.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "Avi5qmNnsnrtU7WGitYXiUyxTsRWK5RMCYR3uszUDQAg"
+    },
+    {
+      "underlyingSymbol": "GOOGL",
+      "symbol": "xGOOGL",
+      "name": "Kite Devnet Alphabet",
+      "decimals": 6,
+      "logo": "/company-logos/googl.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "Bf3AB6MSermm2uXRd1riLkXdX8TXDMgUJVWuAYgN8dfY"
+    },
+    {
+      "underlyingSymbol": "META",
+      "symbol": "xMETA",
+      "name": "Kite Devnet Meta",
+      "decimals": 6,
+      "logo": "/company-logos/meta.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "CC7a3W6pSNL9dPpX4spiumeerJRKFru7TeRSp5jMeGb8"
+    },
+    {
+      "underlyingSymbol": "TSLA",
+      "symbol": "xTSLA",
+      "name": "Kite Devnet Tesla",
+      "decimals": 6,
+      "logo": "/company-logos/tsla.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "3Q4fKcYaRxnJKQQXwynpN8iwEWdsbk5VAJaKrAeGSo9X"
+    },
+    {
+      "underlyingSymbol": "ORCL",
+      "symbol": "xORCL",
+      "name": "Kite Devnet Oracle",
+      "decimals": 6,
+      "logo": "/company-logos/orcl.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "AAc8539UaJvirgfTniHqq3AUNjYtfVTDosJa36fyEyxJ"
+    },
+    {
+      "underlyingSymbol": "AMD",
+      "symbol": "xAMD",
+      "name": "Kite Devnet AMD",
+      "decimals": 6,
+      "logo": "/company-logos/amd.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "GYUmC5RkduiNwXJ8XtMRpasA4RMgNxWennofRkUMotSj"
+    },
+    {
+      "underlyingSymbol": "AVGO",
+      "symbol": "xAVGO",
+      "name": "Kite Devnet Broadcom",
+      "decimals": 6,
+      "logo": "/company-logos/avgo.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "4E2cS2DASVWYQ3uQy5s2SQFFAbztJNbjLxEKRPaJ3jF8"
+    },
+    {
+      "underlyingSymbol": "TSM",
+      "symbol": "xTSM",
+      "name": "Kite Devnet TSMC",
+      "decimals": 6,
+      "logo": "/company-logos/tsm.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "2JtjZP4cSCgym9eqa9sMmGeaPwAoBC9fv91cNXeWpqdb"
+    },
+    {
+      "underlyingSymbol": "ASML",
+      "symbol": "xASML",
+      "name": "Kite Devnet ASML",
+      "decimals": 6,
+      "logo": "/company-logos/asml.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "4H3H6L4yXMmRgYX7fJBQFp276bUoyTBejE8BWCt6RLVY"
+    },
+    {
+      "underlyingSymbol": "CRM",
+      "symbol": "xCRM",
+      "name": "Kite Devnet Salesforce",
+      "decimals": 6,
+      "logo": "/company-logos/crm.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "G8tZkGrkcLWyPdJVWPM5LWATjQdCh1jbgbE4E1EKAtY9"
+    },
+    {
+      "underlyingSymbol": "NOW",
+      "symbol": "xNOW",
+      "name": "Kite Devnet ServiceNow",
+      "decimals": 6,
+      "logo": "/company-logos/now.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "33bVxv2fkACicN5vdnQLS9i3W57u5iCKVoCXRwH3XHQv"
+    },
+    {
+      "underlyingSymbol": "MCD",
+      "symbol": "xMCD",
+      "name": "Kite Devnet McDonald's",
+      "decimals": 6,
+      "logo": "/company-logos/mcd.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "6t7rLAU6WVz7QgMMJMWcpSi4FJE9wDwAUKwzEE78zjKw"
+    },
+    {
+      "underlyingSymbol": "SBUX",
+      "symbol": "xSBUX",
+      "name": "Kite Devnet Starbucks",
+      "decimals": 6,
+      "logo": "/company-logos/sbux.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "3B2F9zR9oXFXCjf4fSVGtJmjgyP9TQcKKVVsizqrqCJm"
+    },
+    {
+      "underlyingSymbol": "KO",
+      "symbol": "xKO",
+      "name": "Kite Devnet Coca-Cola",
+      "decimals": 6,
+      "logo": "/company-logos/ko.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "Fnj1nzGcP6rSFhqFsmWBBK8BvNdLKNnK88BNBPxoaf8Z"
+    },
+    {
+      "underlyingSymbol": "LLY",
+      "symbol": "xLLY",
+      "name": "Kite Devnet Eli Lilly",
+      "decimals": 6,
+      "logo": "/company-logos/lly.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "64g3xmyiYtPw9cgkUJBv6AZpob7ij1uKyqpQGGiLf2XQ"
+    },
+    {
+      "underlyingSymbol": "JNJ",
+      "symbol": "xJNJ",
+      "name": "Kite Devnet Johnson & Johnson",
+      "decimals": 6,
+      "logo": "/company-logos/jnj.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "FxB89xNhYPqHnESVQMJQpioVdcPdrwgh5NmEwuhE7GWi"
+    },
+    {
+      "underlyingSymbol": "ABBV",
+      "symbol": "xABBV",
+      "name": "Kite Devnet AbbVie",
+      "decimals": 6,
+      "logo": "/company-logos/abbv.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "Bif7Cwj1X4JszFwYK6fQLJXkRpHJrEE6bRfxr474wiq"
+    },
+    {
+      "underlyingSymbol": "UNH",
+      "symbol": "xUNH",
+      "name": "Kite Devnet UnitedHealth",
+      "decimals": 6,
+      "logo": "/company-logos/unh.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "77nFpsWD5ZXFdfSqDaNJSSxqMuaGptk9M1Ugh179y9Ri"
+    },
+    {
+      "underlyingSymbol": "MRK",
+      "symbol": "xMRK",
+      "name": "Kite Devnet Merck",
+      "decimals": 6,
+      "logo": "/company-logos/mrk.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "FQvYYd9hzPckxYRHvuHJ2QHKb79TZn7SdbiTPJcDjkUD"
+    },
+    {
+      "underlyingSymbol": "JPM",
+      "symbol": "xJPM",
+      "name": "Kite Devnet JPMorgan Chase",
+      "decimals": 6,
+      "logo": "/company-logos/jpm.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "CLZDk6CSuUhkGViYLM4xUwSTjy7rh3nbhM8vDBmg7AWK"
+    },
+    {
+      "underlyingSymbol": "GS",
+      "symbol": "xGS",
+      "name": "Kite Devnet Goldman Sachs",
+      "decimals": 6,
+      "logo": "/company-logos/gs.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "rQ5BtHpXB2LmEF1SpLCxKycY1k3yH89gznKPBm9zDGB"
+    },
+    {
+      "underlyingSymbol": "V",
+      "symbol": "xV",
+      "name": "Kite Devnet Visa",
+      "decimals": 6,
+      "logo": "/company-logos/v.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "6R4mt29NPTicYLimbztWXQcPQuxaQZBywpiZH9md2T9"
+    },
+    {
+      "underlyingSymbol": "MA",
+      "symbol": "xMA",
+      "name": "Kite Devnet Mastercard",
+      "decimals": 6,
+      "logo": "/company-logos/ma.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "GCSN22sxkChtfQCU46UewNEM33FDjryBQkizDSEf5Dh7"
+    },
+    {
+      "underlyingSymbol": "LMT",
+      "symbol": "xLMT",
+      "name": "Kite Devnet Lockheed Martin",
+      "decimals": 6,
+      "logo": "/company-logos/lmt.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "wLPGkFtZ3G3BisPtiMemwBB6FbivHjUxtnvxo1wwwPG"
+    },
+    {
+      "underlyingSymbol": "RTX",
+      "symbol": "xRTX",
+      "name": "Kite Devnet RTX",
+      "decimals": 6,
+      "logo": "/company-logos/rtx.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "7DHjAmzisK8Rf19irQn2BFsHSjkMe3jNJ1BeymhRYfDT"
+    },
+    {
+      "underlyingSymbol": "NOC",
+      "symbol": "xNOC",
+      "name": "Kite Devnet Northrop Grumman",
+      "decimals": 6,
+      "logo": "/company-logos/noc.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "7h23GZ7qoQCpoLuaZhDSBdxNTUSsgPu1CHDxcTZ8r5yd"
+    },
+    {
+      "underlyingSymbol": "PLTR",
+      "symbol": "xPLTR",
+      "name": "Kite Devnet Palantir",
+      "decimals": 6,
+      "logo": "/company-logos/pltr.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "ZSgdAANx8gE82dfd1o3UDqPmTKch8FGCHgmLFFP1FSL"
+    },
+    {
+      "underlyingSymbol": "XOM",
+      "symbol": "xXOM",
+      "name": "Kite Devnet Exxon Mobil",
+      "decimals": 6,
+      "logo": "/company-logos/xom.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "GtKMmPwnGKWLjqkDL1Z9RXxexNHCzYnj7CRxnra1QQne"
+    },
+    {
+      "underlyingSymbol": "CVX",
+      "symbol": "xCVX",
+      "name": "Kite Devnet Chevron",
+      "decimals": 6,
+      "logo": "/company-logos/cvx.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "AbumxxDCxNJVNJ4K98YrsEsG3epq3rdZaVhgbmkPA4Wo"
+    },
+    {
+      "underlyingSymbol": "COP",
+      "symbol": "xCOP",
+      "name": "Kite Devnet ConocoPhillips",
+      "decimals": 6,
+      "logo": "/company-logos/cop.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "E4qvsJq8EbXWwKrLGCa3Yg5S4ThG6gtC9PQ2MWZYTRgo"
+    },
+    {
+      "underlyingSymbol": "CAT",
+      "symbol": "xCAT",
+      "name": "Kite Devnet Caterpillar",
+      "decimals": 6,
+      "logo": "/company-logos/cat.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "FT1dVDha1coiHpWKXfK3K4C43KFq9VP6NYRZqr4jmQmz"
+    },
+    {
+      "underlyingSymbol": "DE",
+      "symbol": "xDE",
+      "name": "Kite Devnet Deere",
+      "decimals": 6,
+      "logo": "/company-logos/de.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "7oko9vHRPNqFa5AUMsNStxviPEdrvvuUAhp5BLn4ZmHq"
+    },
+    {
+      "underlyingSymbol": "GE",
+      "symbol": "xGE",
+      "name": "Kite Devnet GE Aerospace",
+      "decimals": 6,
+      "logo": "/company-logos/ge.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "76Z64NSMfJEypbxR2biBV9wZjgAwXBem8XsopBK8P8mR"
+    },
+    {
+      "underlyingSymbol": "HON",
+      "symbol": "xHON",
+      "name": "Kite Devnet Honeywell",
+      "decimals": 6,
+      "logo": "/company-logos/hon.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "4jyxFVgn8xNQcTPwo5XWf8ztkpkfUMQFS2UyhWqY9aCB"
+    },
+    {
+      "underlyingSymbol": "SPY",
+      "symbol": "xSPY",
+      "name": "Kite Devnet S&P 500 ETF",
+      "decimals": 6,
+      "logo": "/company-logos/spy.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "2ZVEJWx8SGgCXYHCiYRKue8hiD7BkTLrJVCdaNfFk6Je"
+    },
+    {
+      "underlyingSymbol": "QQQ",
+      "symbol": "xQQQ",
+      "name": "Kite Devnet Nasdaq-100 ETF",
+      "decimals": 6,
+      "logo": "/company-logos/qqq.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "2dZuidhUGFeBQ8n171GCoQDDc8VHuSv7izD3TyJgwWX3"
+    },
+    {
+      "underlyingSymbol": "GLD",
+      "symbol": "xGLD",
+      "name": "Kite Devnet Gold ETF",
+      "decimals": 6,
+      "logo": "/company-logos/gld.webp",
+      "issuer": "kite-devnet",
+      "status": "test",
+      "mint": "E5ycoeJ65BieGuZjmx7fyeoXm7m9NsuSyS5HUYqseHzL"
+    }
+  ],
+  "fundingToken": {
+    "underlyingSymbol": "USD",
+    "symbol": "KUSD",
+    "name": "Kite Test USD",
+    "decimals": 6,
+    "logo": null,
+    "issuer": "kite-devnet",
+    "status": "test",
+    "mint": "jaViZzZ2ezVSKXZvyQnrmasSyBWVU5n8VMx4ZuAovjM"
+  },
   "intendedCatalog": [
     {
       "underlyingSymbol": "AAPL",
@@ -376,5 +786,7 @@
     "logo": null,
     "issuer": "kite-devnet",
     "status": "test"
-  }
+  },
+  "mintAuthority": "GCT4iZ7JQdW5mHg3Cr1xM75Tsmv1mFnxNTVokRidzmPP",
+  "updatedAt": "2026-09-14T19:51:15.279Z"
 }

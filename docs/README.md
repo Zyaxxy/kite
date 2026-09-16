@@ -6,6 +6,8 @@ Kite is a self-custody interface for tokenized equities on Solana. It combines l
 
 - [Product overview](overview.md) — the problem Kite solves and the product in one page.
 - [How Kite works](how-it-works.md) — the user journey and the system behind it.
+- [Devnet recurring hackathon guide](devnet-recurring-hackathon-guide.md) — end-to-end guide to the devnet mock equity recurring buy architecture.
+- [Kite Guard protocol specification](kite-guard-protocol.md) — on-chain execution guard, Anchor instructions, and account layout.
 - [Devnet recurring engine (CPMM + contract)](recurring-devnet-cpmm-architecture.md) — how current recurring automation executes on devnet.
 - [Mainnet recurring implementation readiness](recurring-mainnet-implementation-readiness.md) — frontend, smart contract, and test updates for real xStocks and baskets.
 - [Why Solana and tokenized equities](why-solana.md) — the product and protocol choices.

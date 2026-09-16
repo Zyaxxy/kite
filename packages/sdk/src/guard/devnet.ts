@@ -20,12 +20,12 @@ import {
 export const DEVNET_RAYDIUM_CPMM_PROGRAM = new PublicKey(
   "DRaycpLY18LhpbydsBWbVJtxpNv9oXPgjRSfpF2bWpYb",
 );
-export const GUARD_V2_VERSION = 2;
-const CREATE = [37, 47, 225, 32, 74, 77, 255, 41];
-const COLLECT = [253, 42, 122, 205, 194, 255, 25, 68];
-const CLOSE = [47, 96, 149, 187, 179, 60, 69, 96];
+export const GUARD_VERSION = 2;
+const CREATE = [77, 43, 141, 254, 212, 118, 41, 186];
+const COLLECT = [56, 182, 124, 215, 155, 140, 157, 102];
+const CLOSE = [45, 137, 184, 220, 162, 253, 161, 8];
 const PROTOCOL = [147, 149, 48, 158, 234, 222, 20, 181];
-const PLAN = [131, 247, 17, 37, 248, 104, 208, 114];
+const PLAN = [161, 231, 251, 119, 2, 12, 162, 2];
 const POOL = [247, 237, 227, 245, 215, 195, 222, 70];
 const AMM_CONFIG = [218, 244, 33, 104, 203, 203, 43, 111];
 const U64_MAX = (1n << 64n) - 1n;
@@ -33,12 +33,15 @@ const U64_MAX = (1n << 64n) - 1n;
 export interface DevnetGuardOutput {
   mint: string;
   weightBps: number;
+  /** Devnet mock mode uses default/null pool. Mainnet/real mode requires a pool address. */
   pool: string;
   minimumAmountOut: bigint;
 }
 export interface DevnetGuardPlan {
   address: string;
   version: 2;
+  /** When true, devnet execution mints mock tokens directly instead of swapping through pools. */
+  devnetMock: boolean;
   owner: string;
   fundingMint: string;
   nonce: bigint;
@@ -80,7 +83,10 @@ export interface BuildGuardCreateParams {
   expiresAt: bigint;
   periods: number;
   outputs: DevnetGuardOutput[];
+  /** Required for mainnet/real mode; ignored in devnet mock mode. */
   pools: DevnetCpmmPool[];
+  /** When true, devnet execution mints mock tokens directly. Defaults to false. */
+  devnetMock?: boolean;
   initializeAuthority: boolean;
   expectedInitId?: bigint;
 }
@@ -114,14 +120,14 @@ const meta = (
 ): AccountMeta => ({ pubkey: key(value), isWritable, isSigner });
 const ata = (mint: string, owner: string | PublicKey) =>
   getAssociatedTokenAddressSync(key(mint), key(owner), true, TOKEN_PROGRAM_ID);
-export function findGuardPlanV2Pda(
+export function findGuardPlanPda(
   owner: string | PublicKey,
   fundingMint: string | PublicKey,
   nonce: bigint,
 ): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [
-      Buffer.from("plan_v2"),
+      Buffer.from("plan"),
       key(owner).toBuffer(),
       key(fundingMint).toBuffer(),
       u64(nonce),
@@ -147,7 +153,7 @@ export function guardRecurringDelegation(
   fundingMint: string,
   nonce: bigint,
 ): PublicKey {
-  const plan = findGuardPlanV2Pda(owner, fundingMint, nonce)[0];
+  const plan = findGuardPlanPda(owner, fundingMint, nonce)[0];
   return PublicKey.findProgramAddressSync(
     [
       Buffer.from("delegation"),
@@ -157,6 +163,12 @@ export function guardRecurringDelegation(
       u64(nonce),
     ],
     key(MAINNET_SUBSCRIPTIONS_PROGRAM),
+  )[0];
+}
+export function guardMockMintAuthority(): PublicKey {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("mock_mint_authority")],
+    KITE_GUARD_PROGRAM_ID,
   )[0];
 }
 export function raydiumDevnetAuthority(): PublicKey {
@@ -275,18 +287,19 @@ export function quoteDevnetCpmmExactIn(params: {
   return { amountOut, minimumAmountOut };
 }
 
-export function decodeGuardPlanV2(
+export function decodeGuardPlan(
   data: Uint8Array,
   address: string,
 ): DevnetGuardPlan {
   const bytes = Buffer.from(data);
   if (
-    bytes.length !== 1684 ||
+    bytes.length !== 1045 ||
     !bytes.subarray(0, 8).equals(Buffer.from(PLAN)) ||
     bytes[8] !== 2
   )
     throw new Error("Unsupported Guard plan version.");
   let cursor = 9;
+  const devnetMock = bytes[cursor++] === 1;
   const pub = () => {
     const value = new PublicKey(bytes.subarray(cursor, cursor + 32)).toBase58();
     cursor += 32;
@@ -321,19 +334,20 @@ export function decodeGuardPlanV2(
     bump = bytes[cursor++];
   const count = bytes.readUInt32LE(cursor);
   cursor += 4;
-  if (count < 1 || count > 20 || bytes.length < cursor + count * 74)
+  if (count < 1 || count > 20 || bytes.length < cursor + count * 42)
     throw new Error("Invalid Guard basket size.");
   const outputs: DevnetGuardOutput[] = [];
   for (let index = 0; index < count; index++)
     outputs.push({
       mint: pub(),
       weightBps: number16(),
-      pool: pub(),
+      pool: PublicKey.default.toBase58(),
       minimumAmountOut: number64(),
     });
   const plan: DevnetGuardPlan = {
     address: key(address).toBase58(),
     version: 2,
+    devnetMock,
     owner,
     fundingMint,
     nonce,
@@ -351,12 +365,12 @@ export function decodeGuardPlanV2(
     bump,
     outputs,
   };
-  validateGuardPlanV2(plan);
+  validateGuardPlan(plan);
   return plan;
 }
-export function validateGuardPlanV2(plan: DevnetGuardPlan): void {
+export function validateGuardPlan(plan: DevnetGuardPlan): void {
   validatePlanTerms(plan);
-  const [expected, bump] = findGuardPlanV2Pda(
+  const [expected, bump] = findGuardPlanPda(
     plan.owner,
     plan.fundingMint,
     plan.nonce,
@@ -416,13 +430,19 @@ export function validateGuardPlanV2(plan: DevnetGuardPlan): void {
   for (const output of plan.outputs) {
     const pool = key(output.pool).toBase58();
     u64(output.minimumAmountOut);
+    if (plan.devnetMock) {
+      if (!key(output.pool).equals(PublicKey.default))
+        throw new Error("Devnet mock outputs must not specify a pool.");
+    } else {
+      if (key(output.pool).equals(PublicKey.default) || pools.has(pool))
+        throw new Error("Each output requires a distinct valid pool and mint.");
+      pools.add(pool);
+    }
     if (
       key(output.mint).equals(PublicKey.default) ||
-      key(pool).equals(PublicKey.default) ||
-      pools.has(pool)
+      pools.has(output.mint)
     )
-      throw new Error("Each output requires a distinct valid pool and mint.");
-    pools.add(pool);
+      throw new Error("Each output requires a distinct valid mint.");
     if (output.minimumAmountOut === 0n)
       throw new Error(
         "An owner-approved minimum output is required for every asset.",
@@ -434,7 +454,7 @@ export function guardDuePeriod(
   plan: DevnetGuardPlan,
   nowSeconds: bigint,
 ): number {
-  validateGuardPlanV2(plan);
+  validateGuardPlan(plan);
   if (
     nowSeconds < plan.startsAt ||
     nowSeconds >= plan.expiresAt ||
@@ -445,6 +465,13 @@ export function guardDuePeriod(
   if (plan.lastExecutedPeriod !== 65535 && period <= plan.lastExecutedPeriod)
     throw new Error("This installment was already collected.");
   return period;
+}
+
+function mockLegAccounts(owner: string, outputs: DevnetGuardOutput[]): AccountMeta[] {
+  return outputs.flatMap((output) => [
+    meta(output.mint, true),
+    meta(ata(output.mint, owner), true),
+  ]);
 }
 
 function legAccounts(
@@ -485,7 +512,7 @@ export function buildGuardProtocolVersionInstruction(): TransactionInstruction {
 export async function buildGuardCreateInstructions(
   params: BuildGuardCreateParams,
 ): Promise<{ instructions: TransactionInstruction[]; plan: DevnetGuardPlan }> {
-  const [planAddress, bump] = findGuardPlanV2Pda(
+  const [planAddress, bump] = findGuardPlanPda(
     params.owner,
     params.fundingMint,
     params.nonce,
@@ -503,6 +530,7 @@ export async function buildGuardCreateInstructions(
     ...params,
     address: planAddress.toBase58(),
     version: 2,
+    devnetMock: params.devnetMock ?? false,
     subscriptionAuthority,
     recurringDelegation,
     bump,
@@ -511,7 +539,7 @@ export async function buildGuardCreateInstructions(
     lastExecutedAt: 0n,
     subscriptionInitId: params.expectedInitId ?? 0n,
   };
-  validateGuardPlanV2(plan);
+  validateGuardPlan(plan);
   const [{ address, createNoopSigner }, s] = await Promise.all([
     import("@solana/kit"),
     import("@solana/subscriptions"),
@@ -570,6 +598,7 @@ export async function buildGuardCreateInstructions(
   );
   const count = Buffer.alloc(4);
   count.writeUInt32LE(params.outputs.length);
+  const devnetMock = params.devnetMock ?? false;
   const data = Buffer.concat([
     Buffer.from(CREATE),
     u64(params.nonce),
@@ -578,12 +607,12 @@ export async function buildGuardCreateInstructions(
     i64(params.startsAt),
     i64(params.expiresAt),
     u16(params.periods),
+    Buffer.from([devnetMock ? 1 : 0]),
     count,
     ...params.outputs.map((output) =>
       Buffer.concat([
         key(output.mint).toBuffer(),
         u16(output.weightBps),
-        key(output.pool).toBuffer(),
         u64(output.minimumAmountOut),
       ]),
     ),
@@ -601,12 +630,6 @@ export async function buildGuardCreateInstructions(
         meta(planFunding, true),
         meta(SystemProgram.programId),
         meta(TOKEN_PROGRAM_ID),
-        ...legAccounts(
-          params.owner,
-          params.fundingMint,
-          params.outputs,
-          params.pools,
-        ),
       ],
     }),
   );
@@ -618,7 +641,7 @@ export function buildGuardCollectInstructions(
   feePayer: string,
   expectedPeriod: number,
 ): TransactionInstruction[] {
-  validateGuardPlanV2(plan);
+  validateGuardPlan(plan);
   if (!PublicKey.isOnCurve(key(feePayer).toBytes()))
     throw new Error("A signing fee payer is required.");
   if (
@@ -641,10 +664,11 @@ export function buildGuardCollectInstructions(
         meta(ata(plan.fundingMint, plan.address), true),
         meta(MAINNET_SUBSCRIPTIONS_PROGRAM),
         meta(subscriptionsEventAuthority()),
-        meta(DEVNET_RAYDIUM_CPMM_PROGRAM),
-        meta(raydiumDevnetAuthority()),
+        meta(guardMockMintAuthority()),
         meta(TOKEN_PROGRAM_ID),
-        ...legAccounts(plan.owner, plan.fundingMint, plan.outputs, pools),
+        ...(plan.devnetMock
+          ? mockLegAccounts(plan.owner, plan.outputs)
+          : legAccounts(plan.owner, plan.fundingMint, plan.outputs, pools)),
       ],
     }),
   ];
@@ -653,7 +677,7 @@ export function buildGuardCloseInstructions(
   plan: DevnetGuardPlan,
   delegationRentPayer: string,
 ): TransactionInstruction[] {
-  validateGuardPlanV2(plan);
+  validateGuardPlan(plan);
   return [
     createAssociatedTokenAccountIdempotentInstruction(
       key(plan.owner),
@@ -666,16 +690,20 @@ export function buildGuardCloseInstructions(
       programId: KITE_GUARD_PROGRAM_ID,
       data: Buffer.from(CLOSE),
       keys: [
-        meta(plan.owner, true, true),
         meta(plan.address, true),
         meta(plan.fundingMint),
+        meta(plan.owner, true, true),
+        meta(delegationRentPayer, true),
         meta(ata(plan.fundingMint, plan.owner), true),
         meta(ata(plan.fundingMint, plan.address), true),
-        meta(plan.recurringDelegation, true),
-        meta(delegationRentPayer, true),
-        meta(MAINNET_SUBSCRIPTIONS_PROGRAM),
         meta(TOKEN_PROGRAM_ID),
       ],
     }),
   ];
 }
+
+export const findGuardPlanV2Pda = findGuardPlanPda;
+export const decodeGuardPlanV2 = decodeGuardPlan;
+export const validateGuardPlanV2 = validateGuardPlan;
+export type DevnetGuardPlanV2 = DevnetGuardPlan;
+export type DevnetGuardOutputV2 = DevnetGuardOutput;

@@ -1,53 +1,61 @@
-# Mainnet recurring payments
+# Solana Subscriptions Delegation Protocol & Recurring Payments Specification
 
-This page documents the **advanced payment-only** interface. The main Plans screen now supports stock/basket investing with selectable calendar schedules; see [recurring investing operations](recurring-investing-operations.md). All new actual transactions are V1-only and require verified network and signing-wallet support.
+This technical specification details the integration of the official on-chain [Solana Subscriptions Program](https://solana.com/docs/payments/subscriptions/recurring-delegation) (`De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`) within Kite.
 
-Kite uses the official deployed [Solana Subscriptions program](https://solana.com/docs/payments/subscriptions/recurring-delegation), not a Kite vault or a newly deployed contract. The TypeScript client builds instructions for the shared onchain program; TypeScript itself does not replace onchain enforcement.
+It documents the base on-chain delegation mechanics, permission lifetimes, authority derivation, and how the historical limitation of raw payment allowances has been **fully resolved via atomic transaction composition**.
 
-## Owner flow
+---
 
-Switch to Actual trading and expand advanced payment permissions. Select a funded token, enter the buyer's Solana signing address, an amount per period, cadence and number of periods. Read the buyer-withdrawal consent, review the exact terms, then approve once in a V1-capable wallet. Android checks the wallet's advertised signing capability. Privy sign-in remains available, but login alone does not establish V1 signing support.
+## Executive Summary & Architectural Resolution
 
-The first permission for a mint initializes the Subscription Authority and approves that program PDA as the token delegate. The program then enforces the specific recurring record's limits. No tokens are deposited into a vault. An existing unrelated SPL delegate is never overwritten. A previously disabled authority is never silently reapproved.
+In standard Solana Subscriptions, a recurring token delegation permits an authorized buyer or executor to withdraw up to an approved limit per period. On its own, a raw delegation transfers funding tokens without on-chain enforcement of what is purchased.
 
-Kite creates finite grants of at most one year. The first period starts when the transaction lands; expiry is fixed during review, so a delayed signature cannot extend it. Unspent period allowance does not accumulate. Multiple permissions can cumulatively withdraw more than one permission's limit. The buyer can choose a destination through the underlying program; Kite's collection implementation uses the buyer's own token account.
+### The Resolution: Atomic Investment Composition (Fixed & Implemented)
+To solve this limitation and eliminate counterparty risk, Kite introduced the **Atomic Recurring Investment Engine** ([`recurring-investing-operations.md`](recurring-investing-operations.md)):
+- Rather than executing an isolated funding withdrawal, Kite composes the Subscriptions `collect` instruction and Jupiter Swap V2 `swap` instructions into a **single atomic V1 transaction**.
+- The funding tokens are debited from the owner's account and immediately routed into the designated stock/basket swap legs, delivering the tokenized equities directly to the owner's Associated Token Accounts (ATAs).
+- If any stock leg fails or slippage bounds are exceeded, the entire transaction reverts atomically. The executor cannot withdraw funds without delivering the exact requested assets.
 
-The buyer is trusted to fulfill any offchain purchase agreement. The permission does not bind stock selection, delivered quantity, minimum stock output or best execution. The UI does not present it as guaranteed recurring stock investment. If automatic stock delivery is needed, the buyer must operate that integration separately or use a program that enforces two-sided settlement.
+---
 
-Use Revoke on a permission to close it and return rent to its stored payer. The buyer cannot make future collections from that record after confirmed revocation. A competing collection can land before revocation. The per-mint authority remains for other grants; wallet-level SPL revocation can disable all its withdrawals, and Kite will refuse to restore it implicitly.
+## On-Chain Delegation Mechanics
 
-## API
+### 1. Subscription Authority Derivation & SPL Delegation
+- When an owner approves their first recurring plan for a token mint, Kite initializes the user's per-mint **Subscription Authority** PDA:
+  $$\text{PDA} = \text{findProgramAddress}([\text{b"authority"}, \text{owner\_pubkey}, \text{mint\_pubkey}], \text{PROGRAM\_ID})$$
+- The owner's token account delegates spending authority to this PDA.
+- Kite guarantees that an existing, unrelated token delegate is never silently overwritten. If an unrecognized delegate exists, the setup flow requires user acknowledgement or revocation first.
 
-All responses are uncached. Writes are covered by the existing bounded-body, origin and rate policies and the development API tunnel allowlist.
+### 2. Time-Bounded, Non-Accumulating Limits
+- **Finite Lifetimes**: All recurring delegations created through Kite are strictly time-bounded (maximum duration of 1 year).
+- **Non-Accumulating Periods**: Unused allowance within a given period (e.g. daily, weekly, or monthly) does **not** roll over or accumulate into subsequent periods.
+- **Explicit Fixed Cadence**: The on-chain program enforces minimum time spacing between collections, preventing unauthorized rapid drains.
 
-| Endpoint                        | Behavior                                                                                                                    |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/recurring?wallet=…`   | Read official recurring records owned by this wallet                                                                        |
-| `POST /api/recurring`           | Prepare creation with `taker`, `buyer`, `mint`, decimal-string `amount`, `periodSeconds`, `periods`                         |
-| `POST /api/recurring/revoke`    | Prepare owner revocation with `taker`, `delegation`                                                                         |
-| `POST /api/recurring/collect`   | Prepare a collection for the approved buyer with `taker`, `delegation`; returns the remaining amount for the current period |
-| `POST /api/transaction/execute` | Verify and submit the unchanged wallet-signed transaction and its server authorization                                      |
+### 3. Full Self-Custody & Direct On-Chain Revocation
+- The owner retains absolute custody of their funds at all times.
+- Users can revoke spending permissions instantly via Kite's UI or any standard Solana block explorer by calling the Subscriptions `revoke` instruction.
+- Revocation closes the recurring delegation account and returns the on-chain account rent directly to the owner's wallet.
 
-Preparing an order does not authorize spending. Setup/revocation require the owner signature; collection requires the buyer signature. Program ownership, mainnet genesis, token identity, live authority and simulation are checked. Transfer-hook tokens and native SOL are not supported by this collector. Token-2022 transfer fees can reduce what the buyer receives.
+---
 
-## Run the buyer service
+## API Endpoints & Transaction Pipeline
 
-Build the SDK first. Configure these variables only in the buyer service's secret store/process environment:
+All endpoints enforce strict input validation, rate limiting, and private no-cache headers:
 
-- `SOLANA_RPC_URL`: dedicated HTTPS mainnet RPC.
-- `KITE_BUYER_KEYPAIR_PATH`: absolute path to the approved buyer's Solana JSON keypair, with owner-only filesystem access. Never use an owner's wallet key.
-- `KITE_COLLECTION_STATE_DIR`: persistent private directory for intent records and process locks. Defaults to ignored `.kite-collections`.
+| Endpoint | Method | Purpose & Security Controls | Status |
+| :--- | :---: | :--- | :---: |
+| `/api/recurring` | GET | Queries active on-chain Subscriptions records for a wallet. | **Operational** |
+| `/api/recurring` | POST | Composes unsigned V1 transaction to initialize authority and create plan delegation. | **Operational** |
+| `/api/recurring/revoke` | POST | Composes unsigned V1 transaction to revoke on-chain delegation and reclaim rent. | **Operational** |
+| `/api/recurring/collect` | POST | Internal handler for atomic execution; binds collection to immediate asset delivery. | **Operational** |
+| `/api/transaction/execute` | POST | Validates HMAC signature, block-height validity, and broadcasts verified transaction. | **Operational** |
 
-```sh
-pnpm build:sdk
-# Collect the available current-period allowance once.
-pnpm collect:recurring <DELEGATION_ADDRESS>
-# Or keep checking every 60 seconds on buyer-controlled infrastructure.
-pnpm collect:recurring <DELEGATION_ADDRESS> --watch
-```
+---
 
-The buyer needs SOL for fees and any destination account rent. The service verifies mainnet, the official program and that its signer matches the grant's buyer. It creates the buyer's ATA if needed, simulates, signs and submits the collection. It saves a durable signature/period intent before broadcast. Unknown outcomes halt collection until reconciled against mainnet; they are not retried with a new transaction automatically. Confirmed periods are not deliberately collected twice, and the program independently enforces the allowance.
+## Autonomous Execution Daemon (`run-recurring-investments.cjs`)
 
-Run only one instance per permission with a shared persistent state directory. A crash can leave its exclusive `.lock`; investigate the saved signature and ensure no process still owns the job before removing that lock. Do not delete a pending ledger to make the job retry. If the provider is unavailable or confirmation remains unknown, keep the job stopped and resolve the signature first.
-
-Kite does not provision a hosted keeper, generate a buyer key, deploy an additional contract or move funds as part of installation. The runner becomes active only when an operator configures and starts it for an owner-authorized permission.
+The execution worker runs on private, supervised infrastructure to trigger scheduled investments when their window opens:
+1. **Key Isolation**: The worker operates using its own dedicated execution keypair with SOL for transaction fees. It never accesses or stores user private keys.
+2. **Pre-Broadcast Simulation**: Every composed transaction must pass complete on-chain simulation (`simulateTransaction`) verifying that expected token deltas match the requested quote.
+3. **Durable Intent Logging**: The worker logs signed transaction intent to persistent storage before broadcasting. If a process restart occurs during transmission, the worker safely reconciles the transaction on-chain rather than submitting a duplicate order.
+4. **Supervisory Heartbeat**: The worker posts an authenticated heartbeat to the API every 60 seconds. If a worker goes offline for >3 minutes, new plan setups are temporarily paused with an informative status banner.

@@ -421,46 +421,23 @@ export function Plans() {
       />
       <MarketStatus />
       {mode === "actual" ? (
-        <>
-          <section id="new-plan" className="sip-layout">
-            <RecurringInvestingPanel />
-            <aside className="panel sip-help-panel">
-              <h2>How devnet recurring plans work</h2>
-              <p className="fineprint" style={{ marginTop: 10 }}>
-                Every approved plan uses the Kite Guard devnet contract. It
-                collects funds, swaps into your selected stock or basket, and
-                delivers output in your wallet on each interval.
+        <div className="plan-layout">
+          <div>
+            <section id="new-plan">
+              <RecurringInvestingPanel />
+            </section>
+          </div>
+          <aside className="stack" style={{ gap: 16 }}>
+            <div className="panel trade-panel">
+              <h3>Onchain Execution</h3>
+              <p className="fineprint" style={{ margin: "10px 0" }}>
+                These Devnet plans delegate to the official Solana Subscriptions
+                program. There is no web2 cron job—anyone can trigger the
+                collection, and you retain full custody.
               </p>
-              <div className="sip-steps">
-                <article className="step">
-                  <span aria-hidden="true">1</span>
-                  <div>
-                    <strong>Choose asset</strong>
-                    <p>Pick a provisioned stock or basket and set your amount.</p>
-                  </div>
-                </article>
-                <article className="step">
-                  <span aria-hidden="true">2</span>
-                  <div>
-                    <strong>Review constraints</strong>
-                    <p>Confirm minimum per-investment outputs before signing.</p>
-                  </div>
-                </article>
-                <article className="step">
-                  <span aria-hidden="true">3</span>
-                  <div>
-                    <strong>Approve once</strong>
-                    <p>Sign the prepared transaction and monitor status in-app.</p>
-                  </div>
-                </article>
-              </div>
-              <p className="fineprint">
-                The devnet feature is intentionally isolated; this is an
-                engineering-first flow for recurring execution.
-              </p>
-            </aside>
-          </section>
-        </>
+            </div>
+          </aside>
+        </div>
       ) : (
         <div className="plan-layout">
           <div className="stack">

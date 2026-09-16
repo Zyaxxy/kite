@@ -11,7 +11,7 @@ function object(
     Object.keys(value).some((key) => !fields.includes(key))
   ) {
     throw new Error(
-      "Invalid recurring v2 request. Legacy buyer/delegation requests are no longer accepted.",
+      "Invalid recurring request. Legacy buyer/delegation requests are no longer accepted.",
     );
   }
   return value as Record<string, unknown>;
@@ -27,7 +27,7 @@ function address(value: unknown, signer = false): string {
 function version(value: unknown) {
   if (value !== 1)
     throw new Error(
-      "Recurring requests must use schemaVersion 1 and the devnet v2 contract.",
+      "Recurring requests must use schemaVersion 1 and the devnet guard contract.",
     );
 }
 function signingVersions(value: unknown): number[] {

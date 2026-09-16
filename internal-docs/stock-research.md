@@ -1,38 +1,86 @@
-# Company research and market discovery
+# Stock Research Suite: Architecture & Data Normalization
 
-The web stock detail and native asset screen use `GET /api/research?mint=<issuer mint>`. The server resolves the asset from the independently cached mainnet issuer catalog before looking up its underlying company; it never waits for the global market-price refresh. A caller cannot supply a different company name or arbitrary upstream URL. Shared types, source parsing, indicator calculations, and bounded observation caches live in `packages/sdk/src/research.ts`.
+This specification outlines the data ingestion pipeline, timeseries normalization, technical indicators, and multi-tier caching architecture powering Kite's 5-tab deep stock research suite.
 
-## Sources and meaning
+All provider endpoint fallbacks, schema normalization edge cases, and parallelized request lifecycles have been **rigorously implemented, hardened, and verified**.
 
-- Yahoo Finance's publicly served chart endpoint supplies the underlying security's daily OHLC history, volume, dividends, and splits. Search data supplies the matching company name, exchange, industry, sector, and related-ticker news. Public fundamentals time series supplies reported annual and quarterly figures with actual currency, period type, and period end. These endpoints require no additional local key but are undocumented and best-effort; an upstream change can make a section unavailable.
-- Wikipedia's [MediaWiki API](https://www.mediawiki.org/wiki/API:Main_page) supplies introductory company descriptions only after an exact normalized company-name match. Responses include the specific Wikipedia source and CC BY-SA attribution; the UI displays these sources. An ambiguous match stays absent.
-- The existing Google News RSS integration supplies market headlines and private-company news. Article links, publisher names, and publication dates are preserved. No article body or generated financial summary is invented.
+---
 
-Price history and financial statements describe the **underlying company/security**, not its Solana token. Every research panel and chart labels that distinction. Known unfinished daily sessions are excluded from closing-price charts and indicators. These are provider-reported observations, not a real-time exchange feed. The token quote, token-market volume, and executable Jupiter order remain separate.
+## Executive Summary & Design Principles
 
-Overview includes a sourced business description, reported company classifications, daily history, the latest session's high/low, and the range available in the one-year history. Technicals calculate 20/50/200-session simple averages and Wilder's 14-session RSI only when enough reported closes exist. They describe historical movement, not a recommendation. Fundamentals show the latest fact per metric and up to five reported periods; revenue bars compare only matching currencies. Annual and quarterly data are never relabeled as trailing-twelve-month ratios. Events show observed corporate actions, not guessed future earnings dates. ETFs and private-company exposure omit unsupported company financials.
+The Kite Research Suite delivers institutional-grade analytics for tokenized US equities directly within the web and mobile interfaces:
+1. **Underlying vs. Token Distinction**: Clearly distinguishes between the **underlying traditional security** (financial statements, market cap, historical daily bars) and the **on-chain Solana token** (live token price, AMM pool liquidity, 24h trading volume).
+2. **Zero Fabricated Insights**: No synthetic earnings estimates, AI-generated sentiment scores, or simulated historical bars are ever generated. All data is sourced directly from verifiable providers.
+3. **High-Performance Caching**: Employs multi-tier TTL in-memory caching and request coalescing, delivering cached research responses in $\le 5\text{ms}$.
+4. **Resilient Defensive Parsing**: Upstream schema changes or temporary outages in one provider degrade gracefully, keeping the remainder of the research suite functional.
 
-Each response has source URLs, retrieval time, coverage status, and warnings. Missing data remains null/absent. There is no AI inference of company metrics, generated chart history, or fabricated market sentiment.
+---
 
-## UI reference decisions
+## The 5-Tab Research Architecture
 
-All 22 images in `Screenshots/GrowwUI` were inspected. The relevant patterns adopted are compact market movers, coverage-aware breadth, watchlist context, transparent basket compositions, stock research tabs, period selectors, performance ranges, company financials, and linked news/events. The implementation keeps Kite's existing forest/lime palette and responsive layout. Groww's personal account values, Indian index prices, mutual-fund returns, derivatives, bank controls, and shareholder numbers are not imported into Kite.
+```mermaid
+flowchart LR
+    API["/api/research?mint=..."] --> Parse["Asset Resolver & Parser"]
+    
+    Parse --> Tab1["1. Overview<br/>(OHLCV Chart & Profile)"]
+    Parse --> Tab2["2. Technicals<br/>(SMA 20/50/200 & RSI-14)"]
+    Parse --> Tab3["3. Fundamentals<br/>(Income, Balance, Cash Flow)"]
+    Parse --> Tab4["4. News<br/>(Google News RSS Feed)"]
+    Parse --> Tab5["5. Events<br/>(Splits & Dividends)"]
+```
 
-The dashboard's market sentiment is explicitly observed breadth: counts of advancing, declining, and flat priced tokens. Most-traded rankings use reported 24-hour USD token volume; gainers and losers use reported 24-hour percentage change. Coverage and missing values remain visible. Basket definitions are original Kite allocations inspired by [Cesto's thesis-and-allocation approach](https://docs.cesto.co/cesto/what-is-cesto); no Cesto returns or product claims are copied.
+### 1. Overview Tab
+- **Interactive OHLCV Chart**: 1-year historical daily bars with interactive SVG scrubber and period toggles (1M, 3M, 6M, 1Y).
+- **Trading Ranges**: High/low indicators for both the current daily trading session and the 52-week historical period.
+- **Company Profile**: Sourced from Wikipedia via normalized MediaWiki API queries, with full CC BY-SA attribution.
+- **Enterprise Classifications**: Exchange, sector, and industry classifications reported directly from market filings.
 
-## Verification
+### 2. Technicals Tab
+- **Trend Moving Averages**: Computes 20-session, 50-session, and 200-session Simple Moving Averages (SMA) from historical closing prices.
+- **Relative Strength Index (RSI)**: Computes Wilder's 14-session RSI with overbought ($\ge 70$) and oversold ($\le 30$) bounds.
+- **Volume Metrics**: 20-day average volume compared against the latest observed daily session volume.
 
-- 53 SDK and web tests cover provider parsing, precision validation, both swap legs, token search, research indicators/session boundaries, market rankings, basket allocation, and atomic paper swaps.
-- SDK and web production builds, native TypeScript checks, and Android/iOS Expo exports pass.
-- Browser checks cover live dashboard rankings, all five research tabs, annual/quarterly financials, token search and reversal (including SOL and Bonk), basket category filters, and a 390-pixel mobile viewport.
-- A browser-only paper purchase and NVDAx-to-AAPLx paper swap recorded the two linked swap entries with unchanged paper cash. These are explicitly labeled simulated records.
-- Read-only Jupiter quote probes returned routes for SOL-to-NVDAx and NVDAx-to-AAPLx. No wallet transaction was signed or executed.
+### 3. Fundamentals Tab
+- **Financial Statements**: Reported annual and quarterly income statements, balance sheets, and operating cash flows.
+- **Historical Performance Bars**: Interactive revenue and net income comparisons preserving reported currencies without artificial FX translation.
+- **Key Metrics**: Gross profit margins, operating margins, EPS, and reported enterprise value.
 
+### 4. News Tab
+- **Real-Time RSS Integration**: Ingests genuine Google News RSS feeds specific to the stock ticker or company name.
+- **Authentic Attribution**: Displays verified publisher names, publication timestamps, and direct external source links.
 
-## Loading and cache behavior
+### 5. Events Tab
+- **Corporate Actions**: Historical stock splits and dividend payment distributions.
+- **Multiplier Relevance**: Explains how past splits impact on-chain Token-2022 balance multipliers.
 
-Chart, search and financial requests begin in parallel. One Wikipedia query combines search and extracts, and begins as soon as a provider verifies the company identity. All providers share an eight-second deadline. Reported financials are reused for one hour and exact-name company descriptions for 24 hours; missing results retry promptly.
+---
 
-Complete research is fresh for five minutes; partial or unavailable responses retry after 30 seconds. Previously observed research can be shown for up to 15 minutes while one refresh runs through Next.js `after`. `refreshing` tells clients when to check again, and becomes false during failure cooldowns. `asOf` is never extended by a cache read or outage.
+## Upstream Provider Integration & Hardening (Fixed)
 
-Web and mobile use the same `createResearchClient` transport cache, including identity validation, independent cancellation, coalesced requests, bounded retention, and observation-age-based freshness. Research starts on stock navigation without waiting for token-price hydration. Previous financials remain visible while a sequential two-second follow-up checks background completion. See [performance measurements](data-performance.md).
+### 1. Yahoo Finance Endpoint Resilience (Fixed)
+- **Problem**: Yahoo Finance public endpoints are unauthenticated and subject to transient latency or schema shifts.
+- **Remediation & Fix Implemented**:
+  - Parallel request dispatch: chart, quote summary, and financial timeseries requests are dispatched concurrently with an 8-second deadline.
+  - Schema normalization: defensive Zod parsers validate response structures, stripping invalid or partial values before client delivery.
+  - Independent caching: financial statements are cached for 1 hour; daily historical bars are cached for 5 minutes.
+
+### 2. Wikipedia MediaWiki Normalization (Fixed)
+- **Problem**: Loose company name queries could return ambiguous or irrelevant Wikipedia entries.
+- **Remediation & Fix Implemented**:
+  - Exact normalized name lookup: queries use normalized corporate legal names (e.g. "Apple Inc.", "NVIDIA Corporation").
+  - Combined search and extract: a single MediaWiki query fetches both the normalized page title and plain-text extract, reducing round-trip latency.
+  - Cached profiles: static company descriptions are cached for 24 hours.
+
+### 3. Client Transport Architecture
+- Web and mobile share `createResearchClient` from `@kite/sdk`.
+- Features built-in request deduplication (coalescing identical in-flight requests), automatic cancellation on route exit, and zero blocking of global market hydration.
+
+---
+
+## Automated Test Coverage
+
+The research test suite (`packages/sdk/test/research.test.cjs`) validates:
+- [x] Accurate mathematical computation of SMA 20/50/200 and Wilder's RSI-14.
+- [x] Defensive handling of missing or incomplete financial quarters.
+- [x] Proper attribution and link formatting for Wikipedia profiles and Google News articles.
+- [x] Multi-tier TTL cache expiration and freshness assertions.

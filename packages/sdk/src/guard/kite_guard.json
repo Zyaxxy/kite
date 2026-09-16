@@ -9,9 +9,6 @@
   "instructions": [
     {
       "name": "close_plan",
-      "docs": [
-        "The legacy owner can still recover rent from an old scaffold plan."
-      ],
       "discriminator": [
         45,
         137,
@@ -23,68 +20,6 @@
         8
       ],
       "accounts": [
-        {
-          "name": "owner",
-          "writable": true,
-          "signer": true,
-          "relations": [
-            "plan"
-          ]
-        },
-        {
-          "name": "plan",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  110
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              },
-              {
-                "kind": "account",
-                "path": "plan.funding_mint",
-                "account": "Plan"
-              }
-            ]
-          }
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "close_plan_v2",
-      "docs": [
-        "Owner-only cancellation revokes the bound grant before closing plan accounts.",
-        "Already-revoked grants remain cancellable; incidental staging donations go to owner."
-      ],
-      "discriminator": [
-        47,
-        96,
-        149,
-        187,
-        179,
-        60,
-        69,
-        96
-      ],
-      "accounts": [
-        {
-          "name": "owner",
-          "writable": true,
-          "signer": true,
-          "relations": [
-            "plan"
-          ]
-        },
         {
           "name": "plan",
           "writable": true,
@@ -104,23 +39,33 @@
               },
               {
                 "kind": "account",
-                "path": "owner"
+                "path": "plan.owner",
+                "account": "Plan"
               },
               {
                 "kind": "account",
                 "path": "plan.funding_mint",
-                "account": "PlanV2"
+                "account": "Plan"
               },
               {
                 "kind": "account",
                 "path": "plan.nonce",
-                "account": "PlanV2"
+                "account": "Plan"
               }
             ]
           }
         },
         {
           "name": "funding_mint"
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "rent_payer",
+          "writable": true
         },
         {
           "name": "owner_funding_token",
@@ -131,18 +76,6 @@
           "writable": true
         },
         {
-          "name": "recurring_delegation",
-          "writable": true
-        },
-        {
-          "name": "delegation_rent_payer",
-          "writable": true
-        },
-        {
-          "name": "subscriptions_program",
-          "address": "De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44"
-        },
-        {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
@@ -151,9 +84,6 @@
     },
     {
       "name": "create_plan",
-      "docs": [
-        "Legacy instruction retained only to reject stale clients explicitly."
-      ],
       "discriminator": [
         77,
         43,
@@ -163,75 +93,6 @@
         118,
         41,
         186
-      ],
-      "accounts": [
-        {
-          "name": "owner",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "funding_mint"
-        },
-        {
-          "name": "subscription_authority"
-        },
-        {
-          "name": "plan",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  110
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              },
-              {
-                "kind": "account",
-                "path": "funding_mint"
-              }
-            ]
-          }
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "_data",
-          "type": {
-            "defined": {
-              "name": "CreatePlanData"
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "create_plan_v2",
-      "docs": [
-        "Owner approves exact devnet pools, minimum deliveries, and a bounded delegation.",
-        "Canonical ATAs and the official delegation must be created earlier in this transaction."
-      ],
-      "discriminator": [
-        37,
-        47,
-        225,
-        32,
-        74,
-        77,
-        255,
-        41
       ],
       "accounts": [
         {
@@ -298,7 +159,7 @@
           "name": "data",
           "type": {
             "defined": {
-              "name": "CreatePlanV2Data"
+              "name": "CreatePlanData"
             }
           }
         }
@@ -306,9 +167,6 @@
     },
     {
       "name": "execute_swap",
-      "docs": [
-        "Legacy execution never advances counters or emits a successful investment."
-      ],
       "discriminator": [
         56,
         182,
@@ -318,90 +176,6 @@
         140,
         157,
         102
-      ],
-      "accounts": [
-        {
-          "name": "cranker",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "plan",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  110
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "plan.owner",
-                "account": "Plan"
-              },
-              {
-                "kind": "account",
-                "path": "plan.funding_mint",
-                "account": "Plan"
-              }
-            ]
-          }
-        },
-        {
-          "name": "subscription_program"
-        },
-        {
-          "name": "subscription_authority"
-        },
-        {
-          "name": "recurring_delegation"
-        },
-        {
-          "name": "source_token",
-          "writable": true
-        },
-        {
-          "name": "vault_funding_token",
-          "writable": true
-        },
-        {
-          "name": "owner_output_token",
-          "writable": true
-        },
-        {
-          "name": "output_mint"
-        },
-        {
-          "name": "subscription_instruction"
-        }
-      ],
-      "args": [
-        {
-          "name": "_plan_id",
-          "type": "u64"
-        }
-      ]
-    },
-    {
-      "name": "execute_swap_v2",
-      "docs": [
-        "One atomic installment: bounded Subscriptions collection, every approved CPMM leg,",
-        "then verified owner deliveries. Any error rolls back both programs and all counters."
-      ],
-      "discriminator": [
-        253,
-        42,
-        122,
-        205,
-        194,
-        255,
-        25,
-        68
       ],
       "accounts": [
         {
@@ -429,17 +203,17 @@
               {
                 "kind": "account",
                 "path": "plan.owner",
-                "account": "PlanV2"
+                "account": "Plan"
               },
               {
                 "kind": "account",
                 "path": "plan.funding_mint",
-                "account": "PlanV2"
+                "account": "Plan"
               },
               {
                 "kind": "account",
                 "path": "plan.nonce",
-                "account": "PlanV2"
+                "account": "Plan"
               }
             ]
           }
@@ -531,28 +305,16 @@
           }
         },
         {
-          "name": "raydium_program",
-          "address": "DRaycpLY18LhpbydsBWbVJtxpNv9oXPgjRSfpF2bWpYb"
-        },
-        {
-          "name": "raydium_authority",
+          "name": "mock_mint_authority",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  118,
-                  97,
-                  117,
-                  108,
-                  116,
-                  95,
-                  97,
-                  110,
-                  100,
-                  95,
-                  108,
-                  112,
+                  109,
+                  111,
+                  99,
+                  107,
                   95,
                   109,
                   105,
@@ -563,51 +325,14 @@
                   117,
                   116,
                   104,
-                  95,
-                  115,
-                  101,
-                  101,
-                  100
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
                 ]
               }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                184,
-                152,
-                153,
-                121,
-                45,
-                202,
-                82,
-                52,
-                121,
-                111,
-                231,
-                116,
-                98,
-                176,
-                49,
-                223,
-                70,
-                63,
-                95,
-                254,
-                174,
-                54,
-                124,
-                92,
-                15,
-                251,
-                36,
-                110,
-                28,
-                183,
-                206,
-                12
-              ]
-            }
+            ]
           }
         },
         {
@@ -621,25 +346,6 @@
           "type": "u16"
         }
       ]
-    },
-    {
-      "name": "protocol_version",
-      "docs": [
-        "Read-only release capability probe. No legacy counter-only execution is supported."
-      ],
-      "discriminator": [
-        147,
-        149,
-        48,
-        158,
-        234,
-        222,
-        20,
-        181
-      ],
-      "accounts": [],
-      "args": [],
-      "returns": "u8"
     }
   ],
   "accounts": [
@@ -654,19 +360,6 @@
         12,
         162,
         2
-      ]
-    },
-    {
-      "name": "PlanV2",
-      "discriminator": [
-        131,
-        247,
-        17,
-        37,
-        248,
-        104,
-        208,
-        114
       ]
     }
   ],
@@ -685,180 +378,105 @@
       ]
     },
     {
-      "name": "PlanClosedV2",
+      "name": "PlanClosed",
       "discriminator": [
-        25,
-        159,
-        212,
-        46,
-        235,
-        198,
-        233,
-        61
+        244,
+        135,
+        44,
+        167,
+        104,
+        238,
+        207,
+        12
       ]
     },
     {
-      "name": "PlanCreatedV2",
+      "name": "PlanCreated",
       "discriminator": [
-        92,
-        118,
-        125,
-        72,
-        85,
-        220,
-        33,
-        129
+        215,
+        11,
+        135,
+        121,
+        208,
+        119,
+        149,
+        149
       ]
     }
   ],
   "errors": [
     {
       "code": 6000,
-      "name": "InvalidAmount",
-      "msg": "Funding amount must be greater than zero and fund every basket leg."
+      "name": "MockMintAuthorityMismatch",
+      "msg": "Devnet mock mint authority does not match the program PDA."
     },
     {
       "code": 6001,
-      "name": "InvalidPeriods",
-      "msg": "Choose between 1 and 365 periods."
+      "name": "PeriodTooShort",
+      "msg": "Period interval must be at least 60 seconds."
     },
     {
       "code": 6002,
-      "name": "PeriodTooShort",
-      "msg": "Period interval must be between 60 seconds and one year."
-    },
-    {
-      "code": 6003,
-      "name": "InvalidOutputsCount",
-      "msg": "Outputs must contain between 1 and 20 assets."
-    },
-    {
-      "code": 6004,
-      "name": "InvalidAllocationWeights",
-      "msg": "Output weights must sum to 10,000 basis points."
-    },
-    {
-      "code": 6005,
       "name": "CalculationOverflow",
       "msg": "Calculation overflow."
     },
     {
-      "code": 6006,
-      "name": "WeightOverflow",
-      "msg": "Allocation weights overflowed."
-    },
-    {
-      "code": 6007,
-      "name": "PlanAlreadyCompleted",
-      "msg": "This plan is completed or expired."
-    },
-    {
-      "code": 6008,
+      "code": 6003,
       "name": "PeriodNotElapsed",
       "msg": "This period is not due or was already executed."
     },
     {
-      "code": 6009,
-      "name": "MismatchedFundingMint",
-      "msg": "The funding mint does not match."
-    },
-    {
-      "code": 6010,
-      "name": "InsufficientFundingCollected",
-      "msg": "The subscription did not collect the full installment."
-    },
-    {
-      "code": 6011,
+      "code": 6004,
       "name": "OutputDidNotIncrease",
       "msg": "Owner output delivery was not verified."
     },
     {
-      "code": 6012,
-      "name": "LegacyPlanDisabled",
-      "msg": "Legacy counter-only plans are disabled; create a version 2 plan."
-    },
-    {
-      "code": 6013,
+      "code": 6005,
       "name": "UnsupportedPlanVersion",
       "msg": "Unsupported plan version."
     },
     {
-      "code": 6014,
+      "code": 6006,
       "name": "InvalidSchedule",
       "msg": "The schedule must be bounded, aligned, and end within one year."
     },
     {
-      "code": 6015,
+      "code": 6007,
       "name": "InvalidOutput",
-      "msg": "Outputs require distinct mints, pools, and positive minimum deliveries."
+      "msg": "Outputs require distinct mints and positive minimum deliveries."
     },
     {
-      "code": 6016,
-      "name": "DuplicateOutput",
-      "msg": "Duplicate output mint or pool."
-    },
-    {
-      "code": 6017,
-      "name": "UnsupportedTokenProgram",
-      "msg": "Only classic SPL tokens are supported on devnet."
-    },
-    {
-      "code": 6018,
+      "code": 6008,
       "name": "InvalidTokenAccount",
       "msg": "A canonical unfrozen token account is required."
     },
     {
-      "code": 6019,
-      "name": "InvalidAccountData",
-      "msg": "Invalid account data."
-    },
-    {
-      "code": 6020,
+      "code": 6009,
       "name": "InvalidDelegation",
       "msg": "Invalid official recurring delegation or authority."
     },
     {
-      "code": 6021,
+      "code": 6010,
       "name": "DelegationTermsMismatch",
       "msg": "The delegation does not match the owner-approved plan terms."
     },
     {
-      "code": 6022,
+      "code": 6011,
       "name": "FundingDelegateMismatch",
       "msg": "The funding account no longer delegates to Subscriptions."
     },
     {
-      "code": 6023,
+      "code": 6012,
       "name": "UnexpectedPeriod",
       "msg": "The requested period does not match the current schedule window."
     },
     {
-      "code": 6024,
+      "code": 6013,
       "name": "FundingBalanceMismatch",
       "msg": "Funding balance changes do not match the approved allocation."
     },
     {
-      "code": 6025,
-      "name": "MinimumOutputNotMet",
-      "msg": "A basket leg did not deliver the approved minimum."
-    },
-    {
-      "code": 6026,
-      "name": "InvalidRouteAccounts",
-      "msg": "Provide exactly the approved route accounts for every output."
-    },
-    {
-      "code": 6027,
-      "name": "InvalidPool",
-      "msg": "The pool, mints, vaults or oracle do not match the approved devnet route."
-    },
-    {
-      "code": 6028,
-      "name": "InvalidRentRecipient",
-      "msg": "Delegation rent must return to its original payer."
-    },
-    {
-      "code": 6029,
+      "code": 6014,
       "name": "UnsupportedFreezeAuthority",
       "msg": "Recurring funding and output mints must have no freeze authority."
     }
@@ -866,36 +484,6 @@
   "types": [
     {
       "name": "CreatePlanData",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "funding_amount",
-            "type": "u64"
-          },
-          {
-            "name": "period_seconds",
-            "type": "u64"
-          },
-          {
-            "name": "periods",
-            "type": "u16"
-          },
-          {
-            "name": "outputs",
-            "type": {
-              "vec": {
-                "defined": {
-                  "name": "Output"
-                }
-              }
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "CreatePlanV2Data",
       "type": {
         "kind": "struct",
         "fields": [
@@ -924,11 +512,15 @@
             "type": "u16"
           },
           {
+            "name": "devnet_mock",
+            "type": "bool"
+          },
+          {
             "name": "outputs",
             "type": {
               "vec": {
                 "defined": {
-                  "name": "OutputV2"
+                  "name": "Output"
                 }
               }
             }
@@ -978,26 +570,6 @@
           {
             "name": "weight_bps",
             "type": "u16"
-          }
-        ]
-      }
-    },
-    {
-      "name": "OutputV2",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "mint",
-            "type": "pubkey"
-          },
-          {
-            "name": "weight_bps",
-            "type": "u16"
-          },
-          {
-            "name": "pool",
-            "type": "pubkey"
           },
           {
             "name": "minimum_amount_out",
@@ -1012,106 +584,12 @@
         "kind": "struct",
         "fields": [
           {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "funding_mint",
-            "type": "pubkey"
-          },
-          {
-            "name": "funding_amount",
-            "type": "u64"
-          },
-          {
-            "name": "period_seconds",
-            "type": "u64"
-          },
-          {
-            "name": "last_executed_at",
-            "type": "i64"
-          },
-          {
-            "name": "periods",
-            "type": "u16"
-          },
-          {
-            "name": "executed_periods",
-            "type": "u16"
-          },
-          {
-            "name": "subscription_authority",
-            "type": "pubkey"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          },
-          {
-            "name": "outputs",
-            "type": {
-              "vec": {
-                "defined": {
-                  "name": "Output"
-                }
-              }
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "PlanClosedV2",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "plan",
-            "type": "pubkey"
-          },
-          {
-            "name": "owner",
-            "type": "pubkey"
-          }
-        ]
-      }
-    },
-    {
-      "name": "PlanCreatedV2",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "plan",
-            "type": "pubkey"
-          },
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "nonce",
-            "type": "u64"
-          },
-          {
-            "name": "starts_at",
-            "type": "i64"
-          },
-          {
-            "name": "expires_at",
-            "type": "i64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "PlanV2",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
             "name": "version",
             "type": "u8"
+          },
+          {
+            "name": "devnet_mock",
+            "type": "bool"
           },
           {
             "name": "owner",
@@ -1178,10 +656,54 @@
             "type": {
               "vec": {
                 "defined": {
-                  "name": "OutputV2"
+                  "name": "Output"
                 }
               }
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "PlanClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "plan",
+            "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PlanCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "plan",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "nonce",
+            "type": "u64"
+          },
+          {
+            "name": "starts_at",
+            "type": "i64"
+          },
+          {
+            "name": "expires_at",
+            "type": "i64"
           }
         ]
       }
