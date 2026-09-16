@@ -48,7 +48,7 @@ function snapshot(asset = {}, extra = {}) {
   ];
   return {
     assets,
-    baskets: sdk.resolveMarketBaskets(assets),
+    baskets: sdk.resolveReviewedMarketBaskets(assets),
     network: "mainnet-beta",
     asOf: new Date(initialTime).toISOString(),
     status: "partial",
@@ -83,7 +83,7 @@ function cache({ getCatalog = async () => snapshot(), getMarkets } = {}) {
     require: (name) => {
       assert.equal(name, "@kite/sdk");
       return {
-        resolveMarketBaskets: sdk.resolveMarketBaskets,
+        resolveReviewedMarketBaskets: sdk.resolveReviewedMarketBaskets,
         getMainnetCatalog: () => {
           calls.catalog++;
           return getCatalog();
@@ -268,7 +268,8 @@ test("expired reads return immediately and retained references never become toke
   assert.equal(interim.assets[0].underlyingMarketCapUsd, 1_000_000);
   assert.equal(interim.assets[0].underlyingPriceUpdatedAt, referenceTime);
   assert.equal(
-    interim.baskets.find((basket) => basket.id === "sol-mag7").available,
+    interim.baskets.find((basket) => basket.id === "sol-digital-leaders")
+      .available,
     false,
   );
 

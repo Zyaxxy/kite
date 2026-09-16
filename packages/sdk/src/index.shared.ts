@@ -1,4 +1,5 @@
 export * from "./markets";
+export * from "./backpack";
 export * from "./devnet-xstocks";
 export * from "./paper";
 export * from "./trading";
@@ -8,6 +9,7 @@ export * from "./research-client";
 export * from "./market-pulse";
 export * from "./simulation";
 export * from "./basket/atomic-swap";
+export * from "./basket/liquidity";
 export * from "./rebalance";
 export * from "./pyth-streaming";
 // Preserve upstream adapter imports; frontend prices use the markets pipeline.

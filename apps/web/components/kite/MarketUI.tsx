@@ -10,7 +10,8 @@ import {
   Layers3,
   Building2,
 } from "lucide-react";
-import type { MarketAsset, MarketBasket } from "@kite/sdk";
+import { BackpackCatalog } from "./BackpackCatalog";
+import type { BackpackSecurity, MarketAsset, MarketBasket } from "@kite/sdk";
 import { OrbitArt } from "./Brand";
 import { getCompanyLogo } from "../../lib/company-logos";
 import {
@@ -179,6 +180,7 @@ export function AssetTable({
   watchlist,
   onWatch,
   initialFilter = "all",
+  backpackSecurities = [],
   onFilterChange,
   compact = false,
   loading = false,
@@ -187,6 +189,7 @@ export function AssetTable({
   watchlist: string[];
   onWatch: (mint: string) => void;
   initialFilter?: string;
+  backpackSecurities?: BackpackSecurity[];
   onFilterChange?: (filter: string) => void;
   compact?: boolean;
   loading?: boolean;
@@ -240,6 +243,7 @@ export function AssetTable({
           />
         </label>
         <NativeSelect
+          disabled={filter === "backpack"}
           aria-label="Sort assets"
           value={sort}
           onChange={(event) => {
@@ -261,6 +265,7 @@ export function AssetTable({
         {[
           ["all", "All assets"],
           ["xstocks", "xStocks"],
+          ["backpack", "Backpack"],
           ["prestocks", "PreStocks"],
           ["saved", "Saved"],
         ].map(([id, label]) => (
@@ -279,7 +284,14 @@ export function AssetTable({
           </button>
         ))}
       </div>
-      {filtered.length ? (
+      {filter === "backpack" ? (
+        <BackpackCatalog
+          securities={backpackSecurities}
+          assets={assets}
+          query={query}
+          loading={loading}
+        />
+      ) : filtered.length ? (
         <>
           <Table
             className="assets-table catalog-table"
@@ -324,7 +336,9 @@ export function AssetTable({
                                 ? "xStocks"
                                 : asset.issuer === "prestocks"
                                   ? "PreStocks"
-                                  : "Tokenized"}
+                                  : asset.issuer === "backpack"
+                                    ? "Backpack"
+                                    : "Tokenized"}
                           </small>
                         </span>
                       </Link>

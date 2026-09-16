@@ -1,4 +1,5 @@
 import type { MarketAsset, MarketBasket, MarketSnapshot } from './markets';
+import { resolveMarketBaskets } from './markets';
 
 export interface PaperPosition { mint: string; symbol: string; quantity: number; costBasisUsd: number; }
 export interface PaperOrder { id: string; mint: string; symbol: string; side: 'buy' | 'sell'; quantity: number; priceUsd: number; totalUsd: number; createdAt: string; swapId?: string; realizedPnlUsd?: number; }
@@ -138,7 +139,10 @@ export function runDuePaperPlans(account: PaperAccount, snapshot: MarketSnapshot
     if (!plan.active || new Date(plan.nextExecutionAt).getTime() > new Date(now).getTime()) continue;
     try {
       if (plan.targetType === 'basket') {
-        const basket = snapshot.baskets.find(item => item.id === plan.targetId);
+        // Existing paper plans keep their original full allocations even when a
+        // mainnet basket is retired after a DEX liquidity review.
+        const basket = snapshot.baskets.find(item => item.id === plan.targetId)
+          ?? resolveMarketBaskets(snapshot.assets).find(item => item.id === plan.targetId);
         if (!basket) throw new Error('Basket is unavailable.');
         next = executePaperBasket(next, basket, plan.amountUsd, now);
       } else {

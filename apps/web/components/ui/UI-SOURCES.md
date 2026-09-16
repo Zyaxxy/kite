@@ -11,3 +11,5 @@
 The navigation contains Discover, Baskets, Recurring, and Portfolio. Markets redirects into Discover. Activity is included in Portfolio and accessible separately from the account menu. Saved assets remain a Discover filter. Trading mode controls appear only inside the app.
 
 - [shadcn/ui Toggle Group](https://ui.shadcn.com/docs/components/base/toggle-group): compact appearance selector composed with the existing Base UI ToggleGroup and Toggle primitives, using Kite theme tokens. [Dark mode guidance](https://ui.shadcn.com/docs/dark-mode/next) informed root provider placement and hydration-safe initialization; no new dependency is required.
+
+- [shadcn/ui Base UI Dialog](https://ui.shadcn.com/docs/components/base/dialog): title, description, portal, backdrop and close composition for the Backpack explainer, using the installed Base UI primitive for focus trapping and Escape dismissal.

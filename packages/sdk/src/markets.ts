@@ -1,3 +1,9 @@
+import {
+  getBackpackCatalog,
+  BACKPACK_ASSETS_URL,
+  type BackpackSecurity,
+} from "./backpack";
+
 /** Mainnet issuer catalogs and observed onchain market prices. Unknown values stay null. */
 export const MAINNET_USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
@@ -6,7 +12,7 @@ export interface MarketAsset {
   symbol: string;
   name: string;
   decimals: number | null;
-  issuer: "xstocks" | "prestocks" | "other";
+  issuer: "xstocks" | "prestocks" | "backpack" | "other";
   kind: "equity" | "etf" | "pre-ipo" | "unknown";
   logoUrl: string | null;
   priceUsd: number | null;
@@ -52,6 +58,9 @@ export interface MarketBasket {
 
 export interface MarketSnapshot {
   assets: MarketAsset[];
+  /** Exchange discovery is separate from the executable Solana token catalog. */
+  backpackSecurities?: BackpackSecurity[];
+  backpackObservedAt?: string;
   baskets: MarketBasket[];
   asOf: string;
   network: "mainnet-beta";
@@ -411,8 +420,11 @@ function parsePrestockProducts(html: string): Row[] {
   return products;
 }
 
-/** Baskets are allocation definitions, not fabricated token mints or return histories. */
-export function resolveMarketBaskets(assets: MarketAsset[]): MarketBasket[] {
+/** Canonical baskets also back devnet test plans; never silently rewrite their IDs. */
+export function resolveMarketBaskets(
+  assets: MarketAsset[],
+  options: { reviewedOnly?: boolean } = {},
+): MarketBasket[] {
   const definitions: Array<{
     id: string;
     name: string;
@@ -551,7 +563,42 @@ export function resolveMarketBaskets(assets: MarketAsset[]): MarketBasket[] {
       issuer: "prestocks",
     },
   ];
-  return definitions.map((definition) => {
+  // New IDs keep existing paper/devnet plans tied to their original allocations.
+  // Mainnet publishes only the subsets reviewed in docs/basket-liquidity-audit.md.
+  const reviewed: typeof definitions = [
+    {
+      id: "sol-digital-leaders",
+      name: "Digital Leaders",
+      ticker: "SOL-DIGITAL",
+      category: "technology",
+      description:
+        "Three equal allocations to Apple, Microsoft and NVIDIA. A focused selection from the largest technology companies.",
+      symbols: ["AAPL", "MSFT", "NVDA"],
+      issuer: "xstocks",
+    },
+    {
+      id: "sol-ai-focused",
+      name: "AI Platforms",
+      ticker: "SOL-AI3",
+      category: "technology",
+      description:
+        "NVIDIA, Alphabet and Amazon, equally weighted. A focused selection across AI compute and cloud platforms.",
+      symbols: ["NVDA", "GOOGL", "AMZN"],
+      issuer: "xstocks",
+    },
+    {
+      id: "sol-everyday-focused",
+      name: "Everyday Essentials",
+      ticker: "SOL-LIFE3",
+      category: "consumer",
+      description:
+        "Apple, Amazon and Coca-Cola, equally weighted. Three companies spanning devices, shopping and everyday consumption.",
+      symbols: ["AAPL", "AMZN", "KO"],
+      issuer: "xstocks",
+    },
+    definitions.find((definition) => definition.id === "sol-core")!,
+  ];
+  return (options.reviewedOnly ? reviewed : definitions).map((definition) => {
     const found = definition.symbols.map((symbol) =>
       assets.find(
         (asset) =>
@@ -595,6 +642,13 @@ export function resolveMarketBaskets(assets: MarketAsset[]): MarketBasket[] {
   });
 }
 
+/** Fresh order construction still validates every leg, amount and atomic transaction. */
+export function resolveReviewedMarketBaskets(
+  assets: MarketAsset[],
+): MarketBasket[] {
+  return resolveMarketBaskets(assets, { reviewedOnly: true });
+}
+
 /** Issuer identity does not depend on Jupiter prices or token metadata. */
 export async function getMainnetCatalog(
   options: MarketOptions = {},
@@ -608,9 +662,12 @@ export async function getMainnetCatalog(
   };
   const warnings: string[] = [];
   const sources: string[] = [];
-  const catalogs = await Promise.allSettled([
-    xstockCatalog(options),
-    prestockCatalog(options),
+  const [catalogs, backpack] = await Promise.all([
+    Promise.allSettled([xstockCatalog(options), prestockCatalog(options)]),
+    getBackpackCatalog(options).then(
+      (value) => ({ status: "fulfilled" as const, value }),
+      () => ({ status: "rejected" as const }),
+    ),
   ]);
   const byMint = new Map<string, MarketAsset>();
   catalogs.forEach((result, index) => {
@@ -624,15 +681,49 @@ export async function getMainnetCatalog(
         `${index === 0 ? "xStocks" : "PreStocks"} catalog could not be loaded. Retry to discover its assets.`,
       );
   });
+  if (backpack.status === "fulfilled") {
+    sources.push("Backpack securities catalog");
+    if (backpack.value.mappingsAvailable)
+      sources.push("Backpack Solana mappings");
+    warnings.push(...backpack.value.warnings);
+    for (const security of backpack.value.securities) {
+      if (
+        security.discoveryOnly ||
+        !security.solanaMint ||
+        byMint.has(security.solanaMint)
+      )
+        continue;
+      const asset = baseAsset(
+        security.solanaMint,
+        security.symbol,
+        security.name,
+        "backpack",
+        BACKPACK_ASSETS_URL,
+      );
+      asset.underlyingSymbol = security.underlyingSymbol;
+      asset.decimals = security.decimals;
+      // /securities does not publish a reliable equity/ETF classification.
+      // The mint's program, extensions and precision are checked again before trading.
+      byMint.set(asset.mint, asset);
+    }
+  } else
+    warnings.push(
+      "Backpack securities catalog could not be loaded. Retry to discover its listings.",
+    );
   const assets = [...byMint.values()];
   return {
     assets,
-    baskets: resolveMarketBaskets(assets),
+    backpackSecurities:
+      backpack.status === "fulfilled" ? backpack.value.securities : [],
+    backpackObservedAt:
+      backpack.status === "fulfilled" ? backpack.value.observedAt : undefined,
+    baskets: resolveReviewedMarketBaskets(assets),
     asOf: new Date().toISOString(),
     network: "mainnet-beta",
     sources,
     status:
-      assets.length === 0
+      assets.length === 0 &&
+      !(backpack.status === "fulfilled" && backpack.value.securities.length)
         ? "unavailable"
         : warnings.length
           ? "partial"
@@ -806,12 +897,14 @@ export async function getMainnetMarkets(
       );
     return {
       assets,
-      baskets: resolveMarketBaskets(assets),
+      backpackSecurities: catalog.backpackSecurities,
+      backpackObservedAt: catalog.backpackObservedAt,
+      baskets: resolveReviewedMarketBaskets(assets),
       asOf: new Date().toISOString(),
       network: "mainnet-beta",
       sources: [...sources],
       status:
-        assets.length === 0
+        assets.length === 0 && !catalog.backpackSecurities?.length
           ? "unavailable"
           : snapshotWarnings.length
             ? "partial"

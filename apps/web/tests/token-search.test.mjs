@@ -29,7 +29,10 @@ const issuerAsset = {
   logoUrl: null,
 };
 
-function createRoute({ discoveryFails = false } = {}) {
+function createRoute({
+  discoveryFails = false,
+  backpackDiscovery = false,
+} = {}) {
   const calls = [];
   const marketCalls = { catalog: 0, prices: 0 };
   const exports = {};
@@ -39,7 +42,20 @@ function createRoute({ discoveryFails = false } = {}) {
     "@/lib/server/markets": {
       getServerMarketCatalog: async () => {
         marketCalls.catalog++;
-        return { assets: [issuerAsset] };
+        return {
+          assets: backpackDiscovery ? [] : [issuerAsset],
+          backpackSecurities: backpackDiscovery
+            ? [
+                {
+                  solanaMint: mint,
+                  symbol: "TEST.US",
+                  name: "Backpack test security",
+                  decimals: 6,
+                  discoveryOnly: true,
+                },
+              ]
+            : undefined,
+        };
       },
       getServerMarkets: async () => {
         marketCalls.prices++;
@@ -110,4 +126,13 @@ test("oversized searches are rejected before querying token providers", async ()
   const response = await route.search("x".repeat(101));
   assert.equal(response.status, 400);
   assert.equal(route.calls.length, 0);
+});
+
+test("a generic token index cannot enable a discovery-only Backpack security", async () => {
+  const route = createRoute({ backpackDiscovery: true });
+  const data = await (await route.search(mint)).json();
+  assert.equal(data.tokens[0].symbol, "TEST.US");
+  assert.equal(data.tokens[0].tradingHalted, true);
+  assert.equal(data.tokens[0].priceUsd, null);
+  assert.equal(data.tokens[0].source, "issuer");
 });

@@ -18,12 +18,7 @@ import { useKite } from "./State";
 import { PageIntro } from "./Shell";
 import { AssetTable, BasketCard, Empty, money, AssetAvatar } from "./MarketUI";
 import { useBaskets } from "./useBaskets";
-import {
-  MarketPulse,
-  MarketHeadlines,
-  MarketOverview,
-  MarketBreadth,
-} from "./MarketPulse";
+import { MarketPulse, MarketHeadlines, MarketBreadth } from "./MarketPulse";
 
 export function MarketStatus() {
   const { snapshot, loading, error, refresh, storageError } = useKite();
@@ -139,7 +134,7 @@ function DiscoverContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedFilter = searchParams.get("filter") ?? "all";
-  const filter = ["all", "xstocks", "prestocks", "saved"].includes(
+  const filter = ["all", "xstocks", "backpack", "prestocks", "saved"].includes(
     requestedFilter,
   )
     ? requestedFilter
@@ -175,7 +170,6 @@ function DiscoverContent() {
           Refresh prices
         </button>
       </div>
-      <MarketOverview />
       <MarketStatus />
       <div className="discover-layout">
         <div className="discover-content">
@@ -195,6 +189,7 @@ function DiscoverContent() {
             </div>
             <AssetTable
               assets={assets}
+              backpackSecurities={snapshot?.backpackSecurities}
               loading={loading}
               watchlist={watchlist}
               onWatch={toggleWatch}
