@@ -1,5 +1,7 @@
 # Hackathon Guide: Devnet Recurring Investing (Kite Guard)
 
+> Status — 16 September 2026: pause execution/setup steps until the [current contract audit](devnet-contract-audit.md) is reviewed. All 40 stock authorities are already transferred; use the read-only audit command there and do not repeat authority changes. The guide’s example funding mint differs from the live manifest.
+
 ## 1. Problem Statement: Testing Equity DCA on Solana Devnet
 
 On Solana **Mainnet-Beta**, Kite routes tokenized stock purchases (e.g. xAAPL, xNVDA, xTSLA) through Jupiter and issuer protocols (xStocks, PreStocks) using Token-2022 and SPL Token standards.
