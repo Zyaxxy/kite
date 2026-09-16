@@ -8,6 +8,8 @@ import { NativeSelect } from "../ui/native-select";
 import recurringStyles from "./recurring-controls.module.css";
 
 interface RecurringConfig {
+  network: "devnet";
+  testTokensOnly: true;
   readyToPrepare: boolean;
   reasons: string[];
   fundingSymbol: string;
@@ -61,44 +63,44 @@ function validPendingPlan(value: unknown, owner: string): value is PendingPlan {
   const terms = order?.terms;
   return Boolean(
     order &&
-    order.signer === owner &&
-    order.network === "devnet" &&
-    order.transactionVersion === 1 &&
-    typeof order.authorization === "string" &&
-    order.authorization.length <= 4096 &&
-    typeof order.transaction === "string" &&
-    typeof order.plan === "string" &&
-    Number.isSafeInteger(order.expiresAt) &&
-    typeof record.signedTransaction === "string" &&
-    record.signedTransaction.length <= 8192 &&
-    /^[A-Za-z0-9+/]+={0,2}$/.test(record.signedTransaction) &&
-    terms &&
-    typeof terms.amount === "string" &&
-    terms.amount.length <= 40 &&
-    typeof terms.fundingSymbol === "string" &&
-    terms.fundingSymbol.length <= 20 &&
-    Number.isSafeInteger(terms.periodSeconds) &&
-    Number.isSafeInteger(terms.periods) &&
-    Number.isSafeInteger(terms.startsAt) &&
-    terms.startsAt > 0 &&
-    Number.isSafeInteger(terms.expiresAt) &&
-    terms.expiresAt > terms.startsAt &&
-    typeof terms.minimumPolicy === "string" &&
-    Array.isArray(terms.outputs) &&
-    terms.outputs.length > 0 &&
-    terms.outputs.length <= 20 &&
-    terms.outputs.every(
-      (output) =>
-        output &&
-        typeof output.mint === "string" &&
-        typeof output.symbol === "string" &&
-        Number.isSafeInteger(output.weightBps) &&
-        Number.isSafeInteger(output.decimals) &&
-        output.decimals >= 0 &&
-        output.decimals <= 9 &&
-        typeof output.minimumAmountOut === "string" &&
-        /^\d{1,20}$/.test(output.minimumAmountOut),
-    ),
+      order.signer === owner &&
+      order.network === "devnet" &&
+      order.transactionVersion === 1 &&
+      typeof order.authorization === "string" &&
+      order.authorization.length <= 4096 &&
+      typeof order.transaction === "string" &&
+      typeof order.plan === "string" &&
+      Number.isSafeInteger(order.expiresAt) &&
+      typeof record.signedTransaction === "string" &&
+      record.signedTransaction.length <= 8192 &&
+      /^[A-Za-z0-9+/]+={0,2}$/.test(record.signedTransaction) &&
+      terms &&
+      typeof terms.amount === "string" &&
+      terms.amount.length <= 40 &&
+      typeof terms.fundingSymbol === "string" &&
+      terms.fundingSymbol.length <= 20 &&
+      Number.isSafeInteger(terms.periodSeconds) &&
+      Number.isSafeInteger(terms.periods) &&
+      Number.isSafeInteger(terms.startsAt) &&
+      terms.startsAt > 0 &&
+      Number.isSafeInteger(terms.expiresAt) &&
+      terms.expiresAt > terms.startsAt &&
+      typeof terms.minimumPolicy === "string" &&
+      Array.isArray(terms.outputs) &&
+      terms.outputs.length > 0 &&
+      terms.outputs.length <= 20 &&
+      terms.outputs.every(
+        (output) =>
+          output &&
+          typeof output.mint === "string" &&
+          typeof output.symbol === "string" &&
+          Number.isSafeInteger(output.weightBps) &&
+          Number.isSafeInteger(output.decimals) &&
+          output.decimals >= 0 &&
+          output.decimals <= 9 &&
+          typeof output.minimumAmountOut === "string" &&
+          /^\d{1,20}$/.test(output.minimumAmountOut),
+      ),
   );
 }
 async function recurringRequest<T>(path: string, body: unknown): Promise<T> {
@@ -117,6 +119,8 @@ export function RecurringInvestingPanel() {
   const auth = useTradingAuth();
   const activeWallet = useRef(auth.walletAddress);
   activeWallet.current = auth.walletAddress;
+  const [configRevision, setConfigRevision] = useState(0);
+  const [configError, setConfigError] = useState("");
   const [config, setConfig] = useState<RecurringConfig | null>(null);
   const [selectedToken, setSelectedToken] = useState<string>("");
   const [fundingAmount, setFundingAmount] = useState<string>("10");
@@ -132,6 +136,8 @@ export function RecurringInvestingPanel() {
 
   useEffect(() => {
     const controller = new AbortController();
+    setConfig(null);
+    setConfigError("");
     fetch("/api/recurring/config", { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok)
@@ -139,6 +145,13 @@ export function RecurringInvestingPanel() {
         return response.json() as Promise<RecurringConfig>;
       })
       .then((data) => {
+        if (
+          data.network !== "devnet" ||
+          data.testTokensOnly !== true ||
+          !Array.isArray(data.stocks) ||
+          !Array.isArray(data.baskets)
+        )
+          throw new Error("The recurring backend must use devnet test tokens.");
         setConfig(data);
         const stock = data.stocks.find((item) => item.available);
         const basket = data.baskets.find((item) => item.available);
@@ -148,14 +161,14 @@ export function RecurringInvestingPanel() {
       })
       .catch((cause: unknown) => {
         if (!controller.signal.aborted)
-          setError(
+          setConfigError(
             cause instanceof Error
               ? cause.message
               : "Unable to load devnet plans.",
           );
       });
     return () => controller.abort();
-  }, []);
+  }, [configRevision]);
   useEffect(() => {
     if (!pending) setPrepared(null);
   }, [
@@ -332,20 +345,41 @@ export function RecurringInvestingPanel() {
       aria-labelledby="guard-plan-title"
     >
       <div className={recurringStyles.header}>
-        <p className="eyebrow">Kite Guard · Devnet</p>
-        <h2 id="guard-plan-title" className="mb-2">
-          Recurring Plans are on Devnet.
-        </h2>
-        <p className="fineprint" style={{ lineHeight: 1.6 }}>
-          To demonstrate the Kite Guard V2 smart contract for the Solana
-          Foundation hackathon, recurring plans currently route to{" "}
-          <strong>Devnet</strong>. This allows you to safely test subscription
-          collections and mock stock minting without using real funds.
+        <p className="eyebrow">01 / BUILD YOUR PLAN</p>
+        <h2 id="guard-plan-title">Start a recurring plan</h2>
+        <p className="fineprint">
+          Set the terms below. You’ll review the full plan before approving
+          anything.
         </p>
       </div>
-      <p className={recurringStyles.networkChip}>
-        Network: <strong>Solana devnet</strong> · Destination: {selectedDisplay}
-      </p>
+      {(configError || (config && !config.readyToPrepare)) && (
+        <div className={recurringStyles.availability} role="status">
+          <strong>Devnet setup is unavailable</strong>
+          <p>
+            {configError ||
+              config?.reasons.join(" ") ||
+              "The backend has not passed its configuration checks."}
+          </p>
+          <button
+            type="button"
+            className="text-link"
+            onClick={() => setConfigRevision((value) => value + 1)}
+          >
+            Check again
+          </button>
+        </div>
+      )}
+      {!config && !configError && (
+        <p className="fineprint" role="status">
+          Checking devnet availability…
+        </p>
+      )}
+      {config?.readyToPrepare && (
+        <p className="fineprint">
+          Configuration loaded. A wallet simulation is still required to verify
+          this plan.
+        </p>
+      )}
 
       <form
         className="stack"
@@ -398,9 +432,10 @@ export function RecurringInvestingPanel() {
             </label>
 
             <label className="form-field">
-              <span>KUSD per investment · Devnet</span>
+              <span>KUSD per investment</span>
               <input
                 type="number"
+                required
                 min="0.000001"
                 step="0.000001"
                 inputMode="decimal"
@@ -425,7 +460,17 @@ export function RecurringInvestingPanel() {
                 <span>Repeat</span>
                 <NativeSelect
                   value={period}
-                  onChange={(e) => setPeriod(e.target.value)}
+                  onChange={(e) => {
+                    setPeriod(e.target.value);
+                    setPeriods((count) =>
+                      String(
+                        Math.min(
+                          Number(count),
+                          Math.floor(31536000 / Number(e.target.value)),
+                        ),
+                      ),
+                    );
+                  }}
                   disabled={loading}
                 >
                   <option value="60">Every 60 seconds · Devnet test</option>
@@ -439,7 +484,8 @@ export function RecurringInvestingPanel() {
                 <input
                   type="number"
                   min="1"
-                  max="365"
+                  required
+                  max={Math.min(365, Math.floor(31536000 / Number(period)))}
                   value={periods}
                   onChange={(e) => setPeriods(e.target.value)}
                   disabled={loading}
@@ -460,6 +506,23 @@ export function RecurringInvestingPanel() {
           </div>
         </fieldset>
 
+        <div className={recurringStyles.overview} aria-live="polite">
+          <div>
+            <span>Investment</span>
+            <strong>{selectedDisplay}</strong>
+          </div>
+          <div>
+            <span>Total plan limit</span>
+            <strong>
+              {Number(fundingAmount) > 0 && Number(periods) > 0
+                ? `${(Number(fundingAmount) * Number(periods)).toLocaleString(undefined, { maximumFractionDigits: 6 })} KUSD`
+                : "—"}
+            </strong>
+          </div>
+          <small>
+            Test tokens only. Wallet fees are paid separately in devnet SOL.
+          </small>
+        </div>
         {prepared && (
           <div
             className="notice stack"

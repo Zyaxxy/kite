@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import type { PaperFrequency } from "@kite/sdk";
 import { useKite } from "./State";
+import planStyles from "./Plans.module.css";
 import { PageIntro } from "./Shell";
 import { MarketStatus } from "./Discover";
 import { AssetName, Change, Empty, money } from "./MarketUI";
@@ -410,31 +411,108 @@ export function Plans() {
   };
   return (
     <>
-      <PageIntro
-        eyebrow="A habit of possibility"
-        title="Little by little. On purpose."
-        description={
-          mode === "paper"
-            ? "Choose an idea, set an amount, and build a recurring paper investing habit."
-            : "Choose a basket or stock, decide your schedule, and set a limit for future investments."
-        }
-      />
-      <MarketStatus />
+      <header className={planStyles.intro}>
+        <div>
+          <p className="eyebrow">RECURRING INVESTMENTS</p>
+          <h1>Make investing a habit.</h1>
+          <p>
+            A little, at your own pace. Choose what to invest in and give it a
+            schedule.
+          </p>
+        </div>
+        <div
+          className={planStyles.mode}
+          role="group"
+          aria-label="Recurring plan environment"
+        >
+          <button
+            aria-pressed={mode === "actual"}
+            onClick={() => setMode("actual")}
+          >
+            Devnet plans
+          </button>
+          <button
+            aria-pressed={mode === "paper"}
+            onClick={() => setMode("paper")}
+          >
+            Paper practice
+          </button>
+        </div>
+      </header>
+      <div className={planStyles.network}>
+        <ShieldCheck size={18} aria-hidden="true" />
+        <div>
+          <strong>
+            {mode === "actual"
+              ? "A test environment, with you in control"
+              : "Practice with virtual funds"}
+          </strong>
+          <p>
+            {mode === "actual"
+              ? "Recurring plans use Solana devnet and test tokens only. Mainnet recurring is unavailable."
+              : "Paper plans stay on this device and run while Kite is open. No wallet approval is needed."}
+          </p>
+        </div>
+        <span>{mode === "actual" ? "DEVNET" : "PAPER"}</span>
+      </div>
       {mode === "actual" ? (
-        <div className="plan-layout">
-          <div>
-            <section id="new-plan">
-              <RecurringInvestingPanel />
-            </section>
-          </div>
-          <aside className="stack" style={{ gap: 16 }}>
-            <div className="panel trade-panel">
-              <h3>Onchain Execution</h3>
-              <p className="fineprint" style={{ margin: "10px 0" }}>
-                These Devnet plans delegate to the official Solana Subscriptions
-                program. There is no web2 cron job—anyone can trigger the
-                collection, and you retain full custody.
+        <div className={planStyles.layout}>
+          <section id="new-plan">
+            <RecurringInvestingPanel />
+          </section>
+          <aside className={planStyles.aside}>
+            <div className={planStyles.guide}>
+              <span className={planStyles.guideIcon}>
+                <Repeat2 size={24} />
+              </span>
+              <p className="eyebrow">A SIMPLE ROUTINE</p>
+              <h2>
+                Your plan.
+                <br />
+                Your pace.
+              </h2>
+              <ol>
+                <li>
+                  <span>01</span>
+                  <div>
+                    <strong>Pick your investment</strong>
+                    <p>A devnet stock or a curated basket of test tokens.</p>
+                  </div>
+                </li>
+                <li>
+                  <span>02</span>
+                  <div>
+                    <strong>Set a comfortable rhythm</strong>
+                    <p>
+                      Choose an amount, frequency, and total number of
+                      investments.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span>03</span>
+                  <div>
+                    <strong>Review before you sign</strong>
+                    <p>
+                      Check the spending limit and token amounts in your wallet.
+                    </p>
+                  </div>
+                </li>
+              </ol>
+            </div>
+            <div className={planStyles.details}>
+              <h3>Before you begin</h3>
+              <p>
+                You’ll need devnet SOL for fees and test KUSD for installments.
+                Test xStocks have no market value.
               </p>
+              <p>
+                Setup is checked before approval. Scheduled collection is not
+                yet running automatically.
+              </p>
+              <Link href="/settings" className="text-link">
+                Connect a wallet <ArrowUpRight size={14} />
+              </Link>
             </div>
           </aside>
         </div>
@@ -520,7 +598,7 @@ export function Plans() {
             </div>
           </div>
           <aside className="panel trade-panel" id="new-plan">
-            <h2>A plan for your next chapter.</h2>
+            <h2>Create a paper plan</h2>
             <p className="fineprint" style={{ margin: "10px 0 23px" }}>
               Recurring investments using virtual USD.
             </p>

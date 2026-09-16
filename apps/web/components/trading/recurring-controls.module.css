@@ -45,12 +45,61 @@
   background-color: var(--surface);
 }
 .panel {
-  padding: 26px;
+  padding: 30px;
+  border-radius: 20px;
 }
 .header {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
+}
+.header h2 {
+  font: 600 25px/1.25 var(--font-nav);
+  letter-spacing: -0.04em;
+}
+.availability {
+  display: grid;
+  gap: 7px;
+  border-left: 3px solid var(--down);
+  padding: 14px 16px;
+  background: var(--raised);
+  border-radius: 0 10px 10px 0;
+  font-size: 12px;
+}
+.availability p {
+  color: var(--muted);
+  line-height: 1.7;
+}
+.availability button {
+  background: transparent;
+  width: fit-content;
+  min-height: 40px;
+  padding: 0;
+}
+.overview {
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+  display: grid;
+  gap: 13px;
+}
+.overview > div {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 24px;
+  font-size: 12px;
+}
+.overview span,
+.overview small {
+  color: var(--muted);
+}
+.overview strong {
+  font-weight: 600;
+  text-align: right;
+}
+.overview small {
+  font-size: 11px;
+  line-height: 1.6;
 }
 .networkChip {
   margin: 0;
