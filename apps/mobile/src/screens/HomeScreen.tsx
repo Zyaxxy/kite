@@ -10,6 +10,7 @@ import {
 import { getMarketPulse, type MarketAsset } from "@kite/sdk";
 import { AssetRow, MarketStatus } from "../components/Market";
 import { EmptyState, FilterRow, SectionTitle } from "../components/Primitives";
+import { IconArrowUpRight } from "../components/Icons";
 import type { Screen } from "../components/Navigation";
 import { useKite } from "../state/KiteProvider";
 import { useTheme } from "../theme";
@@ -51,7 +52,6 @@ export function HomeScreen({
       }
     >
       <View style={ui.stack}>
-        <Text style={ui.eyebrow}>YOUR MARKET, IN FOCUS</Text>
         <Text style={ui.title}>Discover</Text>
         <Text style={ui.body}>Companies you know. Ideas worth following.</Text>
       </View>
@@ -85,7 +85,7 @@ export function HomeScreen({
           >
             <View style={ui.between}>
               <Text style={ui.label}>{item.title}</Text>
-              <Text style={{ color: colors.accent }}>↗</Text>
+              <IconArrowUpRight color={colors.accent} size={16} />
             </View>
             <Text style={ui.small}>{item.detail}</Text>
           </Pressable>
@@ -95,7 +95,7 @@ export function HomeScreen({
       <View style={ui.stack}>
         <SectionTitle
           title="Market movers"
-          action="All stocks →"
+          action="All stocks"
           onAction={() => onNavigate("explore")}
         />
         <FilterRow
@@ -178,7 +178,7 @@ export function HomeScreen({
       <View style={ui.stack}>
         <SectionTitle
           title="On your radar"
-          action="Watchlist →"
+          action="Watchlist"
           onAction={() => onNavigate("watchlist")}
         />
         {watched.length ? (
@@ -205,10 +205,9 @@ export function HomeScreen({
         onPress={() => onNavigate("baskets")}
         style={[ui.card, { backgroundColor: colors.raised }]}
       >
-        <Text style={ui.eyebrow}>A THEME. SEVERAL COMPANIES.</Text>
         <View style={ui.between}>
           <Text style={ui.heading}>Explore baskets</Text>
-          <Text style={[ui.heading, { color: colors.accent }]}>↗</Text>
+          <IconArrowUpRight color={colors.accent} size={20} />
         </View>
         <Text style={ui.body}>
           See the companies and allocations behind each idea before you invest.

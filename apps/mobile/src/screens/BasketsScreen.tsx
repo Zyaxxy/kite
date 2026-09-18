@@ -5,6 +5,7 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   View,
@@ -12,6 +13,7 @@ import {
 import { executePaperBasket, type MarketBasket } from "@kite/sdk";
 import { Button, Chip, EmptyState, FilterRow } from "../components/Primitives";
 import { AssetLogo, MarketStatus } from "../components/Market";
+import { IconArrowUpRight } from "../components/Icons";
 import { useKite } from "../state/KiteProvider";
 import { NativeBasketPanel } from "../components/NativeBasketPanel";
 import { money, useTheme } from "../theme";
@@ -22,6 +24,7 @@ export function BasketsScreen({
   onPlan: (basket: MarketBasket, mode?: "Paper" | "Actual") => void;
 }) {
   const { colors, ui } = useTheme();
+  const styles = useStyles();
   const { market, account, updateAccount, ready, loading, refresh } = useKite();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState("Paper");
@@ -41,6 +44,7 @@ export function BasketsScreen({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const selected = market?.baskets.find((basket) => basket.id === selectedId);
+
   function buy() {
     if (!selected) return;
     try {
@@ -65,8 +69,6 @@ export function BasketsScreen({
       <ScrollView
         style={ui.screen}
         contentContainerStyle={ui.content}
-        keyboardShouldPersistTaps="handled"
-        automaticallyAdjustKeyboardInsets
         refreshControl={
           <RefreshControl
             refreshing={loading}
@@ -78,7 +80,6 @@ export function BasketsScreen({
         }
       >
         <View style={ui.stack}>
-          <Text style={ui.eyebrow}>INVEST IN AN IDEA</Text>
           <Text style={ui.title}>Baskets</Text>
           <Text style={ui.body}>
             Explore a theme, review every holding, and own the underlying tokens
@@ -108,11 +109,13 @@ export function BasketsScreen({
               ]}
             >
               <View style={ui.between}>
-                <View style={{ flex: 1, gap: 10 }}>
-                  <Text style={ui.eyebrow}>{basket.ticker}</Text>
+                <View style={{ flex: 1, gap: 8 }}>
+                  <View style={styles.tickerBadge}>
+                    <Text style={styles.tickerText}>{basket.ticker}</Text>
+                  </View>
                   <Text style={ui.heading}>{basket.name}</Text>
                 </View>
-                <Text style={[ui.heading, { color: colors.accent }]}>↗</Text>
+                <IconArrowUpRight color={colors.accent} size={20} />
               </View>
               <Text style={ui.body} numberOfLines={2}>
                 {basket.description}
@@ -262,4 +265,26 @@ export function BasketsScreen({
       </Modal>
     </>
   );
+}
+
+function useStyles() {
+  const { colors } = useTheme();
+  return StyleSheet.create({
+    tickerBadge: {
+      alignSelf: "flex-start",
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+      backgroundColor: colors.raised,
+      borderWidth: 1,
+      borderColor: colors.line,
+    },
+    tickerText: {
+      fontSize: 11,
+      fontWeight: "600",
+      letterSpacing: 0.5,
+      color: colors.accent,
+      fontVariant: ["tabular-nums"],
+    },
+  });
 }

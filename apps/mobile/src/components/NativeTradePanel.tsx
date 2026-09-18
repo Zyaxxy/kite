@@ -290,7 +290,7 @@ export function NativeTradePanel({ asset }: { asset: MarketAsset }) {
                   holding.mint !== asset.mint && maxSwapAmount(holding) !== "0",
               ) ? (
                 <>
-                  <Text style={ui.eyebrow}>PAY WITH · YOUR WALLET</Text>
+                  <Text style={ui.label}>Pay with wallet token</Text>
                   <View style={styles.tokens}>
                     {portfolio.holdings
                       .filter(
@@ -375,7 +375,7 @@ export function NativeTradePanel({ asset }: { asset: MarketAsset }) {
           ) : null}
           {order ? (
             <View style={styles.notice}>
-              <Text style={ui.eyebrow}>REVIEW YOUR SWAP</Text>
+              <Text style={ui.label}>Review swap</Text>
               <View style={ui.between}>
                 <Text style={ui.body}>You pay</Text>
                 <Text style={ui.label}>

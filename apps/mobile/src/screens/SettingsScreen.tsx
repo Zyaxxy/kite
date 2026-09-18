@@ -22,7 +22,6 @@ export function SettingsScreen({ onReset }: { onReset: () => void }) {
   return (
     <ScrollView style={ui.screen} contentContainerStyle={ui.content}>
       <View style={ui.stack}>
-        <Text style={ui.eyebrow}>PREFERENCES & ACCOUNT</Text>
         <Text style={ui.title}>Settings</Text>
         <Text style={ui.body}>Your appearance, wallet and device data.</Text>
       </View>
@@ -39,8 +38,7 @@ export function SettingsScreen({ onReset }: { onReset: () => void }) {
         />
       </View>
       <View style={ui.card}>
-        <Text style={ui.eyebrow}>DATA & SECURITY</Text>
-        <Text style={ui.heading}>Your device, your data</Text>
+        <Text style={ui.heading}>Device data & security</Text>
         <Text style={ui.body}>
           Your paper cash, holdings, orders and plans are saved on this device.
           Virtual funding is a simulation; prices come from the live mainnet
@@ -74,7 +72,6 @@ export function SettingsScreen({ onReset }: { onReset: () => void }) {
         )}
       </View>
       <View style={ui.card}>
-        <Text style={ui.eyebrow}>ACTUAL TRADING</Text>
         <Text style={ui.heading}>Connected wallet</Text>
         <Text style={ui.body}>
           Every actual swap needs your approval. Your tokens stay in your
@@ -133,7 +130,7 @@ export function SettingsScreen({ onReset }: { onReset: () => void }) {
         ) : null}
       </View>
       <View style={ui.card}>
-        <Text style={ui.eyebrow}>CONNECTION</Text>
+        <Text style={ui.heading}>Network & service</Text>
         <View style={ui.between}>
           <Text style={ui.label}>Network</Text>
           <Text style={ui.body}>Mainnet · spot trades</Text>
@@ -169,7 +166,7 @@ export function SettingsScreen({ onReset }: { onReset: () => void }) {
         ) : null}
       </View>
       <View style={ui.card}>
-        <Text style={ui.eyebrow}>ABOUT KITE</Text>
+        <Text style={ui.heading}>About Kite</Text>
         <Button
           secondary
           label="Privacy policy"

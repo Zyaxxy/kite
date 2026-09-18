@@ -11,17 +11,32 @@ const { decodeGuardPlan, guardDuePeriod, KITE_GUARD_PROGRAM_ID } = require("./di
 const RPC_URL = process.env.KITE_RECURRING_RPC_URL || process.env.SOLANA_DEVNET_RPC_URL || "https://api.devnet.solana.com";
 const WEB_URL = process.env.KITE_WEB_URL || "http://localhost:3000";
 
+function parseKeypair(input) {
+  const trimmed = input.trim();
+  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+    return Keypair.fromSecretKey(new Uint8Array(JSON.parse(trimmed)));
+  }
+  if (/^[0-9a-fA-F]{128}$/.test(trimmed)) {
+    return Keypair.fromSecretKey(Uint8Array.from(Buffer.from(trimmed, "hex")));
+  }
+  try {
+    return Keypair.fromSecretKey(new Uint8Array(JSON.parse(trimmed)));
+  } catch {
+    throw new Error("Invalid BOT_KEYPAIR format. Supply a 64-byte JSON array [1,2...] or 128-char hex string.");
+  }
+}
+
 let botKeypair;
 const defaultKeypath = join(homedir(), ".config", "solana", "id.json");
 if (process.env.BOT_KEYPAIR) {
-  botKeypair = Keypair.fromSecretKey(new Uint8Array(JSON.parse(process.env.BOT_KEYPAIR)));
+  botKeypair = parseKeypair(process.env.BOT_KEYPAIR);
 } else if (existsSync(defaultKeypath)) {
-  botKeypair = Keypair.fromSecretKey(new Uint8Array(JSON.parse(readFileSync(defaultKeypath, "utf8"))));
+  botKeypair = parseKeypair(readFileSync(defaultKeypath, "utf8"));
 } else {
   console.log("No BOT_KEYPAIR found. Generating an ephemeral keypair for the bot...");
   botKeypair = Keypair.generate();
   console.log("Bot Pubkey:", botKeypair.publicKey.toBase58());
-  console.log("WARNING: Please fund this address or set BOT_KEYPAIR.");
+  console.log("WARNING: Ephemeral keypair has 0 SOL. Fund this address or set BOT_KEYPAIR to pay transaction fees.");
 }
 
 async function rpc(method, params = []) {

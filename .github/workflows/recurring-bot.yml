@@ -1,0 +1,41 @@
+name: Recurring SIP Collector Bot
+
+on:
+  schedule:
+    # Runs every 10 minutes (adjust as needed; GitHub Actions cron is 100% free for public repos)
+    - cron: '*/10 * * * *'
+  workflow_dispatch: # Allows manual on-demand trigger from GitHub Actions tab
+
+jobs:
+  collect-dues:
+    name: Collect Due Recurring Plans
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.31.0
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.12.0
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build SDK
+        run: pnpm build:sdk
+
+      - name: Execute Bot Collector Pass
+        env:
+          KITE_WEB_URL: ${{ secrets.KITE_WEB_URL }}
+          KITE_RECURRING_RPC_URL: ${{ secrets.KITE_RECURRING_RPC_URL || 'https://api.devnet.solana.com' }}
+          BOT_KEYPAIR: ${{ secrets.BOT_KEYPAIR }}
+        run: node scripts/bot.mjs

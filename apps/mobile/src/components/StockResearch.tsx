@@ -185,8 +185,7 @@ export function StockResearch({
   return (
     <View style={ui.stack}>
       <View style={ui.stack}>
-        <Text style={ui.eyebrow}>THE COMPANY BEHIND THE TOKEN</Text>
-        <Text style={ui.heading}>Make room for research.</Text>
+        <Text style={ui.heading}>Stock research</Text>
         <Text style={ui.small}>
           Company fundamentals and exchange-traded share history are separate
           from the Solana token market.
@@ -345,10 +344,10 @@ export function StockResearch({
                 );
                 return facts.length ? (
                   <View style={ui.stack} key={period}>
-                    <Text style={ui.eyebrow}>
+                    <Text style={ui.label}>
                       {period === "annual"
-                        ? "ANNUAL RESULTS"
-                        : "LATEST QUARTER"}
+                        ? "Annual results"
+                        : "Latest quarter"}
                     </Text>
                     {facts.map((fact) => (
                       <View key={fact.id} style={styles.fact}>
@@ -414,7 +413,7 @@ export function StockResearch({
             {research.events.length ? (
               research.events.map((event) => (
                 <View key={event.id} style={styles.article}>
-                  <Text style={ui.eyebrow}>{date(event.date)}</Text>
+                  <Text style={ui.small}>{date(event.date)}</Text>
                   <Text style={ui.label}>{event.title}</Text>
                   <Text style={ui.body}>{event.detail}</Text>
                   <Link

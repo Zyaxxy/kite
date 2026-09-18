@@ -136,7 +136,7 @@ export function MarketStatus() {
     <View style={ui.between}>
       <View style={ui.row}>
         <View style={styles.liveDot} />
-        <Text style={ui.eyebrow}>MARKET DATA</Text>
+        <Text style={ui.label}>Live market</Text>
       </View>
       <Text style={ui.small}>
         {loading || market?.refreshing

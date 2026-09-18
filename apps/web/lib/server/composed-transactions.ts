@@ -21,9 +21,11 @@ export type RpcAccount = {
   lamports: number;
 } | null;
 export class RpcError extends Error {
-  constructor(message: string, public readonly data?: unknown) {
+  readonly data?: unknown;
+  constructor(message: string, data?: unknown) {
     super(message);
     this.name = "RpcError";
+    this.data = data;
   }
 }
 

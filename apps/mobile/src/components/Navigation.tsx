@@ -1,6 +1,8 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useTheme } from "../theme";
+import { KiteLogo } from "./KiteLogo";
+import { IconMoon, IconSun } from "./Icons";
 
 export type Screen =
   | "home"
@@ -113,7 +115,7 @@ export function Header({
         onPress={() => onNavigate("home")}
         style={styles.brand}
       >
-        <View style={styles.brandMark} />
+        <KiteLogo size={24} />
         <Text style={styles.wordmark}>kite</Text>
       </Pressable>
       <View style={styles.right}>
@@ -131,18 +133,22 @@ export function Header({
           onPress={() => setMode(mode === "dark" ? "light" : "dark")}
           style={styles.headerAction}
         >
-          <Text style={{ color: colors.ink, fontSize: 21 }}>
-            {mode === "dark" ? "☼" : "☾"}
-          </Text>
+          {mode === "dark" ? (
+            <IconSun color={colors.ink} size={18} />
+          ) : (
+            <IconMoon color={colors.ink} size={18} />
+          )}
         </Pressable>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Open settings"
           accessibilityState={{ selected: current === "settings" }}
           onPress={() => onNavigate("settings")}
-          style={styles.avatar}
+          style={styles.avatarButton}
         >
-          <Text style={styles.avatarText}>K</Text>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>K</Text>
+          </View>
         </Pressable>
       </View>
     </View>
@@ -167,16 +173,6 @@ function useStyles() {
       alignItems: "center",
       gap: 10,
     },
-    brandMark: {
-      height: 17,
-      width: 17,
-      backgroundColor: colors.accent,
-      transform: [
-        { rotate: "45deg" },
-        { skewX: "-15deg" },
-        { skewY: "-15deg" },
-      ],
-    },
     wordmark: {
       fontSize: 26,
       fontWeight: "600",
@@ -185,16 +181,21 @@ function useStyles() {
     },
     right: { flexDirection: "row", alignItems: "center", gap: 4 },
     headerAction: {
-      width: 44,
-      height: 44,
+      width: 48,
+      height: 48,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    avatarButton: {
+      width: 48,
+      height: 48,
       alignItems: "center",
       justifyContent: "center",
     },
     avatar: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      marginLeft: 6,
+      width: 32,
+      height: 32,
+      borderRadius: 16,
       backgroundColor: colors.raised,
       borderWidth: 1,
       borderColor: colors.line,
@@ -210,7 +211,7 @@ function useStyles() {
       paddingTop: 10,
       paddingBottom: 8,
     },
-    tab: { flex: 1, alignItems: "center", gap: 6, minHeight: 46 },
+    tab: { flex: 1, alignItems: "center", gap: 6, minHeight: 48 },
     tabLabel: { color: colors.muted, fontSize: 10, fontWeight: "600" },
     iconBox: {
       height: 22,

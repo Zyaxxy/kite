@@ -108,7 +108,6 @@ export function SipScreen({
         automaticallyAdjustKeyboardInsets
       >
         <View style={ui.stack}>
-          <Text style={ui.eyebrow}>INVEST ON YOUR SCHEDULE</Text>
           <Text style={ui.title}>Recurring</Text>
           <Text style={ui.body}>
             {mode === "Paper"

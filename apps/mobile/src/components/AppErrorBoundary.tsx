@@ -1,6 +1,7 @@
 import React, { type ReactNode } from "react";
 import { SafeAreaView, Text } from "react-native";
 import { Button } from "./Primitives";
+import { KiteLogo } from "./KiteLogo";
 import { useTheme } from "../theme";
 
 /** A render error must leave a usable recovery screen on web and native. */
@@ -36,7 +37,7 @@ function RecoveryScreen({ onRetry }: { onRetry: () => void }) {
   const { ui } = useTheme();
   return (
     <SafeAreaView style={[ui.screen, ui.content, { justifyContent: "center" }]}>
-      <Text style={ui.eyebrow}>KITE</Text>
+      <KiteLogo size={32} />
       <Text style={ui.title}>Let’s get you back.</Text>
       <Text style={ui.body}>
         This screen could not open. Your saved paper account stays on this

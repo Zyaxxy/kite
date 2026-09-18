@@ -11,6 +11,7 @@ import {
 import type { BackpackSecurity, MarketAsset } from "@kite/sdk";
 import { AssetRow, MarketStatus } from "../components/Market";
 import { EmptyState, FilterRow } from "../components/Primitives";
+import { IconArrowUpRight, IconChevronRight } from "../components/Icons";
 import { useKite } from "../state/KiteProvider";
 import { useTheme } from "../theme";
 
@@ -133,11 +134,12 @@ export function ExploreScreen({
                   setLinkError("Backpack could not open. Please try again."),
                 );
               }}
-              style={{ minHeight: 44, justifyContent: "center" }}
+              style={{ minHeight: 44, flexDirection: "row", alignItems: "center", gap: 4 }}
             >
               <Text style={[ui.small, { color: colors.accent }]}>
-                View issuer details ↗
+                View issuer details
               </Text>
+              <IconArrowUpRight color={colors.accent} size={13} />
             </Pressable>
           </View>
         )
@@ -154,9 +156,6 @@ export function ExploreScreen({
       ListHeaderComponent={
         <View style={{ gap: 20, paddingBottom: 16 }}>
           <View style={ui.stack}>
-            <Text style={ui.eyebrow}>
-              {watchlistOnly ? "YOUR SAVED IDEAS" : "DISCOVER / STOCKS"}
-            </Text>
             <Text style={ui.title}>
               {watchlistOnly ? "Watchlist" : "Explore stocks"}
             </Text>
@@ -192,18 +191,20 @@ export function ExploreScreen({
             </Text>
           ) : null}
           <View style={ui.between}>
-            <Text style={ui.eyebrow}>
-              {entries.length} {entries.length === 1 ? "RESULT" : "RESULTS"}
+            <Text style={ui.small}>
+              {entries.length} {entries.length === 1 ? "asset" : "assets"}
             </Text>
             {!watchlistOnly ? (
               <Pressable
                 accessibilityRole="button"
                 onPress={onBaskets}
                 hitSlop={12}
+                style={{ flexDirection: "row", alignItems: "center", gap: 4, minHeight: 44 }}
               >
                 <Text style={[ui.small, { color: colors.accent }]}>
-                  Browse baskets →
+                  Browse baskets
                 </Text>
+                <IconChevronRight color={colors.accent} size={14} />
               </Pressable>
             ) : null}
           </View>

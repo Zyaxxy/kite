@@ -43,12 +43,11 @@ export function PortfolioScreen({
       }
     >
       <View style={ui.stack}>
-        <Text style={ui.eyebrow}>YOUR ACCOUNT</Text>
         <Text style={ui.title}>Portfolio</Text>
       </View>
       <View style={ui.card}>
         <View style={ui.between}>
-          <Text style={ui.eyebrow}>PORTFOLIO VALUE</Text>
+          <Text style={ui.small}>Total balance</Text>
           <Chip label="Paper" selected />
         </View>
         <Text style={ui.money}>

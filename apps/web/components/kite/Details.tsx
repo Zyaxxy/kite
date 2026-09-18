@@ -308,7 +308,7 @@ export function StockDetail({ symbol }: { symbol: string }) {
               </div>
               {asset.underlyingPriceUsd != null && (
                 <p className="quote-reference">
-                  Underlying share reference: {money(asset.underlyingPriceUsd)}
+                  Underlying share reference (via Pyth): {money(asset.underlyingPriceUsd)}
                   {asset.underlyingPriceUpdatedAt
                     ? ` · ${new Date(asset.underlyingPriceUpdatedAt).toLocaleString()}`
                     : ""}
@@ -324,6 +324,12 @@ export function StockDetail({ symbol }: { symbol: string }) {
             </p>
           </div>
           <dl className="stats-grid">
+            {asset.underlyingPriceUsd != null && (
+              <div>
+                <dt>Underlying price (Pyth)</dt>
+                <dd>{money(asset.underlyingPriceUsd)}</dd>
+              </div>
+            )}
             <div>
               <dt>24h trading volume</dt>
               <dd>{compactMoney(asset.volume24hUsd)}</dd>

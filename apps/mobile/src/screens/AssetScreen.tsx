@@ -3,6 +3,7 @@ import {
   Linking,
   RefreshControl,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   View,
@@ -25,6 +26,7 @@ export function AssetScreen({
   onPlan: (asset: MarketAsset, mode?: "Paper" | "Actual") => void;
 }) {
   const { colors, ui } = useTheme();
+  const styles = useStyles();
   const {
     account,
     watchlist,
@@ -81,44 +83,42 @@ export function AssetScreen({
           refreshing={loading}
           onRefresh={() => {
             void refresh();
-            setResearchRefresh((value) => value + 1);
+            setResearchRefresh((current) => current + 1);
           }}
           tintColor={colors.accent}
         />
       }
     >
-      <Button secondary label="Back to exploring" onPress={onClose} />
+      <Button secondary label="← Back to market" onPress={onClose} />
       <View style={ui.between}>
         <AssetLogo asset={asset} large />
         <Chip
-          label={
-            watchlist.includes(asset.mint)
-              ? "Saved to watchlist"
-              : "Add to watchlist"
-          }
+          label={watchlist.includes(asset.mint) ? "Saved" : "Save stock"}
           selected={watchlist.includes(asset.mint)}
           onPress={() => toggleWatch(asset.mint)}
         />
       </View>
       <View style={ui.stack}>
-        <Text style={ui.eyebrow}>
-          {asset.issuer === "prestocks"
-            ? "PRIVATE FRONTIERS · PRESTOCKS"
-            : `${asset.kind === "etf" ? "ETF" : asset.kind === "equity" ? "EQUITY" : "TOKENIZED ASSET"} · ${asset.issuer === "backpack" ? "BACKPACK" : "XSTOCKS"}`}
-        </Text>
+        <View style={styles.issuerBadge}>
+          <Text style={styles.issuerText}>
+            {asset.issuer === "prestocks"
+              ? "PreStocks · Private equity"
+              : `${asset.kind === "etf" ? "ETF" : "Equity"} · ${asset.issuer === "backpack" ? "Backpack" : "xStocks"}`}
+          </Text>
+        </View>
         <Text style={ui.title}>{asset.name}</Text>
         <Text style={ui.body}>{asset.symbol}</Text>
       </View>
       <View style={ui.stack}>
-        <Text style={ui.eyebrow}>
-          {showReference ? "UNDERLYING SHARE REFERENCE" : "SOLANA TOKEN PRICE"}
+        <Text style={ui.small}>
+          {showReference ? "Underlying share reference (Pyth)" : "Live token price"}
         </Text>
         <Text style={ui.money}>
           {money(showReference ? asset.underlyingPriceUsd : asset.priceUsd)}
         </Text>
         {showReference ? (
           <Text style={ui.small}>
-            The underlying share has a reference price. A token market price is
+            The underlying share has a Pyth reference price. A token market price is
             currently unavailable.
           </Text>
         ) : (
@@ -133,10 +133,18 @@ export function AssetScreen({
             {asset.change24hPct != null ? " past 24h" : ""}
           </Text>
         )}
+        {asset.priceUsd !== null && hasReference && (
+          <View style={styles.pythRefRow}>
+            <Text style={ui.small}>Underlying share (Pyth):</Text>
+            <Text style={[ui.label, { color: colors.accent }]}>
+              {money(asset.underlyingPriceUsd)}
+            </Text>
+          </View>
+        )}
       </View>
       <MarketStatus />
       <View style={ui.card}>
-        <Text style={ui.eyebrow}>LIVE MARKET SNAPSHOT</Text>
+        <Text style={ui.heading}>Market metrics</Text>
         <View style={ui.between}>
           <Text style={ui.body}>24h traded volume</Text>
           <Text style={ui.label}>{money(asset.volume24hUsd, 0)}</Text>
@@ -151,7 +159,12 @@ export function AssetScreen({
         </View>
         {hasReference ? (
           <View style={ui.between}>
-            <Text style={ui.body}>Underlying share reference</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text style={ui.body}>Underlying price</Text>
+              <View style={styles.pythBadge}>
+                <Text style={styles.pythBadgeText}>via Pyth</Text>
+              </View>
+            </View>
             <Text style={ui.label}>{money(asset.underlyingPriceUsd)}</Text>
           </View>
         ) : null}
@@ -168,7 +181,7 @@ export function AssetScreen({
         ) : null}
         {hasReference && asset.underlyingPriceUpdatedAt ? (
           <Text style={ui.small}>
-            Share reference updated{" "}
+            Pyth reference updated{" "}
             {new Date(asset.underlyingPriceUpdatedAt).toLocaleString()}
           </Text>
         ) : null}
@@ -281,7 +294,7 @@ export function AssetScreen({
       )}
       <StockResearch asset={asset} refreshKey={researchRefresh} />
       <View style={ui.card}>
-        <Text style={ui.eyebrow}>KNOW WHAT YOU OWN</Text>
+        <Text style={ui.heading}>Issuer & mint</Text>
         <Text style={ui.body}>
           Tokenized exposure has issuer-specific terms, restrictions and risks.
           Review the issuer before placing a real trade.
@@ -302,4 +315,45 @@ export function AssetScreen({
       </View>
     </ScrollView>
   );
+}
+
+function useStyles() {
+  const { colors } = useTheme();
+  return StyleSheet.create({
+    issuerBadge: {
+      alignSelf: "flex-start",
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+      backgroundColor: colors.raised,
+      borderWidth: 1,
+      borderColor: colors.line,
+    },
+    issuerText: {
+      fontSize: 11,
+      fontWeight: "600",
+      letterSpacing: 0.5,
+      color: colors.accent,
+    },
+    pythBadge: {
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+      backgroundColor: colors.raised,
+      borderWidth: 1,
+      borderColor: colors.line,
+    },
+    pythBadgeText: {
+      fontSize: 10,
+      fontWeight: "600",
+      color: colors.accent,
+      letterSpacing: 0.3,
+    },
+    pythRefRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      marginTop: 2,
+    },
+  });
 }

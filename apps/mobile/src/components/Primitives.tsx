@@ -9,6 +9,8 @@ import {
   type ViewStyle,
 } from "react-native";
 import { useTheme } from "../theme";
+import { IconChevronRight } from "./Icons";
+import { KiteLogo } from "./KiteLogo";
 
 export function Button({
   label,
@@ -97,7 +99,7 @@ export function EmptyState({
   return (
     <View style={[ui.card, { alignItems: "flex-start", paddingVertical: 26 }]}>
       <View style={styles.emptyMark}>
-        <View style={styles.emptyDiamond} />
+        <KiteLogo size={18} />
       </View>
       <Text style={ui.heading}>{title}</Text>
       <Text style={ui.body}>{description}</Text>
@@ -119,12 +121,19 @@ export function SectionTitle({
 }) {
   const { colors, ui } = useTheme();
   const styles = useStyles();
+  const cleanAction = action ? action.replace(/[→↗]/g, "").trim() : "";
   return (
     <View style={ui.between}>
       <Text style={ui.heading}>{title}</Text>
       {action && onAction ? (
-        <Pressable accessibilityRole="button" hitSlop={12} onPress={onAction}>
-          <Text style={styles.link}>{action}</Text>
+        <Pressable
+          accessibilityRole="button"
+          hitSlop={12}
+          onPress={onAction}
+          style={styles.sectionAction}
+        >
+          <Text style={styles.link}>{cleanAction}</Text>
+          <IconChevronRight color={colors.accent} size={14} />
         </Pressable>
       ) : null}
     </View>
@@ -141,7 +150,6 @@ export function FilterRow({
   onSelect: (option: string) => void;
 }) {
   const { colors, ui } = useTheme();
-  const styles = useStyles();
   return (
     <ScrollView
       horizontal
@@ -157,30 +165,6 @@ export function FilterRow({
         />
       ))}
     </ScrollView>
-  );
-}
-
-export function OrbitArt({ small = false }: { small?: boolean }) {
-  const { colors, ui } = useTheme();
-  const styles = useStyles();
-  return (
-    <View
-      pointerEvents="none"
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-      style={[styles.art, small && { width: 90, height: 90 }]}
-    >
-      <View style={[styles.orbit, small && { width: 77, height: 77 }]} />
-      <View
-        style={[
-          styles.orbit,
-          styles.orbitInner,
-          small && { width: 57, height: 57 },
-        ]}
-      />
-      <View style={[styles.kite, small && { width: 26, height: 26 }]} />
-      <View style={styles.orbitDot} />
-    </View>
   );
 }
 
@@ -205,21 +189,28 @@ function useStyles() {
     disabled: { opacity: 0.45 },
     pressed: { opacity: 0.8 },
     chip: {
-      minHeight: 44,
+      minHeight: 48,
       justifyContent: "center",
-      paddingHorizontal: 14,
-      paddingVertical: 9,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
       borderWidth: 1,
       borderColor: colors.line,
-      borderRadius: 40,
+      borderRadius: 24,
       backgroundColor: colors.surface,
     },
     chipSelected: {
       borderColor: colors.accent,
       backgroundColor: colors.raised,
     },
-    chipText: { fontSize: 12, fontWeight: "600", color: colors.muted },
-    link: { color: colors.accent, fontSize: 12, fontWeight: "600" },
+    chipText: { fontSize: 13, fontWeight: "600", color: colors.muted },
+    link: { color: colors.accent, fontSize: 13, fontWeight: "600" },
+    sectionAction: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      minHeight: 44,
+      paddingVertical: 6,
+    },
     emptyMark: {
       width: 36,
       height: 36,
@@ -228,52 +219,6 @@ function useStyles() {
       alignItems: "center",
       justifyContent: "center",
       marginBottom: 2,
-    },
-    emptyDiamond: {
-      width: 11,
-      height: 11,
-      borderWidth: 1,
-      borderColor: colors.accent,
-      transform: [{ rotate: "45deg" }],
-    },
-    art: {
-      width: 150,
-      height: 150,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    orbit: {
-      width: 130,
-      height: 130,
-      borderRadius: 100,
-      borderColor: colors.muted,
-      borderWidth: 1,
-      position: "absolute",
-      transform: [{ scaleX: 0.68 }, { rotate: "35deg" }],
-    },
-    orbitInner: {
-      width: 100,
-      height: 100,
-      transform: [{ scaleX: 0.68 }, { rotate: "-35deg" }],
-    },
-    kite: {
-      width: 43,
-      height: 43,
-      backgroundColor: colors.accent,
-      transform: [
-        { rotate: "45deg" },
-        { skewX: "-15deg" },
-        { skewY: "-15deg" },
-      ],
-    },
-    orbitDot: {
-      width: 8,
-      height: 8,
-      borderRadius: 4,
-      backgroundColor: colors.accent,
-      position: "absolute",
-      top: "23%",
-      right: "20%",
     },
   });
 }
