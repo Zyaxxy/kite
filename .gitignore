@@ -27,5 +27,19 @@ apps/mobile/ios/
 .kite-investing-state/
 .kite-worker-state/
 .kite-executor-keypair.json
-internal-docs/*
+# Internal & Private Documentation (Local Machine Only)
+internal-docs/
+docs/free-deployment-plan.md
+docs/deployment.md
+docs/todo-implementation-plan.md
+docs/todo-validation.md
+TODO.md
+backpack-stocks-and-liquid-baskets.md
+docs/devnet-recurring-hackathon-guide.md
+docs/devnet-contract-audit.md
+docs/backpack-integration-audit.md
+docs/basket-liquidity-audit.md
+docs/recurring-devnet-cpmm-architecture.md
+docs/recurring-mainnet-implementation-readiness.md
+docs/audits/
 .superstack/
