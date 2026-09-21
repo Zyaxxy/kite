@@ -20,6 +20,9 @@ type Entry =
   | { kind: "security"; security: BackpackSecurity };
 const FILTERS = [
   "All assets",
+  "Top gainers",
+  "Top losers",
+  "Most traded",
   "With prices",
   "xStocks",
   "PreStocks",
@@ -51,6 +54,21 @@ export function ExploreScreen({
           (asset.priceUsd === null || asset.tradingHalted)
         )
           return false;
+        if (
+          filter === "Top gainers" &&
+          (asset.change24hPct === null || asset.change24hPct <= 0)
+        )
+          return false;
+        if (
+          filter === "Top losers" &&
+          (asset.change24hPct === null || asset.change24hPct >= 0)
+        )
+          return false;
+        if (
+          filter === "Most traded" &&
+          (asset.volume24hUsd === null || asset.volume24hUsd <= 0)
+        )
+          return false;
         if (filter === "xStocks" && asset.issuer !== "xstocks") return false;
         if (filter === "PreStocks" && asset.issuer !== "prestocks")
           return false;
@@ -60,13 +78,23 @@ export function ExploreScreen({
           `${asset.symbol} ${asset.name} ${asset.underlyingSymbol} ${asset.mint}`,
         );
       })
-      .sort(
-        (a, b) =>
+      .sort((a, b) => {
+        if (filter === "Top gainers") {
+          return (b.change24hPct ?? -Infinity) - (a.change24hPct ?? -Infinity);
+        }
+        if (filter === "Top losers") {
+          return (a.change24hPct ?? Infinity) - (b.change24hPct ?? Infinity);
+        }
+        if (filter === "Most traded") {
+          return (b.volume24hUsd ?? 0) - (a.volume24hUsd ?? 0);
+        }
+        return (
           Number(b.priceUsd !== null && !b.tradingHalted) -
             Number(a.priceUsd !== null && !a.tradingHalted) ||
           (b.volume24hUsd ?? 0) - (a.volume24hUsd ?? 0) ||
-          a.name.localeCompare(b.name),
-      );
+          a.name.localeCompare(b.name)
+        );
+      });
     const result: Entry[] = assets.map((asset) => ({ kind: "asset", asset }));
     if (filter === "Backpack" && !watchlistOnly) {
       const executable = new Set(

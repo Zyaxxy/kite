@@ -307,13 +307,71 @@ export function StockDetail({ symbol }: { symbol: string }) {
                 <span className="muted">past 24 hours</span>
               </div>
               {asset.underlyingPriceUsd != null && (
-                <p className="quote-reference">
-                  Underlying share reference (via Pyth): {money(asset.underlyingPriceUsd)}
-                  {asset.underlyingPriceUpdatedAt
-                    ? ` · ${new Date(asset.underlyingPriceUpdatedAt).toLocaleString()}`
-                    : ""}
-                  . Token units and prices may differ.
-                </p>
+                <div
+                  className="quote-reference"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    gap: "6px 8px",
+                    marginTop: 10,
+                  }}
+                >
+                  <span>
+                    Underlying share: <strong>{money(asset.underlyingPriceUsd)}</strong>
+                  </span>
+                  {asset.isRealTimePyth ? (
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                        padding: "1px 7px",
+                        borderRadius: 9999,
+                        background: "rgba(16, 185, 129, 0.12)",
+                        border: "1px solid rgba(16, 185, 129, 0.25)",
+                        color: "#10b981",
+                        fontSize: 10,
+                        fontWeight: 600,
+                        letterSpacing: "0.02em",
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 5,
+                          height: 5,
+                          borderRadius: "50%",
+                          background: "#10b981",
+                        }}
+                      />
+                      Pyth Real-Time
+                    </span>
+                  ) : (
+                    <span className="muted" style={{ fontSize: 11 }}>
+                      (via Pyth)
+                    </span>
+                  )}
+                  {asset.underlyingConfidenceUsd ? (
+                    <span className="muted" style={{ fontSize: 11 }}>
+                      ±$
+                      {asset.underlyingConfidenceUsd < 0.01
+                        ? asset.underlyingConfidenceUsd.toFixed(4)
+                        : asset.underlyingConfidenceUsd.toFixed(2)}
+                    </span>
+                  ) : null}
+                  {asset.underlyingPriceUpdatedAt ? (
+                    <span className="muted" style={{ fontSize: 11 }}>
+                      ·{" "}
+                      {new Date(asset.underlyingPriceUpdatedAt).toLocaleTimeString(
+                        [],
+                        { hour: "2-digit", minute: "2-digit" },
+                      )}
+                    </span>
+                  ) : null}
+                  <span className="muted" style={{ fontSize: 11 }}>
+                    · Token units and prices may differ.
+                  </span>
+                </div>
               )}
             </div>
             <p className="quote-note">
@@ -326,8 +384,57 @@ export function StockDetail({ symbol }: { symbol: string }) {
           <dl className="stats-grid">
             {asset.underlyingPriceUsd != null && (
               <div>
-                <dt>Underlying price (Pyth)</dt>
-                <dd>{money(asset.underlyingPriceUsd)}</dd>
+                <dt style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span>Underlying price</span>
+                  {asset.isRealTimePyth ? (
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 3,
+                        padding: "1px 5px",
+                        borderRadius: 4,
+                        background: "rgba(16, 185, 129, 0.12)",
+                        border: "1px solid rgba(16, 185, 129, 0.25)",
+                        color: "#10b981",
+                        fontSize: 9,
+                        fontWeight: 600,
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 4,
+                          height: 4,
+                          borderRadius: "50%",
+                          background: "#10b981",
+                        }}
+                      />
+                      Pyth
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 10, color: "var(--muted)" }}>
+                      (Pyth)
+                    </span>
+                  )}
+                </dt>
+                <dd>
+                  {money(asset.underlyingPriceUsd)}
+                  {asset.underlyingConfidenceUsd ? (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        color: "var(--muted)",
+                        fontWeight: 400,
+                        marginLeft: 4,
+                      }}
+                    >
+                      ±$
+                      {asset.underlyingConfidenceUsd < 0.01
+                        ? asset.underlyingConfidenceUsd.toFixed(4)
+                        : asset.underlyingConfidenceUsd.toFixed(2)}
+                    </span>
+                  ) : null}
+                </dd>
               </div>
             )}
             <div>

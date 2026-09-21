@@ -81,6 +81,15 @@ function cache({ getCatalog = async () => snapshot(), getMarkets } = {}) {
     Date: Clock,
     process: { env: {} },
     require: (name) => {
+      if (name === "./redis") {
+        return {
+          isRedisConfigured: () => false,
+          getRedisMarketSnapshot: async () => null,
+          setRedisMarketSnapshot: async () => undefined,
+          getRedisCatalog: async () => null,
+          setRedisCatalog: async () => undefined,
+        };
+      }
       assert.equal(name, "@kite/sdk");
       return {
         resolveReviewedMarketBaskets: sdk.resolveReviewedMarketBaskets,

@@ -110,9 +110,19 @@ export function AssetScreen({
         <Text style={ui.body}>{asset.symbol}</Text>
       </View>
       <View style={ui.stack}>
-        <Text style={ui.small}>
-          {showReference ? "Underlying share reference (Pyth)" : "Live token price"}
-        </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <Text style={ui.small}>
+            {showReference
+              ? "Underlying share reference"
+              : "Live token price"}
+          </Text>
+          {showReference && asset.isRealTimePyth ? (
+            <View style={styles.pythRealTimeBadge}>
+              <View style={styles.liveDot} />
+              <Text style={styles.pythRealTimeBadgeText}>Pyth Real-Time</Text>
+            </View>
+          ) : null}
+        </View>
         <Text style={ui.money}>
           {money(showReference ? asset.underlyingPriceUsd : asset.priceUsd)}
         </Text>
@@ -135,10 +145,34 @@ export function AssetScreen({
         )}
         {asset.priceUsd !== null && hasReference && (
           <View style={styles.pythRefRow}>
-            <Text style={ui.small}>Underlying share (Pyth):</Text>
+            <Text style={ui.small}>Underlying share:</Text>
             <Text style={[ui.label, { color: colors.accent }]}>
               {money(asset.underlyingPriceUsd)}
             </Text>
+            <View
+              style={
+                asset.isRealTimePyth ? styles.pythRealTimeBadge : styles.pythBadge
+              }
+            >
+              {asset.isRealTimePyth ? <View style={styles.liveDot} /> : null}
+              <Text
+                style={
+                  asset.isRealTimePyth
+                    ? styles.pythRealTimeBadgeText
+                    : styles.pythBadgeText
+                }
+              >
+                {asset.isRealTimePyth ? "Pyth Real-Time" : "via Pyth"}
+              </Text>
+            </View>
+            {asset.underlyingConfidenceUsd ? (
+              <Text style={[ui.small, { color: colors.muted, fontSize: 11 }]}>
+                ±$
+                {asset.underlyingConfidenceUsd < 0.01
+                  ? asset.underlyingConfidenceUsd.toFixed(4)
+                  : asset.underlyingConfidenceUsd.toFixed(2)}
+              </Text>
+            ) : null}
           </View>
         )}
       </View>
@@ -161,11 +195,38 @@ export function AssetScreen({
           <View style={ui.between}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Text style={ui.body}>Underlying price</Text>
-              <View style={styles.pythBadge}>
-                <Text style={styles.pythBadgeText}>via Pyth</Text>
+              <View
+                style={
+                  asset.isRealTimePyth
+                    ? styles.pythRealTimeBadge
+                    : styles.pythBadge
+                }
+              >
+                {asset.isRealTimePyth ? <View style={styles.liveDot} /> : null}
+                <Text
+                  style={
+                    asset.isRealTimePyth
+                      ? styles.pythRealTimeBadgeText
+                      : styles.pythBadgeText
+                  }
+                >
+                  {asset.isRealTimePyth ? "Pyth Real-Time" : "via Pyth"}
+                </Text>
               </View>
             </View>
-            <Text style={ui.label}>{money(asset.underlyingPriceUsd)}</Text>
+            <View style={{ alignItems: "flex-end" }}>
+              <Text style={ui.label}>{money(asset.underlyingPriceUsd)}</Text>
+              {asset.underlyingConfidenceUsd ? (
+                <Text
+                  style={[ui.small, { color: colors.muted, fontSize: 10 }]}
+                >
+                  ±$
+                  {asset.underlyingConfidenceUsd < 0.01
+                    ? asset.underlyingConfidenceUsd.toFixed(4)
+                    : asset.underlyingConfidenceUsd.toFixed(2)}
+                </Text>
+              ) : null}
+            </View>
           </View>
         ) : null}
         <View style={ui.divider} />
@@ -348,6 +409,29 @@ function useStyles() {
       fontWeight: "600",
       color: colors.accent,
       letterSpacing: 0.3,
+    },
+    pythRealTimeBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+      backgroundColor: "rgba(16, 185, 129, 0.12)",
+      borderWidth: 1,
+      borderColor: "rgba(16, 185, 129, 0.28)",
+    },
+    pythRealTimeBadgeText: {
+      fontSize: 10,
+      fontWeight: "600",
+      color: "#10b981",
+      letterSpacing: 0.3,
+    },
+    liveDot: {
+      width: 5,
+      height: 5,
+      borderRadius: 2.5,
+      backgroundColor: "#10b981",
     },
     pythRefRow: {
       flexDirection: "row",

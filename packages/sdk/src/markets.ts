@@ -3,6 +3,7 @@ import {
   BACKPACK_ASSETS_URL,
   type BackpackSecurity,
 } from "./backpack";
+import { hydratePythPrices } from "./pyth-oracle";
 
 /** Mainnet issuer catalogs and observed onchain market prices. Unknown values stay null. */
 export const MAINNET_USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
@@ -29,6 +30,9 @@ export interface MarketAsset {
   underlyingPriceUsd?: number | null;
   underlyingPriceUpdatedAt?: string | null;
   underlyingMarketCapUsd?: number | null;
+  underlyingPriceSource?: "pyth" | "jupiter-stock-data" | null;
+  underlyingConfidenceUsd?: number | null;
+  isRealTimePyth?: boolean;
   verified: boolean;
   sourceUrl: string;
   underlyingSymbol: string;
@@ -74,6 +78,8 @@ export interface MarketSnapshot {
 export interface MarketOptions {
   jupiterApiKey?: string;
   jupiterBaseUrl?: string;
+  pythApiKey?: string;
+  pythBaseUrl?: string;
   fetcher?: typeof fetch;
   signal?: AbortSignal;
   /** Reuse a separately verified issuer catalog without waiting for all prices. */
@@ -147,10 +153,16 @@ async function waitForRateLimit(
   });
 }
 
+function resolveJupiterApiKey(raw?: string): string | undefined {
+  if (!raw) return undefined;
+  return raw.split(",").map((k) => k.trim()).find(Boolean);
+}
+
 async function request(url: string, options: MarketOptions): Promise<unknown> {
   const headers: Record<string, string> = { Accept: "application/json" };
-  if (url.startsWith("https://api.jup.ag/") && options.jupiterApiKey)
-    headers["x-api-key"] = options.jupiterApiKey;
+  const jupiterApiKey = resolveJupiterApiKey(options.jupiterApiKey);
+  if (url.startsWith("https://api.jup.ag/") && jupiterApiKey)
+    headers["x-api-key"] = jupiterApiKey;
   let response = await (options.fetcher ?? fetch)(url, {
     headers,
     signal: requestSignal(options),
@@ -762,7 +774,9 @@ export async function getMainnetMarkets(
   const mints = [...byMint.keys()];
   const base =
     options.jupiterBaseUrl ??
-    (options.jupiterApiKey ? "https://api.jup.ag" : "https://lite-api.jup.ag");
+    (resolveJupiterApiKey(options.jupiterApiKey)
+      ? "https://api.jup.ag"
+      : "https://lite-api.jup.ag");
   if (!/^https:\/\/(api|lite-api)\.jup\.ag$/.test(base))
     throw new Error("Unsupported Jupiter API origin");
   const batches: string[][] = [];
@@ -819,6 +833,26 @@ export async function getMainnetMarkets(
   for (let index = 0; index < batches.length; index += 3)
     await Promise.all(batches.slice(index, index + 3).map(hydrateBatch));
   options.onUpdate?.(snapshot());
+
+  const pythKey =
+    options.pythApiKey ||
+    (typeof process !== "undefined"
+      ? process.env?.PYTH_API_KEY || process.env?.HERMES_API_KEY
+      : undefined);
+  if (options.includePriceReferences !== false && pythKey) {
+    try {
+      const pythResult = await hydratePythPrices([...byMint.values()], {
+        hermesApiKey: pythKey,
+        hermesBaseUrl: options.pythBaseUrl,
+      });
+      if (pythResult.count > 0 && !sources.includes("Pyth Network Oracles")) {
+        sources.push("Pyth Network Oracles");
+      }
+    } catch {
+      // Graceful fallback to Jupiter Price V3 stockData below
+    }
+  }
+
   const fallbackMints = new Set(options.priceFallbackMints ?? []);
   const priceMints =
     options.includePriceReferences === false
@@ -868,10 +902,15 @@ export async function getMainnetMarkets(
             nonnegative(value.liquidity) ?? asset.liquidityUsd;
         }
         const stock = row(value.stockData);
-        if (asset.issuer === "xstocks" && stock.id === "xstocks") {
+        if (
+          asset.issuer === "xstocks" &&
+          stock.id === "xstocks" &&
+          asset.underlyingPriceSource !== "pyth"
+        ) {
           asset.underlyingPriceUsd = positive(stock.price);
           asset.underlyingPriceUpdatedAt = timestamp(stock.updatedAt);
           asset.underlyingMarketCapUsd = nonnegative(stock.mcap);
+          asset.underlyingPriceSource = "jupiter-stock-data";
         }
       }
       if (!sources.includes("Jupiter Price V3"))

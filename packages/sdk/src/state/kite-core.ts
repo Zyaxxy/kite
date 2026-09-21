@@ -26,6 +26,7 @@ export interface KiteCoreOptions {
   client: Pick<KiteClient, "getMarkets">;
   accountKey: string;
   watchlistKey: string;
+  marketKey?: string;
   now?: () => number;
 }
 
@@ -98,13 +99,18 @@ export function createKiteCore(options: KiteCoreOptions) {
   const hydrate = (): Promise<void> => {
     if (hydration) return hydration;
     hydration = (async () => {
-      const [saved, watched] = await Promise.allSettled([
+      const [saved, watched, savedMarket] = await Promise.allSettled([
         Promise.resolve().then(() =>
           options.storage.getItem(options.accountKey),
         ),
         Promise.resolve().then(() =>
           options.storage.getItem(options.watchlistKey),
         ),
+        options.marketKey
+          ? Promise.resolve().then(() =>
+              options.storage.getItem(options.marketKey!),
+            )
+          : Promise.resolve(null),
       ]);
       let account = state.account;
       let failed = false;
@@ -132,9 +138,31 @@ export function createKiteCore(options: KiteCoreOptions) {
       } catch {
         watchFailed = true;
       }
+      let market = state.market;
+      try {
+        if (savedMarket.status === "fulfilled" && savedMarket.value) {
+          const parsed = JSON.parse(savedMarket.value);
+          if (
+            parsed &&
+            typeof parsed === "object" &&
+            parsed.snapshot &&
+            parsed.snapshot.network === "mainnet-beta" &&
+            Array.isArray(parsed.snapshot.assets)
+          ) {
+            market = parsed.snapshot;
+            if (typeof parsed.etag === "string") etag = parsed.etag;
+            if (typeof parsed.cachedAt === "number")
+              lastFetchedAt = parsed.cachedAt;
+          }
+        }
+      } catch {
+        // Unreadable market cache is ignored gracefully.
+      }
       publish({
         account,
         watchlist,
+        market,
+        loading: market === null,
         hydrated: true,
         accountReadFailed: failed,
         storageError: failed
@@ -183,8 +211,25 @@ export function createKiteCore(options: KiteCoreOptions) {
           throw new Error("Market data is missing. Please retry.");
         etag = result.etag;
         lastFetchedAt = now();
-        if (result.notModified) publish({ error: null });
-        else publish({ market: result.data, error: null });
+        if (result.notModified) {
+          publish({ error: null });
+          if (options.marketKey && state.market) {
+            persist(options.marketKey, {
+              snapshot: state.market,
+              etag: result.etag ?? etag,
+              cachedAt: now(),
+            });
+          }
+        } else {
+          publish({ market: result.data, error: null });
+          if (options.marketKey && result.data && result.data.status !== "unavailable") {
+            persist(options.marketKey, {
+              snapshot: result.data,
+              etag: result.etag,
+              cachedAt: now(),
+            });
+          }
+        }
         runPlans();
       } catch (error) {
         if (!controller.signal.aborted)

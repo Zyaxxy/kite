@@ -45,7 +45,7 @@ async function walletMetadata(
       while (index < batches.length && !signal.aborted) {
         const batch = batches[index++];
         try {
-          const apiKey = process.env.JUPITER_API_KEY;
+          const apiKey = process.env.JUPITER_API_KEY?.split(",")[0]?.trim();
           const response = await fetch(
             `https://api.jup.ag/tokens/v2/search?${new URLSearchParams({ query: batch.join(",") })}`,
             {

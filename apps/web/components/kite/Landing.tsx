@@ -12,20 +12,144 @@ import {
 } from "lucide-react";
 import { Brand } from "./Brand";
 import { useKite } from "./State";
+import { useMemo } from "react";
+import {
+  resolveReviewedMarketBaskets,
+  type MarketAsset,
+  type MarketSnapshot,
+} from "@kite/sdk";
 import { useBaskets } from "./useBaskets";
 import { AssetAvatar, Change, money } from "./MarketUI";
 import { PrimaryNavigation } from "./Shell";
 import { ThemeToggle } from "./ThemeMode";
 import styles from "./Landing.module.css";
 
-export function Landing() {
+function curatedAsset(
+  mint: string,
+  symbol: string,
+  underlyingSymbol: string,
+  name: string,
+  priceUsd: number,
+  change24hPct: number,
+): MarketAsset {
+  return {
+    mint,
+    symbol,
+    underlyingSymbol,
+    name,
+    issuer: "xstocks",
+    kind: "equity",
+    verified: true,
+    tradingHalted: false,
+    priceUsd,
+    change24hPct,
+    decimals: 8,
+    logoUrl: null,
+    volume24hUsd: null,
+    liquidityUsd: null,
+    marketCapUsd: null,
+    updatedAt: null,
+    priceObservedAt: null,
+    sourceUrl: "https://api.xstocks.fi/api/v2/public/assets",
+  };
+}
+
+const CURATED_LANDING_ASSETS: MarketAsset[] = [
+  curatedAsset(
+    "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+    "NVDAx",
+    "NVDA",
+    "NVIDIA",
+    120.85,
+    2.45,
+  ),
+  curatedAsset(
+    "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
+    "AAPLx",
+    "AAPL",
+    "Apple",
+    228.2,
+    0.85,
+  ),
+  curatedAsset(
+    "XspE8mwXBymgupnTUpqdBiCYNmHQ5fUYWBio4n6pW7b",
+    "MSFTx",
+    "MSFT",
+    "Microsoft",
+    432.1,
+    1.15,
+  ),
+  curatedAsset(
+    "XsHtf5EcmSttHupb4Aeo6LUtReFnsw5sNoFspCPpzqC",
+    "AMZNx",
+    "AMZN",
+    "Amazon",
+    186.4,
+    -0.42,
+  ),
+];
+
+const MAG7_BASE_ASSETS: MarketAsset[] = [
+  CURATED_LANDING_ASSETS[1], // AAPLx
+  CURATED_LANDING_ASSETS[2], // MSFTx
+  CURATED_LANDING_ASSETS[0], // NVDAx
+  CURATED_LANDING_ASSETS[3], // AMZNx
+  curatedAsset(
+    "XsGGvdc8bLSm5tYrskoxepGEdskUXGsxWrqdcBCmF5v",
+    "GOOGLx",
+    "GOOGL",
+    "Alphabet",
+    165.0,
+    0.5,
+  ),
+  curatedAsset(
+    "XsvPaaDM1tempmjrhcTCvdBNEdkDuhbTCadqh5UdZXJ",
+    "METAx",
+    "META",
+    "Meta Platforms",
+    510.0,
+    1.2,
+  ),
+  curatedAsset(
+    "XsToNmecKL8vgadpHsmbnumepStCPCPgtbcuBHMpZzp",
+    "TSLAx",
+    "TSLA",
+    "Tesla",
+    240.0,
+    -1.1,
+  ),
+];
+
+export function Landing({
+  initialSnapshot,
+}: {
+  initialSnapshot?: MarketSnapshot | null;
+} = {}) {
   const { snapshot, loading } = useKite();
-  const baskets = useBaskets();
-  const assets = (snapshot?.assets ?? [])
+  const currentSnapshot = snapshot ?? initialSnapshot ?? null;
+  const liveAssets = (currentSnapshot?.assets ?? [])
     .filter((asset) => asset.priceUsd != null && !asset.tradingHalted)
     .slice(0, 4);
+  const assets = liveAssets.length >= 4 ? liveAssets : CURATED_LANDING_ASSETS;
   const featured = assets[0];
-  const basket = baskets.find((item) => item.assets.length >= 3) ?? baskets[0];
+  const baskets = useBaskets();
+  const liveBasket = baskets.find((item) => item.assets.length >= 3);
+  const fallbackBaskets = useMemo(
+    () => resolveReviewedMarketBaskets(MAG7_BASE_ASSETS),
+    [],
+  );
+  const basket =
+    liveBasket ??
+    (fallbackBaskets[0]
+      ? {
+          id: fallbackBaskets[0].id,
+          name: fallbackBaskets[0].name,
+          description: fallbackBaskets[0].description,
+          assets: fallbackBaskets[0].assets.map((a) => a.asset),
+          available: true,
+          source: fallbackBaskets[0],
+        }
+      : undefined);
   return (
     <>
       <header className="workspace-header landing-nav-header">

@@ -45,6 +45,7 @@ export function KiteProvider({ children }: { children: React.ReactNode }) {
     client: kiteClient,
     storage: { getItem: key => localStorage.getItem(key), setItem: (key, value) => localStorage.setItem(key, value) },
     accountKey: "kite.paper.mainnet.v1", watchlistKey: "kite.watchlist.mainnet.v1",
+    marketKey: "kite.market.mainnet.v1",
   }));
   const state = useSyncExternalStore(core.subscribe, core.getSnapshot, core.getSnapshot);
   const [mode, setMode] = useTradingMode();

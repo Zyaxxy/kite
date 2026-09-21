@@ -13,7 +13,7 @@ import { EmptyState, FilterRow, SectionTitle } from "../components/Primitives";
 import { IconArrowUpRight } from "../components/Icons";
 import type { Screen } from "../components/Navigation";
 import { useKite } from "../state/KiteProvider";
-import { useTheme } from "../theme";
+import { money, useTheme } from "../theme";
 
 export function HomeScreen({
   onNavigate,
@@ -29,12 +29,31 @@ export function HomeScreen({
     () => getMarketPulse(market?.assets ?? [], 6),
     [market],
   );
-  const leaders =
-    leaderboard === "Gainers"
-      ? pulse.gainers
-      : leaderboard === "Losers"
-        ? pulse.losers
-        : pulse.topVolume;
+  const leaders = useMemo(() => {
+    if (leaderboard === "Gainers") {
+      return pulse.gainers;
+    }
+    if (leaderboard === "Losers") {
+      return pulse.losers;
+    }
+    if (pulse.topVolume.length > 0) {
+      return pulse.topVolume;
+    }
+    const priced = (market?.assets ?? []).filter(
+      (a) =>
+        (a.priceUsd !== null || a.underlyingPriceUsd !== null) &&
+        !a.tradingHalted,
+    );
+    return priced
+      .sort(
+        (a, b) =>
+          (b.volume24hUsd ?? 0) - (a.volume24hUsd ?? 0) ||
+          (b.liquidityUsd ?? 0) - (a.liquidityUsd ?? 0) ||
+          Math.abs(b.change24hPct ?? 0) - Math.abs(a.change24hPct ?? 0) ||
+          a.symbol.localeCompare(b.symbol),
+      )
+      .slice(0, 6);
+  }, [leaderboard, pulse, market]);
   const watched =
     market?.assets.filter((asset) => watchlist.includes(asset.mint)) ?? [];
   return (
@@ -109,6 +128,11 @@ export function HomeScreen({
               <AssetRow
                 key={asset.mint}
                 asset={asset}
+                detail={
+                  leaderboard === "Trending" && asset.volume24hUsd
+                    ? `Vol: ${money(asset.volume24hUsd, 0)}`
+                    : undefined
+                }
                 onPress={() => onAsset(asset)}
               />
             ))
@@ -116,10 +140,22 @@ export function HomeScreen({
             <EmptyState
               title={
                 loading
-                  ? "Loading market activity"
-                  : "Market activity unavailable"
+                  ? `Loading ${leaderboard.toLowerCase()}`
+                  : leaderboard === "Gainers"
+                    ? "No advancing assets today"
+                    : leaderboard === "Losers"
+                      ? "No declining assets today"
+                      : "Market activity unavailable"
               }
-              description="Movers appear when the market feed returns observed prices and daily activity."
+              description={
+                loading
+                  ? "Fetching latest 24-hour market prices..."
+                  : leaderboard === "Gainers"
+                    ? "No assets recorded a positive 24-hour price change in the latest session."
+                    : leaderboard === "Losers"
+                      ? "No assets recorded a negative 24-hour price change in the latest session."
+                      : "Movers appear when the market feed returns observed prices and daily activity."
+              }
               action="Browse stocks"
               onAction={() => onNavigate("explore")}
             />

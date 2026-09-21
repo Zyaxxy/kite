@@ -228,3 +228,21 @@ test('token quotes available only through V3 still refresh between full referenc
   assert.equal(result.assets.find(asset=>asset.mint===mintB).priceUsd,15);
   assert.equal(result.assets.find(asset=>asset.mint===mintB).priceSource,'jupiter-price-v3');
 });
+
+test('safely resolves comma-separated jupiterApiKey strings into individual clean headers', async () => {
+  const asset = { mint: mintA, symbol: 'Ax', underlyingSymbol: 'A', issuer: 'xstocks', priceUsd: null, verified: true, tradingHalted: false };
+  const catalog = { assets: [asset], baskets: [], asOf: new Date().toISOString(), network: 'mainnet-beta', sources: ['xStocks issuer catalog'], warnings: [], status: 'live' };
+  const capturedKeys = [];
+  await getMainnetMarkets({
+    catalog,
+    includePriceReferences: false,
+    jupiterApiKey: '  jup_key1  ,  jup_key2  ',
+    fetcher: async (input, init) => {
+      capturedKeys.push(init?.headers?.['x-api-key']);
+      return j([{ id: mintA, usdPrice: 50, decimals: 8 }]);
+    },
+  });
+  assert.equal(capturedKeys.length, 1);
+  assert.equal(capturedKeys[0], 'jup_key1');
+});
+

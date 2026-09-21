@@ -172,3 +172,51 @@ test("a subscriber update cannot reorder serialized account writes", async () =>
   await core.flush();
   assert.equal(writes.at(-1).cashUsd, 8000);
 });
+test("marketKey hydrates cached snapshot immediately and persists refreshed market data", async () => {
+  const cachedMarket = {
+    assets: [{ mint: "m1", symbol: "NVDAx", priceUsd: 120 }],
+    baskets: [],
+    network: "mainnet-beta",
+    asOf: "2026-09-13T12:00:00Z",
+    status: "live",
+  };
+  const store = new Map([
+    ["market", JSON.stringify({ snapshot: cachedMarket, etag: "tag-1", cachedAt: 1000 })],
+  ]);
+  const writes = [];
+  let calledEtag = null;
+  const client = {
+    getMarkets: async ({ etag }) => {
+      calledEtag = etag;
+      return {
+        notModified: false,
+        etag: "tag-2",
+        data: { ...cachedMarket, asOf: "2026-09-13T12:01:00Z" },
+      };
+    },
+  };
+  const core = createKiteCore({
+    storage: {
+      getItem: (key) => store.get(key) ?? null,
+      setItem: (key, value) => {
+        store.set(key, value);
+        writes.push([key, JSON.parse(value)]);
+      },
+    },
+    client,
+    accountKey: "account",
+    watchlistKey: "watchlist",
+    marketKey: "market",
+    now: () => 2000,
+  });
+  await core.hydrate();
+  assert.equal(core.getSnapshot().loading, false);
+  assert.deepEqual(core.getSnapshot().market, cachedMarket);
+  await core.refresh();
+  await core.flush();
+  assert.equal(calledEtag, "tag-1");
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0][0], "market");
+  assert.equal(writes[0][1].etag, "tag-2");
+  assert.equal(writes[0][1].cachedAt, 2000);
+});

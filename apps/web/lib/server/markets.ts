@@ -4,10 +4,18 @@ import {
   resolveReviewedMarketBaskets,
   type MarketSnapshot,
 } from "@kite/sdk";
+import {
+  isRedisConfigured,
+  getRedisCatalog,
+  setRedisCatalog,
+  getRedisMarketSnapshot,
+  setRedisMarketSnapshot,
+} from "./redis";
 
 type Deferred = (task: Promise<unknown>) => void;
 const PRICE_TTL = 30_000;
 const REFERENCE_TTL = 5 * 60_000;
+const CATALOG_TTL = 3600_000;
 let catalog: { value: MarketSnapshot; expiresAt: number } | null = null;
 let catalogPending: Promise<MarketSnapshot> | null = null;
 let cached: { value: MarketSnapshot; expiresAt: number } | null = null;
@@ -24,8 +32,9 @@ export async function getServerMarketCatalog(): Promise<MarketSnapshot> {
       catalog = {
         value,
         expiresAt:
-          Date.now() + (value.status === "unavailable" ? 5_000 : 30_000),
+          Date.now() + (value.status === "unavailable" ? 5_000 : CATALOG_TTL),
       };
+      if (value.assets.length) void setRedisCatalog(value, 3600);
       return value;
     })
     .finally(() => {
@@ -53,6 +62,9 @@ function retainReferences(value: MarketSnapshot): MarketSnapshot {
       underlyingPriceUsd: old.underlyingPriceUsd,
       underlyingPriceUpdatedAt: old.underlyingPriceUpdatedAt,
       underlyingMarketCapUsd: old.underlyingMarketCapUsd,
+      underlyingPriceSource: old.underlyingPriceSource,
+      underlyingConfidenceUsd: old.underlyingConfidenceUsd,
+      isRealTimePyth: old.isRealTimePyth,
     };
   });
   return { ...value, assets, baskets: resolveReviewedMarketBaskets(assets) };
@@ -89,20 +101,30 @@ function refresh(initial?: MarketSnapshot): Promise<MarketSnapshot> {
         value: retainReferences(value),
         expiresAt: Date.now() + PRICE_TTL,
       };
+      if (value.status !== "unavailable") {
+        void setRedisMarketSnapshot(cached.value, 60);
+      }
     };
     const value = await getMainnetMarkets({
       jupiterApiKey: process.env.JUPITER_API_KEY,
+      pythApiKey: process.env.PYTH_API_KEY || process.env.HERMES_API_KEY,
       catalog: identity,
       includePriceReferences,
       priceFallbackMints: [...fallbackQuotes.keys()],
       onUpdate: publish,
     });
     publish(value);
-    if (includePriceReferences && value.sources.includes("Jupiter Price V3")) {
+    if (
+      includePriceReferences &&
+      (value.sources.includes("Jupiter Price V3") ||
+        value.sources.includes("Pyth Network Oracles"))
+    ) {
       referencesExpireAt =
         Date.now() +
-        (value.warnings.some((warning) =>
-          warning.startsWith("Some Jupiter price and"),
+        (value.warnings.some(
+          (warning) =>
+            warning.startsWith("Some Jupiter price and") ||
+            warning.startsWith("Some Pyth price and"),
         )
           ? PRICE_TTL
           : REFERENCE_TTL);
@@ -138,6 +160,24 @@ export async function getServerMarkets(
   if (cached && cached.expiresAt > Date.now()) {
     if (pending) options.waitUntil?.(pending.catch(() => undefined));
     return { ...cached.value, refreshing: Boolean(pending) };
+  }
+  if (!cached && isRedisConfigured()) {
+    try {
+      const fromRedis = await getRedisMarketSnapshot();
+      if (
+        fromRedis &&
+        fromRedis.assets.length &&
+        fromRedis.status !== "unavailable"
+      ) {
+        cached = {
+          value: fromRedis,
+          expiresAt: Date.now() + PRICE_TTL,
+        };
+        return { ...cached.value, refreshing: false };
+      }
+    } catch {
+      // Non-blocking fallback
+    }
   }
   const identity = cached ? undefined : await getServerMarketCatalog();
   if (identity && !identity.assets.length)
