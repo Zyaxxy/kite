@@ -89,7 +89,7 @@ export function MarketPulse() {
           <Empty
             icon={Activity}
             title="Market movers are unavailable"
-            description="Rankings appear when prices and the selected 24h metric are available."
+            description="Rankings appear when prices, verified pool liquidity ($1,000+), and the selected 24h metric are available."
           />
         </div>
       )}

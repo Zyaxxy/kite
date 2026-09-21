@@ -347,11 +347,16 @@ const companyLogos = [
 
 const byMint = new Map<string, string>();
 const byIssuerSymbol = new Map<string, string>();
+const byUnderlyingSymbol = new Map<string, string>();
+
 for (const [issuer, symbol, underlyingSymbol, file, mint] of companyLogos) {
   const path = `/company-logos/${file}`;
   byMint.set(mint, path);
   byIssuerSymbol.set(`${issuer}:${symbol.toUpperCase()}`, path);
   byIssuerSymbol.set(`${issuer}:${underlyingSymbol.toUpperCase()}`, path);
+  if (!byUnderlyingSymbol.has(underlyingSymbol.toUpperCase())) {
+    byUnderlyingSymbol.set(underlyingSymbol.toUpperCase(), path);
+  }
 }
 
 /** Mint identity takes precedence so unrelated tokens cannot borrow company branding. */
@@ -361,11 +366,22 @@ export function getCompanyLogo(asset: {
   issuer?: string;
   underlyingSymbol?: string;
 }): string | null {
-  if (asset.mint) return byMint.get(asset.mint) ?? null;
-  if (!asset.issuer) return null;
-  return (
-    byIssuerSymbol.get(
+  if (asset.mint && byMint.has(asset.mint)) {
+    return byMint.get(asset.mint)!;
+  }
+  if (asset.issuer) {
+    const issuerMatch = byIssuerSymbol.get(
       `${asset.issuer}:${(asset.underlyingSymbol || asset.symbol).toUpperCase()}`,
-    ) ?? null
-  );
+    );
+    if (issuerMatch) return issuerMatch;
+  }
+  const clean = (
+    asset.underlyingSymbol ||
+    (asset.symbol.endsWith(".US")
+      ? asset.symbol.slice(0, -3)
+      : asset.symbol.endsWith("x")
+        ? asset.symbol.slice(0, -1)
+        : asset.symbol)
+  ).toUpperCase();
+  return byUnderlyingSymbol.get(clean) ?? null;
 }

@@ -8,6 +8,7 @@ const config = {
     remotePatterns: [
       { protocol: "https", hostname: "xstocks-metadata.backed.fi" },
       { protocol: "https", hostname: "prestocks.com" },
+      { protocol: "https", hostname: "backpack.exchange" },
     ],
   },
   async headers() {

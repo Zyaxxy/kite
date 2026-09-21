@@ -156,16 +156,17 @@ export function ExploreScreen({
             </Text>
             <Pressable
               accessibilityRole="link"
-              accessibilityLabel={`View ${item.security.name} on Backpack`}
+              accessibilityLabel={`Trade ${item.security.name} on Backpack Exchange`}
               onPress={() => {
-                void Linking.openURL(item.security.sourceUrl).catch(() =>
+                const url = `https://backpack.exchange/trade/${encodeURIComponent(item.security.underlyingSymbol)}_USDC`;
+                void Linking.openURL(url).catch(() =>
                   setLinkError("Backpack could not open. Please try again."),
                 );
               }}
               style={{ minHeight: 44, flexDirection: "row", alignItems: "center", gap: 4 }}
             >
               <Text style={[ui.small, { color: colors.accent }]}>
-                View issuer details
+                Trade on Backpack (External CEX)
               </Text>
               <IconArrowUpRight color={colors.accent} size={13} />
             </Pressable>

@@ -9,6 +9,8 @@ import {
   ExternalLink,
   Info,
   ShieldCheck,
+  AlertTriangle,
+  AlertOctagon,
 } from "lucide-react";
 import type { MarketAsset } from "@kite/sdk";
 import { useKite } from "./State";
@@ -256,6 +258,28 @@ export function StockDetail({ symbol }: { symbol: string }) {
         </div>
       </>
     );
+
+  const isLowLiquidity =
+    asset.liquidityUsd !== null &&
+    asset.liquidityUsd !== undefined &&
+    Number.isFinite(asset.liquidityUsd) &&
+    asset.liquidityUsd < 1000;
+
+  const priceDivergencePct =
+    asset.priceUsd != null &&
+    asset.underlyingPriceUsd != null &&
+    asset.underlyingPriceUsd > 0
+      ? (Math.abs(asset.priceUsd - asset.underlyingPriceUsd) /
+          asset.underlyingPriceUsd) *
+        100
+      : null;
+
+  const isSignificantDivergence =
+    priceDivergencePct !== null && priceDivergencePct >= 10;
+
+  const isPremium =
+    priceDivergencePct !== null && asset.priceUsd! > asset.underlyingPriceUsd!;
+
   return (
     <>
       <Link href="/markets" className="back-link">
@@ -320,6 +344,24 @@ export function StockDetail({ symbol }: { symbol: string }) {
                   <span>
                     Underlying share: <strong>{money(asset.underlyingPriceUsd)}</strong>
                   </span>
+                  {isSignificantDivergence && (
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 3,
+                        padding: "1px 7px",
+                        borderRadius: 9999,
+                        background: isPremium ? "rgba(245, 158, 11, 0.12)" : "rgba(59, 130, 246, 0.12)",
+                        border: `1px solid ${isPremium ? "rgba(245, 158, 11, 0.3)" : "rgba(59, 130, 246, 0.3)"}`,
+                        color: isPremium ? "#fbbf24" : "#60a5fa",
+                        fontSize: 10,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {isPremium ? `+${priceDivergencePct!.toFixed(1)}% Premium` : `-${priceDivergencePct!.toFixed(1)}% Discount`}
+                    </span>
+                  )}
                   {asset.isRealTimePyth ? (
                     <span
                       style={{
@@ -345,6 +387,10 @@ export function StockDetail({ symbol }: { symbol: string }) {
                         }}
                       />
                       Pyth Real-Time
+                    </span>
+                  ) : asset.underlyingPriceSource === "jupiter-stock-data" ? (
+                    <span className="muted" style={{ fontSize: 11 }}>
+                      (via xStocks)
                     </span>
                   ) : (
                     <span className="muted" style={{ fontSize: 11 }}>
@@ -381,6 +427,61 @@ export function StockDetail({ symbol }: { symbol: string }) {
               Reference prices are indicative. Your executable quote may differ.
             </p>
           </div>
+          {/* Safeguard Warning Banners */}
+          {isSignificantDivergence && (
+            <div
+              className="notice warning"
+              role="alert"
+              style={{
+                margin: "16px 0 12px",
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 12,
+                padding: "14px 18px",
+                borderRadius: 12,
+                border: "1px solid rgba(245, 158, 11, 0.4)",
+                background: "rgba(245, 158, 11, 0.08)",
+                color: "#fbbf24",
+              }}
+            >
+              <AlertTriangle size={18} style={{ color: "#f59e0b", flexShrink: 0, marginTop: 2 }} />
+              <div style={{ flex: 1 }}>
+                <strong style={{ color: "#fbbf24", display: "block", fontSize: 13, marginBottom: 4 }}>
+                  Price Discrepancy Warning ({priceDivergencePct!.toFixed(1)}% {isPremium ? "Premium" : "Discount"})
+                </strong>
+                <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: "var(--ink)", opacity: 0.9 }}>
+                  This on-chain token is trading at {money(asset.priceUsd)}, which diverges significantly from the underlying share price ({money(asset.underlyingPriceUsd)}). On-chain AMM pool prices on Solana may be distorted due to low liquidity or depegging.
+                </p>
+              </div>
+            </div>
+          )}
+          {isLowLiquidity && (
+            <div
+              className="notice error"
+              role="alert"
+              style={{
+                margin: isSignificantDivergence ? "8px 0 12px" : "16px 0 12px",
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 12,
+                padding: "14px 18px",
+                borderRadius: 12,
+                border: "1px solid rgba(243, 165, 155, 0.4)",
+                background: "rgba(243, 165, 155, 0.08)",
+                color: "var(--down)",
+              }}
+            >
+              <AlertOctagon size={18} style={{ color: "var(--down)", flexShrink: 0, marginTop: 2 }} />
+              <div style={{ flex: 1 }}>
+                <strong style={{ display: "block", fontSize: 13, marginBottom: 4 }}>
+                  Low Pool Liquidity Warning ({compactMoney(asset.liquidityUsd)} TVL)
+                </strong>
+                <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: "var(--ink)", opacity: 0.9 }}>
+                  The on-chain AMM pool on Solana has very little depth. Swaps or market orders will experience severe slippage and price impact.
+                </p>
+              </div>
+            </div>
+          )}
           <dl className="stats-grid">
             {asset.underlyingPriceUsd != null && (
               <div>
@@ -442,8 +543,27 @@ export function StockDetail({ symbol }: { symbol: string }) {
               <dd>{compactMoney(asset.volume24hUsd)}</dd>
             </div>
             <div>
-              <dt>Market liquidity</dt>
-              <dd>{compactMoney(asset.liquidityUsd)}</dd>
+              <dt style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span>Market liquidity</span>
+                {isLowLiquidity && (
+                  <span
+                    style={{
+                      fontSize: 9,
+                      fontWeight: 600,
+                      padding: "1px 5px",
+                      borderRadius: 4,
+                      background: "rgba(239, 68, 68, 0.12)",
+                      border: "1px solid rgba(239, 68, 68, 0.25)",
+                      color: "var(--down)",
+                    }}
+                  >
+                    Low
+                  </span>
+                )}
+              </dt>
+              <dd style={isLowLiquidity ? { color: "var(--down)" } : undefined}>
+                {compactMoney(asset.liquidityUsd)}
+              </dd>
             </div>
             <div>
               <dt>Asset type</dt>
@@ -507,6 +627,31 @@ export function StockDetail({ symbol }: { symbol: string }) {
             <p className="muted" style={{ fontSize: 11 }}>
               Invest in {asset.symbol} on your terms.
             </p>
+            {(isSignificantDivergence || isLowLiquidity) && !asset.tradingHalted && (
+              <div
+                className="notice warning"
+                style={{
+                  margin: "12px 0",
+                  padding: "10px 14px",
+                  fontSize: 11,
+                  lineHeight: 1.4,
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "center",
+                  borderRadius: 8,
+                  border: "1px solid rgba(245, 158, 11, 0.35)",
+                  background: "rgba(245, 158, 11, 0.08)",
+                  color: "#fbbf24",
+                }}
+              >
+                <AlertTriangle size={14} style={{ flexShrink: 0 }} />
+                <span>
+                  {isSignificantDivergence
+                    ? `Caution: Token trades at a ${priceDivergencePct!.toFixed(1)}% ${isPremium ? "premium" : "discount"} over the real share.`
+                    : "Caution: Pool has low liquidity; large orders may slip."}
+                </span>
+              </div>
+            )}
             {mode === "paper" ? (
               <PaperTrade asset={asset} />
             ) : asset.tradingHalted ? (
