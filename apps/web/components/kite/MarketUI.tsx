@@ -9,9 +9,10 @@ import {
   Search,
   Layers3,
   Building2,
+  ExternalLink,
 } from "lucide-react";
 import { BackpackCatalog } from "./BackpackCatalog";
-import type { BackpackSecurity, MarketAsset, MarketBasket } from "@kite/sdk";
+import { formatSocialUrl, type BackpackSecurity, type MarketAsset, type MarketBasket } from "@kite/sdk";
 import { OrbitArt } from "./Brand";
 import { getCompanyLogo } from "../../lib/company-logos";
 import {
@@ -401,6 +402,9 @@ export interface BasketDisplay {
   assets: MarketAsset[];
   available: boolean;
   source: MarketBasket;
+  isCustom?: boolean;
+  creatorName?: string;
+  creatorSocial?: string;
 }
 export function BasketCard({
   basket,
@@ -415,6 +419,15 @@ export function BasketCard({
   prefetch?: boolean;
   presentation?: "app" | "marketing";
 }) {
+  const audit = basket.source.liquidityAudit;
+  const totalVolume24h = basket.assets.reduce(
+    (sum, a) => sum + (a.volume24hUsd ?? 0),
+    0,
+  );
+  const creatorName = basket.creatorName || basket.source.creatorName;
+  const creatorSocial = basket.creatorSocial || basket.source.creatorSocial;
+  const formattedSocial = creatorSocial ? formatSocialUrl(creatorSocial) : undefined;
+
   return (
     <Link
       href={`/basket/${basket.id}`}
@@ -426,10 +439,108 @@ export function BasketCard({
         <OrbitArt variant={index % 3} />
       </div>
       <div className="basket-card-body">
-        {basket.source.category && (
-          <span className="eyebrow">{basket.source.category}</span>
-        )}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
+          {basket.source.category ? (
+            <span className="eyebrow" style={{ margin: 0 }}>
+              {basket.isCustom ? "User Created" : basket.source.category}
+            </span>
+          ) : <span />}
+          {basket.isCustom ? (
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                padding: "2px 7px",
+                borderRadius: 999,
+                background: "rgba(99, 102, 241, 0.12)",
+                color: "#818cf8",
+                border: "1px solid rgba(99, 102, 241, 0.25)",
+              }}
+            >
+              User Created
+            </span>
+          ) : audit ? (
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                padding: "2px 7px",
+                borderRadius: 999,
+                background:
+                  audit.tier === "verified-high"
+                    ? "rgba(16, 185, 129, 0.12)"
+                    : audit.tier === "moderate"
+                      ? "rgba(245, 158, 11, 0.12)"
+                      : "rgba(239, 68, 68, 0.12)",
+                color:
+                  audit.tier === "verified-high"
+                    ? "#10b981"
+                    : audit.tier === "moderate"
+                      ? "#f59e0b"
+                      : "#ef4444",
+                border: `1px solid ${
+                  audit.tier === "verified-high"
+                    ? "rgba(16, 185, 129, 0.25)"
+                    : audit.tier === "moderate"
+                      ? "rgba(245, 158, 11, 0.25)"
+                      : "rgba(239, 68, 68, 0.25)"
+                }`,
+              }}
+            >
+              {audit.badgeLabel}
+            </span>
+          ) : null}
+        </div>
         <h3>{basket.name}</h3>
+        {creatorName && (
+          <div
+            className="basket-creator-row"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              fontSize: 12,
+              color: "var(--muted)",
+              marginTop: -2,
+              marginBottom: 6,
+            }}
+          >
+            <span>by</span>
+            {formattedSocial ? (
+              <span
+                role="link"
+                tabIndex={0}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  window.open(formattedSocial, "_blank", "noopener,noreferrer");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.open(formattedSocial, "_blank", "noopener,noreferrer");
+                  }
+                }}
+                style={{
+                  color: "var(--accent, #6366f1)",
+                  fontWeight: 600,
+                  textDecoration: "underline",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 3,
+                }}
+                title={`Visit ${creatorName}'s profile (${formattedSocial})`}
+              >
+                {creatorName}
+                <ExternalLink size={10} style={{ opacity: 0.8 }} />
+              </span>
+            ) : (
+              <span style={{ fontWeight: 600, color: "var(--ink)" }}>{creatorName}</span>
+            )}
+          </div>
+        )}
         <p>{basket.description}</p>
         <div className="mini-assets">
           {basket.assets.slice(0, 6).map((a) => (
@@ -447,10 +558,11 @@ export function BasketCard({
         <div className="basket-meta">
           <span>
             {basket.assets.length ? `${basket.assets.length} assets · ` : ""}
+            {totalVolume24h > 0 ? `${compactMoney(totalVolume24h)} 24h vol · ` : ""}
             {presentation === "marketing"
               ? "Explore theme"
               : basket.available
-                ? "Available to practice"
+                ? "Available on mainnet"
                 : basket.source.missingSymbols.length
                   ? "Some components unavailable"
                   : "Some token prices unavailable"}

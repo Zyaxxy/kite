@@ -1,7 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CalendarDays, Repeat2 } from "lucide-react";
+import {
+  CalendarDays,
+  Repeat2,
+  Coins,
+  Sparkles,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  ExternalLink,
+  Wallet2,
+} from "lucide-react";
 import { fromTokenAmount, walletTransactionSignature } from "@kite/sdk";
 import { useTradingAuth } from "./TradingAuth";
 import { NativeSelect } from "../ui/native-select";
@@ -432,59 +442,72 @@ export function RecurringInvestingPanel({
       )}
 
       {faucetAvailable && (
-        <div
-          className="notice stack"
-          style={{
-            gap: 8,
-            padding: 14,
-            borderRadius: 8,
-            border: "1px solid var(--color-border-subtle, rgba(255,255,255,0.08))",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: 8,
-            }}
-          >
-            <div>
-              <strong style={{ fontSize: "0.9rem" }}>Devnet Test Faucet</strong>
-              <p className="fineprint" style={{ margin: 0 }}>
-                Claim 500 test KUSD and gas SOL to test recurring investing.
-              </p>
+        <div className={recurringStyles.faucetCard}>
+          <div className={recurringStyles.faucetCardRow}>
+            <div className={recurringStyles.faucetMeta}>
+              <div className={recurringStyles.faucetIconWrapper}>
+                <Coins size={17} />
+              </div>
+              <div className={recurringStyles.faucetText}>
+                <div className={recurringStyles.faucetTitleRow}>
+                  <span className={recurringStyles.faucetTitle}>Devnet Test Faucet</span>
+                  <span className={recurringStyles.faucetBadge}>Devnet Funds</span>
+                </div>
+                <p className={recurringStyles.faucetSubtitle}>
+                  Claim 500 test KUSD &amp; 0.1 devnet SOL to fund and test your plan.
+                </p>
+              </div>
             </div>
             <button
               type="button"
-              className="btn btn-secondary"
+              className={recurringStyles.faucetButton}
               disabled={faucetLoading || !auth.walletAddress}
               onClick={() => void handleClaimFaucet()}
-              style={{
-                fontSize: "0.85rem",
-                padding: "6px 14px",
-                height: "auto",
-                minHeight: "unset",
-              }}
+              title={!auth.walletAddress ? "Connect wallet first" : "Claim 500 test KUSD & 0.1 devnet SOL"}
             >
-              {faucetLoading ? "Claiming…" : "Claim 500 KUSD"}
+              {faucetLoading ? (
+                <>
+                  <Loader2 size={13} className={recurringStyles.spin} />
+                  <span>Claiming 500 KUSD…</span>
+                </>
+              ) : !auth.walletAddress ? (
+                <>
+                  <Wallet2 size={13} />
+                  <span>Connect Wallet to Claim</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles size={13} />
+                  <span>Claim 500 KUSD</span>
+                </>
+              )}
             </button>
           </div>
           {faucetMessage && (
-            <p className="fineprint" style={{ margin: 0 }}>
-              {faucetMessage}{" "}
+            <div
+              className={
+                faucetMessage.startsWith("Received")
+                  ? recurringStyles.faucetSuccess
+                  : recurringStyles.faucetError
+              }
+            >
+              {faucetMessage.startsWith("Received") ? (
+                <CheckCircle2 size={14} />
+              ) : (
+                <AlertCircle size={14} />
+              )}
+              <span>{faucetMessage}</span>
               {faucetUrl && (
                 <a
                   href={faucetUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-link"
+                  className={recurringStyles.faucetExplorerLink}
                 >
-                  View on explorer
+                  View on explorer <ExternalLink size={11} />
                 </a>
               )}
-            </p>
+            </div>
           )}
         </div>
       )}
@@ -540,7 +563,25 @@ export function RecurringInvestingPanel({
             </label>
 
             <label className="form-field">
-              <span>KUSD per investment</span>
+              <div className={recurringStyles.fieldLabelRow}>
+                <span>KUSD per investment</span>
+                {/* {faucetAvailable && (
+                  <button
+                    type="button"
+                    className={recurringStyles.inlineFaucetBtn}
+                    disabled={faucetLoading || !auth.walletAddress}
+                    onClick={() => void handleClaimFaucet()}
+                    title={!auth.walletAddress ? "Connect wallet to claim" : "Quick claim 500 test KUSD"}
+                  >
+                    {faucetLoading ? (
+                      <Loader2 size={11} className={recurringStyles.spin} />
+                    ) : (
+                      <Sparkles size={11} />
+                    )}
+                    <span>{faucetLoading ? "Claiming…" : "Claim 500 KUSD"}</span>
+                  </button>
+                )} */}
+              </div>
               <input
                 type="number"
                 required

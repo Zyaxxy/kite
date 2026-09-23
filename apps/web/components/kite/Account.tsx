@@ -514,10 +514,10 @@ export function Plans() {
               <h3>Before you begin</h3>
               <p>
                 You’ll need devnet SOL for fees and test KUSD for installments.
-                Test xStocks have no market value.
+                Use the test faucet in the plan builder below to claim 500 test KUSD and gas SOL instantly.
               </p>
               <p>
-                Setup is checked before approval. Scheduled collection is not
+                Setup is verified before wallet signing. Scheduled collection is not
                 yet running automatically.
               </p>
               <Link href="/settings" className="text-link">

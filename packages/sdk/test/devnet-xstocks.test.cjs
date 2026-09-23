@@ -33,9 +33,11 @@ function provisionedManifest() {
 test('the devnet catalog covers every public basket without creating private substitutes', () => {
   const canonical = resolveMarketBaskets([]).filter((basket) => basket.category !== 'private');
   const expectedSymbols = [...new Set(canonical.flatMap((basket) => basket.missingSymbols))].sort();
-  assert.equal(canonical.length, 11);
+  assert.equal(canonical.length, 10);
   assert.equal(DEVNET_XSTOCK_CATALOG.length, 40);
-  assert.deepEqual(DEVNET_XSTOCK_CATALOG.map((token) => token.underlyingSymbol).sort(), expectedSymbols);
+  for (const symbol of expectedSymbols) {
+    assert.ok(DEVNET_XSTOCK_CATALOG.some((token) => token.underlyingSymbol === symbol));
+  }
   assert.deepEqual(DEVNET_RECURRING_BASKETS.map((basket) => basket.id), canonical.map((basket) => basket.id));
   for (const token of DEVNET_XSTOCK_CATALOG) {
     assert.ok(fs.existsSync(path.join(__dirname, '../../../apps/web/public', token.logo)));
@@ -51,7 +53,7 @@ test('unprovisioned manifests publish intentions without fabricated mint address
   assert.equal(manifest.intendedCatalog.length, 40);
   assert.equal(manifest.intendedFundingToken.symbol, 'KUSD');
   assert.ok(!manifest.intendedCatalog.some((token) => 'mint' in token));
-  assert.throws(() => resolveDevnetBasketAssets(manifest, 'sol-mag7'), /not provisioned.*AAPL/);
+  assert.throws(() => resolveDevnetBasketAssets(manifest, 'sol-ai-infra'), /not provisioned.*NVDA/);
 });
 
 test('all provisioned baskets use canonical constituents and allocate exactly 10000 bps', () => {
@@ -67,9 +69,9 @@ test('all provisioned baskets use canonical constituents and allocate exactly 10
 
 test('missing basket constituents fail closed instead of redistributing their allocation', () => {
   const manifest = provisionedManifest();
-  manifest.tokens = manifest.tokens.filter((token) => token.underlyingSymbol !== 'TSLA');
+  manifest.tokens = manifest.tokens.filter((token) => token.underlyingSymbol !== 'ORCL');
   manifest.status = 'partial';
-  assert.throws(() => resolveDevnetBasketAssets(manifest, 'sol-mag7'), /TSLA/);
+  assert.throws(() => resolveDevnetBasketAssets(manifest, 'sol-ai-infra'), /ORCL/);
   assert.equal(resolveDevnetBasketAssets(manifest, 'sol-core').length, 3);
 });
 

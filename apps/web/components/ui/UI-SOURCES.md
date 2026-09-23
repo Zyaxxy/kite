@@ -13,3 +13,4 @@ The navigation contains Discover, Baskets, Recurring, and Portfolio. Markets red
 - [shadcn/ui Toggle Group](https://ui.shadcn.com/docs/components/base/toggle-group): compact appearance selector composed with the existing Base UI ToggleGroup and Toggle primitives, using Kite theme tokens. [Dark mode guidance](https://ui.shadcn.com/docs/dark-mode/next) informed root provider placement and hydration-safe initialization; no new dependency is required.
 
 - [shadcn/ui Base UI Dialog](https://ui.shadcn.com/docs/components/base/dialog): title, description, portal, backdrop and close composition for the Backpack explainer, using the installed Base UI primitive for focus trapping and Escape dismissal.
+- [shadcn/ui Command](https://ui.shadcn.com/docs/components/command): keyboard-navigable search and command composition adapted to Kite's design tokens and basket discovery workflows. MIT license in SHADCN-LICENSE.md.

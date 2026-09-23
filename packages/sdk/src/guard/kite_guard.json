@@ -219,7 +219,8 @@
           }
         },
         {
-          "name": "funding_mint"
+          "name": "funding_mint",
+          "writable": true
         },
         {
           "name": "subscription_authority"

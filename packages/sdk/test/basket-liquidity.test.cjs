@@ -54,10 +54,11 @@ test("published mainnet baskets use reviewed definitions without mutating canoni
       "sol-core",
     ],
   );
+  const canonical = resolveMarketBaskets([]);
   assert.equal(
-    reviewed.some((b) => b.id === "sol-mag7"),
+    canonical.some((b) => b.id === "sol-mag7"),
     false,
-    "retired seven-leg basket cannot enter mainnet orders",
+    "mag7 basket is completely removed",
   );
   for (const basket of reviewed) {
     assert.equal(basket.assets.length, 3);
@@ -67,16 +68,13 @@ test("published mainnet baskets use reviewed definitions without mutating canoni
     );
     assert.equal(basket.available, true);
   }
-  const canonical = resolveMarketBaskets([]);
-  assert.equal(canonical.length, 12);
-  assert.deepEqual(canonical.find((b) => b.id === "sol-mag7").missingSymbols, [
-    "AAPL",
-    "MSFT",
+  assert.equal(canonical.length, 11);
+  assert.deepEqual(canonical.find((b) => b.id === "sol-ai-infra").missingSymbols, [
     "NVDA",
-    "AMZN",
+    "MSFT",
     "GOOGL",
-    "META",
-    "TSLA",
+    "AMZN",
+    "ORCL",
   ]);
   assets[0].issuer = "backpack";
   const missing = resolveReviewedMarketBaskets(assets)[0];

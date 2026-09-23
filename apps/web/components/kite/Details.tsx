@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -11,9 +12,17 @@ import {
   ShieldCheck,
   AlertTriangle,
   AlertOctagon,
+  GitFork,
+  Share2,
+  Trash2,
+  Gauge,
+  CheckCircle2,
+  Scale,
+  RefreshCw,
 } from "lucide-react";
-import type { MarketAsset } from "@kite/sdk";
+import { encodeBasketShareCode, calculateBasketRebalance, formatSocialUrl } from "@kite/sdk";
 import { useKite } from "./State";
+import type { MarketAsset } from "@kite/sdk";
 import {
   AssetAvatar,
   AssetName,
@@ -696,11 +705,15 @@ export function StockDetail({ symbol }: { symbol: string }) {
   );
 }
 export function BasketDetail({ id }: { id: string }) {
+  const router = useRouter();
   const basket = useBaskets().find((b) => b.id === id);
-  const { paper, mode, tradeBasket } = useKite();
+  const { paper, mode, tradeBasket, customBaskets, deleteCustomBasket, rebalancePaper } = useKite();
   const [amount, setAmount] = useState("100");
   const [review, setReview] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copiedShare, setCopiedShare] = useState(false);
+  const [rebalancing, setRebalancing] = useState(false);
+
   if (!basket)
     return (
       <Empty
@@ -713,6 +726,54 @@ export function BasketDetail({ id }: { id: string }) {
         }
       />
     );
+
+  const isCustom = Boolean(basket.isCustom);
+  const customConfig = customBaskets.find((cb) => cb.id === basket.id);
+  const creatorName = basket.source.creatorName || customConfig?.creatorName;
+  const creatorSocial = basket.source.creatorSocial || customConfig?.creatorSocial;
+  const formattedSocial = creatorSocial ? formatSocialUrl(creatorSocial) : undefined;
+  const audit = basket.source.liquidityAudit;
+
+  const totalVolume24h = basket.assets.reduce(
+    (sum, a) => sum + (a.volume24hUsd ?? 0),
+    0,
+  );
+
+  const userHoldingsInBasket = basket.assets.map((a) => {
+    const pos = paper.positions.find((p) => p.mint === a.mint);
+    const price = a.priceUsd ?? 0;
+    const valMicros = BigInt(Math.round((pos?.quantity ?? 0) * price * 1_000_000));
+    return { mint: a.mint, valueUsdMicros: valMicros };
+  });
+
+  const totalHeldMicros = userHoldingsInBasket.reduce(
+    (sum, h) => sum + h.valueUsdMicros,
+    BigInt(0),
+  );
+
+  let driftAnalysis: {
+    plan: ReturnType<typeof calculateBasketRebalance>;
+    hasDrift: boolean;
+  } | null = null;
+
+  if (totalHeldMicros > BigInt(0)) {
+    try {
+      const plan = calculateBasketRebalance({
+        targets: basket.source.assets.map((a) => ({
+          mint: a.asset.mint,
+          weightBps: Math.round(a.weight),
+        })),
+        holdings: userHoldingsInBasket,
+        cashUsdMicros: BigInt(0),
+        thresholdBps: customConfig?.rebalanceRules?.driftThresholdBps ?? 200,
+      });
+      const hasDrift = plan.legs.some((l) => l.action !== "hold");
+      driftAnalysis = { plan, hasDrift };
+    } catch {
+      driftAnalysis = null;
+    }
+  }
+
   const submit = () => {
     setError(null);
     try {
@@ -731,6 +792,33 @@ export function BasketDetail({ id }: { id: string }) {
       setReview(false);
     }
   };
+
+  const handleShare = () => {
+    if (!customConfig) return;
+    const code = encodeBasketShareCode(customConfig);
+    const url = `${window.location.origin}/basket/builder?import=${encodeURIComponent(code)}`;
+    navigator.clipboard.writeText(url);
+    setCopiedShare(true);
+    setTimeout(() => setCopiedShare(false), 2500);
+  };
+
+  const handleDelete = () => {
+    if (confirm(`Delete custom basket "${basket.name}"?`)) {
+      deleteCustomBasket(basket.id);
+      router.push("/baskets");
+    }
+  };
+
+  const handleRebalance = () => {
+    if (!customConfig) return;
+    setRebalancing(true);
+    try {
+      rebalancePaper(customConfig);
+    } finally {
+      setRebalancing(false);
+    }
+  };
+
   return (
     <>
       <Link href="/baskets" className="back-link">
@@ -741,10 +829,120 @@ export function BasketDetail({ id }: { id: string }) {
       <div className="detail-grid">
         <div className="stack">
           <div>
-            <p className="eyebrow" style={{ marginBottom: 13 }}>
-              A Kite point of view
-            </p>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <p className="eyebrow" style={{ margin: 0 }}>
+                  {basket.source.category || (isCustom ? "Custom Allocation" : "A Kite Point of View")}
+                </p>
+                {audit && (
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      padding: "2px 8px",
+                      borderRadius: 999,
+                      background:
+                        audit.tier === "verified-high"
+                          ? "rgba(16, 185, 129, 0.12)"
+                          : audit.tier === "moderate"
+                            ? "rgba(245, 158, 11, 0.12)"
+                            : "rgba(239, 68, 68, 0.12)",
+                      color:
+                        audit.tier === "verified-high"
+                          ? "#10b981"
+                          : audit.tier === "moderate"
+                            ? "#f59e0b"
+                            : "#ef4444",
+                    }}
+                  >
+                    {audit.badgeLabel}
+                  </span>
+                )}
+                {isCustom && (
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      padding: "2px 8px",
+                      borderRadius: 999,
+                      background: "rgba(99, 102, 241, 0.12)",
+                      color: "#818cf8",
+                      border: "1px solid rgba(99, 102, 241, 0.25)",
+                    }}
+                  >
+                    User Created
+                  </span>
+                )}
+              </div>
+
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <Link
+                  href={`/basket/builder?fork=${encodeURIComponent(basket.id)}`}
+                  className="btn secondary small"
+                  title="Fork this basket to customize allocations and components in Basket Builder"
+                >
+                  <GitFork size={13} /> Fork &amp; Customize
+                </Link>
+                {isCustom && customConfig && (
+                  <>
+                    <button
+                      type="button"
+                      className="btn secondary small"
+                      onClick={handleShare}
+                      title="Copy basket share link"
+                    >
+                      {copiedShare ? <Check size={13} className="up" /> : <Share2 size={13} />}
+                      {copiedShare ? "Copied" : "Share"}
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      onClick={handleDelete}
+                      title="Delete this custom basket"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
             <h1>{basket.name}</h1>
+            {creatorName && (
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  marginTop: 6,
+                  fontSize: 13,
+                  color: "var(--muted)",
+                }}
+              >
+                <span>Created by</span>
+                {formattedSocial ? (
+                  <a
+                    href={formattedSocial}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      color: "var(--accent, #6366f1)",
+                      fontWeight: 600,
+                      textDecoration: "underline",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                    title={`Visit ${creatorName}'s profile (${formattedSocial})`}
+                  >
+                    {creatorName}
+                    <ExternalLink size={12} />
+                  </a>
+                ) : (
+                  <span style={{ fontWeight: 600, color: "var(--ink)" }}>{creatorName}</span>
+                )}
+              </div>
+            )}
             <p
               className="muted"
               style={{ marginTop: 15, maxWidth: 530, lineHeight: 1.8 }}
@@ -763,29 +961,184 @@ export function BasketDetail({ id }: { id: string }) {
             </div>
             <OrbitArt />
           </div>
+
+          {/* Mainnet DEX Liquidity Audit Breakdown Card */}
+          {audit && (
+            <section className="panel panel-pad">
+              <div className="section-head">
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Gauge size={18} className={audit.tier === "verified-high" ? "up" : "muted"} />
+                  <h3 style={{ margin: 0 }}>Mainnet DEX Liquidity Breakdown</h3>
+                </div>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    padding: "2px 8px",
+                    borderRadius: 999,
+                    background:
+                      audit.tier === "verified-high"
+                        ? "rgba(16, 185, 129, 0.12)"
+                        : audit.tier === "moderate"
+                          ? "rgba(245, 158, 11, 0.12)"
+                          : "rgba(239, 68, 68, 0.12)",
+                    color:
+                      audit.tier === "verified-high"
+                        ? "#10b981"
+                        : audit.tier === "moderate"
+                          ? "#f59e0b"
+                          : "#ef4444",
+                  }}
+                >
+                  {audit.badgeLabel}
+                </span>
+              </div>
+
+              <dl className="stats-grid" style={{ margin: "16px 0" }}>
+                <div>
+                  <dt>Execution Format</dt>
+                  <dd style={{ color: "#10b981", display: "flex", alignItems: "center", gap: 4 }}>
+                    <CheckCircle2 size={14} /> Atomic Solana V1
+                  </dd>
+                </div>
+                <div>
+                  <dt>Tested Roundtrip Loss</dt>
+                  <dd>{(audit.testedRoundTripLossBps / 100).toFixed(2)}%</dd>
+                </div>
+                <div>
+                  <dt>Account Limit Margin</dt>
+                  <dd>{audit.maxAccounts} / 64 max accounts</dd>
+                </div>
+                <div>
+                  <dt>Combined 24h DEX Vol</dt>
+                  <dd>{totalVolume24h > 0 ? compactMoney(totalVolume24h) : "Active pools"}</dd>
+                </div>
+              </dl>
+
+              <div
+                style={{
+                  padding: "10px 14px",
+                  background: "rgba(255, 255, 255, 0.03)",
+                  borderRadius: 8,
+                  border: "1px solid var(--line)",
+                }}
+              >
+                <span className="eyebrow" style={{ fontSize: 10 }}>Routing Venues</span>
+                <p style={{ margin: "4px 0 0", fontSize: 12, fontWeight: 500, color: "var(--ink)" }}>
+                  {audit.liquidityVenueSummary}
+                </p>
+                <p className="fineprint" style={{ margin: "4px 0 0" }}>
+                  {audit.description}
+                </p>
+              </div>
+
+              {audit.recommendedAlternativeTicker && (
+                <p className="fineprint" style={{ margin: "8px 0 0" }}>
+                  Recommended alternative: <strong>{audit.recommendedAlternativeTicker}</strong>
+                </p>
+              )}
+            </section>
+          )}
+
+          {/* Drift Analysis and 1-Click Rebalance for Custom Baskets */}
+          {isCustom && customConfig && totalHeldMicros > BigInt(0) && driftAnalysis && (
+            <section className="panel panel-pad">
+              <div className="section-head">
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Scale size={18} className={driftAnalysis.hasDrift ? "down" : "up"} />
+                  <h3 style={{ margin: 0 }}>Target vs Actual Portfolio Drift</h3>
+                </div>
+                {mode === "paper" && driftAnalysis.hasDrift && (
+                  <button
+                    type="button"
+                    className="btn secondary small"
+                    onClick={handleRebalance}
+                    disabled={rebalancing}
+                  >
+                    <RefreshCw size={13} className={rebalancing ? "spin" : ""} />
+                    1-Click Rebalance
+                  </button>
+                )}
+              </div>
+
+              <p className="fineprint" style={{ margin: "8px 0 14px" }}>
+                Total basket position value: {money(Number(totalHeldMicros) / 1_000_000)}. Rebalancing threshold: {(customConfig.rebalanceRules.driftThresholdBps / 100).toFixed(1)}%.
+              </p>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {driftAnalysis.plan.legs.map((leg) => {
+                  const asset = basket.assets.find((a) => a.mint === leg.mint);
+                  const driftBps = leg.currentWeightBps - leg.targetWeightBps;
+                  return (
+                    <div
+                      key={leg.mint}
+                      className="flex-between"
+                      style={{
+                        padding: "8px 12px",
+                        background: "rgba(255, 255, 255, 0.02)",
+                        borderRadius: 6,
+                        border: "1px solid var(--line)",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        {asset && <AssetAvatar asset={asset} small />}
+                        <strong>{asset?.symbol ?? leg.mint.slice(0, 4)}</strong>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <span style={{ fontSize: 12 }}>
+                          Current: {(leg.currentWeightBps / 100).toFixed(1)}% · Target: {(leg.targetWeightBps / 100).toFixed(1)}%
+                        </span>
+                        <span
+                          style={{
+                            display: "block",
+                            fontSize: 11,
+                            fontWeight: 600,
+                            color: Math.abs(driftBps) < 50 ? "var(--muted)" : driftBps > 0 ? "var(--up)" : "var(--down)",
+                          }}
+                        >
+                          {driftBps > 0 ? `+${(driftBps / 100).toFixed(1)}% Overweight` : driftBps < 0 ? `${(driftBps / 100).toFixed(1)}% Underweight` : "Balanced"}
+                          {leg.action !== "hold" && ` (${leg.action.toUpperCase()})`}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           <section className="panel panel-pad">
             <div className="section-head">
               <h3>Inside the basket</h3>
-              <span className="badge">Equal weight</span>
+              <span className="badge">
+                {isCustom ? "Custom Weights" : "Equal weight"}
+              </span>
             </div>
             {basket.assets.length ? (
               <ul className="composition">
                 {basket.assets.map((asset) => (
                   <li key={asset.mint}>
                     <AssetName asset={asset} />
-                    <div style={{ textAlign: "right", fontSize: 12 }}>
-                      {(
-                        (basket.source.assets.find(
-                          (a) => a.asset.mint === asset.mint,
-                        )?.weight ?? 0) / 100
-                      ).toFixed(2)}
-                      %
-                      <div className="allocation-bar">
-                        <i
-                          style={{
-                            width: `${(basket.source.assets.find((a) => a.asset.mint === asset.mint)?.weight ?? 0) / 100}%`,
-                          }}
-                        />
+                    <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                      <div style={{ textAlign: "right", minWidth: 90 }}>
+                        <span style={{ fontSize: 11, color: "var(--muted)", display: "block" }}>
+                          {asset.liquidityUsd ? `${compactMoney(asset.liquidityUsd)} TVL` : "Pool active"} · {asset.volume24hUsd ? `${compactMoney(asset.volume24hUsd)} 24h` : "—"}
+                        </span>
+                      </div>
+                      <div style={{ textAlign: "right", minWidth: 65, fontSize: 12, fontWeight: 600 }}>
+                        {(
+                          (basket.source.assets.find(
+                            (a) => a.asset.mint === asset.mint,
+                          )?.weight ?? 0) / 100
+                        ).toFixed(2)}
+                        %
+                        <div className="allocation-bar">
+                          <i
+                            style={{
+                              width: `${(basket.source.assets.find((a) => a.asset.mint === asset.mint)?.weight ?? 0) / 100}%`,
+                            }}
+                          />
+                        </div>
                       </div>
                     </div>
                   </li>

@@ -24,6 +24,7 @@ export interface BasketOrderRequest {
   taker: string;
   slippageBps: number;
   supportedTransactionVersions?: number[];
+  customAllocations?: Array<{ mint: string; weightBps: number }>;
 }
 export interface BasketOrder extends WalletTransactionOrder {
   basketId: string;

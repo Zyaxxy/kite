@@ -209,15 +209,55 @@ async function prepareAllocationOrder(
     throw new Error(
       "This Backpack security is discovery-only until Solana transfers can be verified.",
     );
-  const basket = outputToken
-    ? {
-        id: outputToken.mint,
-        missingSymbols: [],
-        assets: [{ asset: outputToken, weight: 10_000 }],
+  const customAllocations = input.customAllocations;
+  let basket:
+    | {
+        id: string;
+        missingSymbols: string[];
+        assets: Array<{ asset: any; weight: number }>;
       }
-    : market.baskets.find((b) => b.id === input.basketId);
+    | undefined;
+
+  if (outputToken) {
+    basket = {
+      id: outputToken.mint,
+      missingSymbols: [],
+      assets: [{ asset: outputToken, weight: 10_000 }],
+    };
+  } else if (customAllocations && Array.isArray(customAllocations) && customAllocations.length > 0) {
+    if (customAllocations.length < 2 || customAllocations.length > 4) {
+      throw new Error("Custom baskets must contain between 2 and 4 assets.");
+    }
+    const seen = new Set<string>();
+    let totalBps = 0;
+    const resolvedAssets: Array<{ asset: any; weight: number }> = [];
+    for (const alloc of customAllocations) {
+      if (seen.has(alloc.mint)) throw new Error("Duplicate mint in custom basket.");
+      seen.add(alloc.mint);
+      if (!Number.isInteger(alloc.weightBps) || alloc.weightBps <= 0) {
+        throw new Error("Custom allocation weights must be positive integers.");
+      }
+      totalBps += alloc.weightBps;
+      const asset = market.assets.find((a) => a.mint === alloc.mint);
+      if (!asset || !asset.verified || asset.tradingHalted) {
+        throw new Error(`Asset ${alloc.mint} is unavailable or halted for trading.`);
+      }
+      resolvedAssets.push({ asset, weight: alloc.weightBps });
+    }
+    if (totalBps !== 10_000) {
+      throw new Error("Custom allocation weights must total exactly 10,000 basis points.");
+    }
+    basket = {
+      id: input.basketId || "custom",
+      missingSymbols: [],
+      assets: resolvedAssets,
+    };
+  } else {
+    basket = market.baskets.find((b) => b.id === input.basketId);
+  }
+
   if (
-    (!outputToken && !hasCompleteIssuerCatalogs(market)) ||
+    (!outputToken && !customAllocations && !hasCompleteIssuerCatalogs(market)) ||
     !basket ||
     basket.missingSymbols.length ||
     !basket.assets.length ||

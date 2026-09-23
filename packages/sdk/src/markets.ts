@@ -4,6 +4,7 @@ import {
   type BackpackSecurity,
 } from "./backpack";
 import { hydratePythPrices } from "./pyth-oracle";
+import { getBasketLiquidityAudit, type BasketLiquidityAudit } from "./basket/liquidity-audit";
 
 /** Mainnet issuer catalogs and observed onchain market prices. Unknown values stay null. */
 export const MAINNET_USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
@@ -53,11 +54,16 @@ export interface MarketBasket {
     | "industrials"
     | "energy"
     | "diversified"
-    | "private";
+    | "private"
+    | "custom";
   assets: Array<{ asset: MarketAsset; weight: number }>;
   available: boolean;
   missingSymbols: string[];
   unpricedSymbols?: string[];
+  liquidityAudit?: BasketLiquidityAudit;
+  isCustom?: boolean;
+  creatorName?: string;
+  creatorSocial?: string;
 }
 
 export interface MarketSnapshot {
@@ -435,7 +441,7 @@ function parsePrestockProducts(html: string): Row[] {
 /** Canonical baskets also back devnet test plans; never silently rewrite their IDs. */
 export function resolveMarketBaskets(
   assets: MarketAsset[],
-  options: { reviewedOnly?: boolean } = {},
+  options: { reviewedOnly?: boolean; includeAll?: boolean } = {},
 ): MarketBasket[] {
   const definitions: Array<{
     id: string;
@@ -446,16 +452,6 @@ export function resolveMarketBaskets(
     issuer: MarketAsset["issuer"];
     category: MarketBasket["category"];
   }> = [
-    {
-      id: "sol-mag7",
-      name: "The Magnificent Seven",
-      ticker: "SOL-MAG7",
-      category: "technology",
-      description:
-        "Seven companies shaping the digital economy. Equal allocations to their mainnet xStocks.",
-      symbols: ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA"],
-      issuer: "xstocks",
-    },
     {
       id: "sol-ai-infra",
       name: "Intelligence Layer",
@@ -610,7 +606,13 @@ export function resolveMarketBaskets(
     },
     definitions.find((definition) => definition.id === "sol-core")!,
   ];
-  return (options.reviewedOnly ? reviewed : definitions).map((definition) => {
+  const sourceDefinitions = options.reviewedOnly
+    ? reviewed
+    : options.includeAll
+      ? [...reviewed, ...definitions.filter((d) => d.id !== "sol-core")]
+      : definitions;
+
+  return sourceDefinitions.map((definition) => {
     const found = definition.symbols.map((symbol) =>
       assets.find(
         (asset) =>
@@ -650,6 +652,7 @@ export function resolveMarketBaskets(
         missingSymbols.length === 0 &&
         unpricedSymbols.length === 0 &&
         members.every(({ asset }) => !asset.tradingHalted),
+      liquidityAudit: getBasketLiquidityAudit(definition.id),
     };
   });
 }
@@ -659,6 +662,12 @@ export function resolveReviewedMarketBaskets(
   assets: MarketAsset[],
 ): MarketBasket[] {
   return resolveMarketBaskets(assets, { reviewedOnly: true });
+}
+
+export function resolveAllMarketBaskets(
+  assets: MarketAsset[],
+): MarketBasket[] {
+  return resolveMarketBaskets(assets, { includeAll: true });
 }
 
 /** Issuer identity does not depend on Jupiter prices or token metadata. */
@@ -739,7 +748,7 @@ export async function getMainnetCatalog(
       backpack.status === "fulfilled" ? backpack.value.securities : [],
     backpackObservedAt:
       backpack.status === "fulfilled" ? backpack.value.observedAt : undefined,
-    baskets: resolveReviewedMarketBaskets(assets),
+    baskets: resolveMarketBaskets(assets, { includeAll: true }),
     asOf: new Date().toISOString(),
     network: "mainnet-beta",
     sources,
@@ -948,7 +957,7 @@ export async function getMainnetMarkets(
       assets,
       backpackSecurities: catalog.backpackSecurities,
       backpackObservedAt: catalog.backpackObservedAt,
-      baskets: resolveReviewedMarketBaskets(assets),
+      baskets: resolveMarketBaskets(assets, { includeAll: true }),
       asOf: new Date().toISOString(),
       network: "mainnet-beta",
       sources: [...sources],

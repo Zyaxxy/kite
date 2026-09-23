@@ -16,7 +16,18 @@ export async function POST(request: NextRequest) {
       (body.supportedTransactionVersions !== undefined &&
         (!Array.isArray(body.supportedTransactionVersions) ||
           body.supportedTransactionVersions.length > 2 ||
-          body.supportedTransactionVersions.some((v) => v !== 0 && v !== 1)))
+          body.supportedTransactionVersions.some((v) => v !== 0 && v !== 1))) ||
+      (body.customAllocations !== undefined &&
+        (!Array.isArray(body.customAllocations) ||
+          body.customAllocations.length < 2 ||
+          body.customAllocations.length > 4 ||
+          !body.customAllocations.every(
+            (a) =>
+              a &&
+              typeof a.mint === "string" &&
+              Number.isInteger(a.weightBps) &&
+              a.weightBps > 0,
+          )))
     )
       throw new Error("Invalid basket request.");
     return NextResponse.json(await prepareBasketOrder(body), {

@@ -51,6 +51,12 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
         taker: auth.walletAddress,
         slippageBps: Number(slippage),
         supportedTransactionVersions: auth.supportedTransactionVersions,
+        customAllocations: basket.isCustom
+          ? basket.assets.map((a) => ({
+              mint: a.asset.mint,
+              weightBps: Math.round(a.weight),
+            }))
+          : undefined,
       });
       if (requestRevision === revision.current) setOrder(value);
     } catch (e) {

@@ -1,7 +1,7 @@
 import {
   getMainnetCatalog,
   getMainnetMarkets,
-  resolveReviewedMarketBaskets,
+  resolveAllMarketBaskets,
   type MarketSnapshot,
 } from "@kite/sdk";
 import {
@@ -67,7 +67,7 @@ function retainReferences(value: MarketSnapshot): MarketSnapshot {
       isRealTimePyth: old.isRealTimePyth,
     };
   });
-  return { ...value, assets, baskets: resolveReviewedMarketBaskets(assets) };
+  return { ...value, assets, baskets: resolveAllMarketBaskets(assets) };
 }
 
 function refresh(initial?: MarketSnapshot): Promise<MarketSnapshot> {

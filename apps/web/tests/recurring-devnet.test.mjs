@@ -581,7 +581,7 @@ test("unprovisioned catalog stays visibly blocked without inventing mints, pools
   assert.equal(config.readyToPrepare, false);
   assert.equal(config.fundingToken, null);
   assert.equal(config.stocks.length, 40);
-  assert.equal(config.baskets.length, 11);
+  assert.equal(config.baskets.length, 10);
   assert.equal(
     config.stocks.some((stock) => stock.available),
     false,

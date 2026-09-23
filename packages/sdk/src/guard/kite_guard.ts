@@ -220,7 +220,8 @@ export type KiteGuard = {
           }
         },
         {
-          "name": "fundingMint"
+          "name": "fundingMint",
+          "writable": true
         },
         {
           "name": "subscriptionAuthority"

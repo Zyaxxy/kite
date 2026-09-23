@@ -5,8 +5,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 const require = createRequire(new URL("../packages/sdk/package.json", import.meta.url));
-const { PublicKey, Keypair, VersionedTransaction } = require("@solana/web3.js");
-const { decodeGuardPlan, guardDuePeriod, KITE_GUARD_PROGRAM_ID } = require("./dist/index.js");
+const { Keypair } = require("@solana/web3.js");
+const { decodeGuardPlan, guardDuePeriod, KITE_GUARD_PROGRAM_ID, signV1Collection } = require("./dist/index.js");
 
 const RPC_URL = process.env.KITE_RECURRING_RPC_URL || process.env.SOLANA_DEVNET_RPC_URL || "https://api.devnet.solana.com";
 const WEB_URL = process.env.KITE_WEB_URL || "http://localhost:3000";
@@ -116,11 +116,7 @@ async function runBot() {
       const prepared = await collectRes.json();
 
       // 2. Sign the transaction
-      const txBuffer = Buffer.from(prepared.transaction, "base64");
-      const transaction = VersionedTransaction.deserialize(txBuffer);
-      transaction.sign([botKeypair]);
-      
-      const signedTransaction = Buffer.from(transaction.serialize()).toString("base64");
+      const signedTransaction = await signV1Collection(prepared.transaction, botKeypair.secretKey);
 
       // 3. Execute / Submit the transaction
       const execRes = await fetch(`${WEB_URL}/api/recurring/execute`, {

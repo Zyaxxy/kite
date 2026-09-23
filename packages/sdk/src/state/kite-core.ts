@@ -6,6 +6,10 @@ import {
   runDuePaperPlans,
   type PaperAccount,
 } from "../paper";
+import {
+  validateProgrammableBasket,
+  type ProgrammableBasket,
+} from "../basket/custom";
 
 export interface StorageAdapter {
   getItem(key: string): string | null | Promise<string | null>;
@@ -15,6 +19,7 @@ export interface KiteCoreState {
   market: MarketSnapshot | null;
   account: PaperAccount;
   watchlist: string[];
+  customBaskets: ProgrammableBasket[];
   hydrated: boolean;
   accountReadFailed: boolean;
   loading: boolean;
@@ -26,6 +31,7 @@ export interface KiteCoreOptions {
   client: Pick<KiteClient, "getMarkets">;
   accountKey: string;
   watchlistKey: string;
+  customBasketsKey?: string;
   marketKey?: string;
   now?: () => number;
 }
@@ -33,10 +39,12 @@ export interface KiteCoreOptions {
 /** Platform-independent lifecycle, conditional polling and serial persistence. No wallet keys are stored here. */
 export function createKiteCore(options: KiteCoreOptions) {
   const now = options.now ?? Date.now;
+  const customBasketsKey = options.customBasketsKey ?? "kite.custom-baskets.mainnet.v1";
   let state: KiteCoreState = {
     market: null,
     account: createPaperAccount(),
     watchlist: [],
+    customBaskets: [],
     hydrated: false,
     accountReadFailed: false,
     loading: true,
@@ -99,7 +107,7 @@ export function createKiteCore(options: KiteCoreOptions) {
   const hydrate = (): Promise<void> => {
     if (hydration) return hydration;
     hydration = (async () => {
-      const [saved, watched, savedMarket] = await Promise.allSettled([
+      const [saved, watched, savedMarket, savedCustom] = await Promise.allSettled([
         Promise.resolve().then(() =>
           options.storage.getItem(options.accountKey),
         ),
@@ -111,6 +119,9 @@ export function createKiteCore(options: KiteCoreOptions) {
               options.storage.getItem(options.marketKey!),
             )
           : Promise.resolve(null),
+        Promise.resolve().then(() =>
+          options.storage.getItem(customBasketsKey),
+        ),
       ]);
       let account = state.account;
       let failed = false;
@@ -138,6 +149,23 @@ export function createKiteCore(options: KiteCoreOptions) {
       } catch {
         watchFailed = true;
       }
+      let customBaskets: ProgrammableBasket[] = [];
+      try {
+        if (savedCustom.status === "fulfilled" && savedCustom.value !== null) {
+          const parsed: unknown = JSON.parse(savedCustom.value);
+          if (Array.isArray(parsed)) {
+            customBaskets = parsed.flatMap((item) => {
+              try {
+                return [validateProgrammableBasket(item)];
+              } catch {
+                return [];
+              }
+            });
+          }
+        }
+      } catch {
+        // Fallback for unreadable custom baskets
+      }
       let market = state.market;
       try {
         if (savedMarket.status === "fulfilled" && savedMarket.value) {
@@ -161,6 +189,7 @@ export function createKiteCore(options: KiteCoreOptions) {
       publish({
         account,
         watchlist,
+        customBaskets,
         market,
         loading: market === null,
         hydrated: true,
@@ -274,6 +303,21 @@ export function createKiteCore(options: KiteCoreOptions) {
       const account = createPaperAccount();
       persist(options.accountKey, account);
       publish({ account, accountReadFailed: false, storageError: null });
+    },
+    saveCustomBasket: (basket: ProgrammableBasket) => {
+      const validated = validateProgrammableBasket(basket);
+      const existing = state.customBaskets.filter((b) => b.id !== validated.id);
+      const customBaskets = [validated, ...existing];
+      persist(customBasketsKey, customBaskets);
+      publish({ customBaskets });
+    },
+    deleteCustomBasket: (id: string) => {
+      const customBaskets = state.customBaskets.filter((b) => b.id !== id);
+      persist(customBasketsKey, customBaskets);
+      publish({ customBaskets });
+    },
+    getCustomBasket: (id: string) => {
+      return state.customBaskets.find((b) => b.id === id);
     },
     start: () => {
       running = true;

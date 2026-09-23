@@ -14,7 +14,7 @@ import { Brand } from "./Brand";
 import { useKite } from "./State";
 import { useMemo } from "react";
 import {
-  resolveReviewedMarketBaskets,
+  resolveAllMarketBaskets,
   type MarketAsset,
   type MarketSnapshot,
 } from "@kite/sdk";
@@ -89,7 +89,7 @@ const CURATED_LANDING_ASSETS: MarketAsset[] = [
   ),
 ];
 
-const MAG7_BASE_ASSETS: MarketAsset[] = [
+const LANDING_FALLBACK_ASSETS: MarketAsset[] = [
   CURATED_LANDING_ASSETS[1], // AAPLx
   CURATED_LANDING_ASSETS[2], // MSFTx
   CURATED_LANDING_ASSETS[0], // NVDAx
@@ -135,7 +135,7 @@ export function Landing({
   const baskets = useBaskets();
   const liveBasket = baskets.find((item) => item.assets.length >= 3);
   const fallbackBaskets = useMemo(
-    () => resolveReviewedMarketBaskets(MAG7_BASE_ASSETS),
+    () => resolveAllMarketBaskets(LANDING_FALLBACK_ASSETS),
     [],
   );
   const basket =

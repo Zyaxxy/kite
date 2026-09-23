@@ -3,6 +3,7 @@ import { Shell } from "./Shell";
 import { Baskets, Discover, Markets, Watchlist } from "./Discover";
 import { Activity, Plans, Portfolio, Settings } from "./Account";
 import { BasketDetail, StockDetail } from "./Details";
+import { BasketBuilder } from "./BasketBuilder";
 import { Landing } from "./Landing";
 export type KitePage =
   | "discover"
@@ -15,6 +16,7 @@ export type KitePage =
   | "settings"
   | "stock"
   | "basket"
+  | "basket-builder"
   | "landing";
 const titles: Record<KitePage, string> = {
   discover: "Discover",
@@ -27,6 +29,7 @@ const titles: Record<KitePage, string> = {
   settings: "Settings",
   stock: "Asset details",
   basket: "Basket details",
+  "basket-builder": "Build Custom Basket",
   landing: "Kite",
 };
 export function KiteApp({
@@ -66,6 +69,9 @@ export function KiteApp({
       break;
     case "basket":
       content = <BasketDetail id={basketId} />;
+      break;
+    case "basket-builder":
+      content = <BasketBuilder />;
       break;
     default:
       content = <Discover />;

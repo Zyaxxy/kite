@@ -657,7 +657,7 @@ export function buildGuardCollectInstructions(
       keys: [
         meta(feePayer, true, true),
         meta(plan.address, true),
-        meta(plan.fundingMint),
+        meta(plan.fundingMint, true),
         meta(plan.subscriptionAuthority),
         meta(plan.recurringDelegation, true),
         meta(ata(plan.fundingMint, plan.owner), true),

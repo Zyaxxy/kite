@@ -93,6 +93,7 @@ function cache({ getCatalog = async () => snapshot(), getMarkets } = {}) {
       assert.equal(name, "@kite/sdk");
       return {
         resolveReviewedMarketBaskets: sdk.resolveReviewedMarketBaskets,
+        resolveAllMarketBaskets: sdk.resolveAllMarketBaskets,
         getMainnetCatalog: () => {
           calls.catalog++;
           return getCatalog();

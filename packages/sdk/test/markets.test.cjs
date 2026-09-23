@@ -40,9 +40,9 @@ test('provider outages produce honest unavailable state with no seeded assets or
 });
 
 test('missing basket members do not cause silent weight renormalization', () => {
-  const assets = ['AAPL','MSFT','NVDA','AMZN','GOOGL','META'].map(underlyingSymbol=>({underlyingSymbol,issuer:'xstocks',priceUsd:100,tradingHalted:false}));
+  const assets = ['NVDA','MSFT','GOOGL','AMZN'].map(underlyingSymbol=>({underlyingSymbol,issuer:'xstocks',priceUsd:100,tradingHalted:false}));
   const basket = resolveMarketBaskets(assets)[0];
-  assert.equal(basket.available,false); assert.deepEqual(basket.missingSymbols,['TSLA']);
+  assert.equal(basket.available,false); assert.deepEqual(basket.missingSymbols,['ORCL']);
   assert.ok(basket.assets.reduce((sum,member)=>sum+member.weight,0)<10000);
 });
 
@@ -107,7 +107,7 @@ test('all complete thematic baskets have exactly 10000 basis points and original
   const assets=symbols.map(underlyingSymbol=>({mint:underlyingSymbol,underlyingSymbol,issuer:'xstocks',priceUsd:100,tradingHalted:false}));
   assets.push({mint:mintP,underlyingSymbol:'PRIVATE',issuer:'prestocks',priceUsd:20,tradingHalted:false});
   const baskets=resolveMarketBaskets(assets);
-  assert.equal(baskets.length,12);
+  assert.equal(baskets.length,11);
   for(const basket of baskets){
     assert.equal(basket.available,true,basket.id);
     assert.equal(basket.assets.reduce((sum,member)=>sum+member.weight,0),10000,basket.id);

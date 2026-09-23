@@ -13,12 +13,14 @@ import {
   Wallet2,
   RefreshCw,
   Info,
+  Plus,
 } from "lucide-react";
 import { useKite } from "./State";
 import { PageIntro } from "./Shell";
 import { AssetTable, BasketCard, Empty, money, AssetAvatar } from "./MarketUI";
 import { useBaskets } from "./useBaskets";
 import { MarketPulse, MarketHeadlines, MarketBreadth } from "./MarketPulse";
+import { NativeSelect, NativeSelectOption } from "../ui/native-select";
 
 export function MarketStatus() {
   const { snapshot, loading, error, refresh, storageError } = useKite();
@@ -203,9 +205,14 @@ function DiscoverContent() {
                 <h2>Explore by theme</h2>
                 <p>A few ways to connect the companies you believe in.</p>
               </div>
-              <Link href="/baskets" className="text-link">
-                All baskets <ArrowRight size={14} aria-hidden="true" />
-              </Link>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <Link href="/basket/builder" className="btn secondary small">
+                  <Plus size={13} /> Build Custom
+                </Link>
+                <Link href="/baskets" className="text-link">
+                  All baskets <ArrowRight size={14} aria-hidden="true" />
+                </Link>
+              </div>
             </div>
             <div className="discover-theme-list">
               {baskets.slice(0, 3).map((basket) => (
@@ -286,7 +293,13 @@ export function Markets() {
 }
 export function Baskets() {
   const baskets = useBaskets();
-  const [category, setCategory] = useState("all");
+  const [filter, setFilter] = useState<string>("all");
+
+  const verifiedCount = baskets.filter(
+    (b) => b.source.liquidityAudit?.tier === "verified-high",
+  ).length;
+  const customCount = baskets.filter((b) => b.isCustom).length;
+
   const categories = [
     ...new Set(
       baskets
@@ -294,40 +307,120 @@ export function Baskets() {
         .filter((item): item is NonNullable<typeof item> => Boolean(item)),
     ),
   ];
-  const visible = baskets.filter(
-    (basket) => category === "all" || basket.source.category === category,
-  );
+
+  const visible = baskets.filter((basket) => {
+    if (filter === "all") return true;
+    if (filter === "verified")
+      return basket.source.liquidityAudit?.tier === "verified-high";
+    if (filter === "custom") return Boolean(basket.isCustom);
+    return basket.source.category === filter;
+  });
+
   return (
     <>
-      <PageIntro
-        eyebrow="Curated on Kite"
-        title="An idea worth owning."
-        description="A collection of assets behind a shared conviction. Explore the composition, then practice an allocation at live prices."
-      />
+      <div className="baskets-page-header">
+        <div className="baskets-header-copy">
+          <div className="baskets-title-row">
+            <h1>Thematic Baskets</h1>
+            <span className="baskets-count-pill">{baskets.length} Themes</span>
+          </div>
+          <p className="baskets-subtitle">
+            Curated multi-asset portfolios executed in a single atomic transaction. Direct wallet custody with no vault tokens.
+          </p>
+        </div>
+        <Link
+          href="/basket/builder"
+          className="btn small"
+          style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 6 }}
+        >
+          <Plus size={14} /> Build Custom Basket
+        </Link>
+      </div>
       <MarketStatus />
-      <div
-        className="filter-tabs basket-filters"
-        role="group"
-        aria-label="Basket theme category"
-      >
-        {["all", ...categories].map((item) => (
+      <div className="baskets-toolbar">
+        <div
+          className="filter-tabs"
+          role="group"
+          aria-label="Basket tier filter"
+        >
           <button
-            key={item}
-            className={category === item ? "active" : ""}
-            aria-pressed={category === item}
-            onClick={() => setCategory(item)}
+            className={filter === "all" ? "active" : ""}
+            aria-pressed={filter === "all"}
+            onClick={() => setFilter("all")}
           >
-            {item === "all"
-              ? `All themes · ${baskets.length}`
-              : item.charAt(0).toUpperCase() + item.slice(1)}
+            All Themes · {baskets.length}
           </button>
-        ))}
+          <button
+            className={filter === "verified" ? "active" : ""}
+            aria-pressed={filter === "verified"}
+            onClick={() => setFilter("verified")}
+          >
+            Verified Liquid · {verifiedCount}
+          </button>
+          {customCount > 0 && (
+            <button
+              className={filter === "custom" ? "active" : ""}
+              aria-pressed={filter === "custom"}
+              onClick={() => setFilter("custom")}
+            >
+              User Created · {customCount}
+            </button>
+          )}
+        </div>
+        <div className="baskets-toolbar-right">
+          <NativeSelect
+            aria-label="Filter by sector category"
+            value={(categories as string[]).includes(filter) ? filter : "all-sectors"}
+            onChange={(e) => {
+              const val = e.target.value;
+              setFilter(val === "all-sectors" ? "all" : val);
+            }}
+          >
+            <NativeSelectOption value="all-sectors">All Sectors</NativeSelectOption>
+            {categories.map((item) => (
+              <NativeSelectOption key={item} value={item}>
+                {item.charAt(0).toUpperCase() + item.slice(1)}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        </div>
       </div>
-      <div className="basket-grid basket-catalog" style={{ marginBottom: 30 }}>
-        {visible.map((b, i) => (
-          <BasketCard key={b.id} basket={b} index={i} />
-        ))}
-      </div>
+      {visible.length === 0 ? (
+        <div
+          className="panel panel-pad"
+          style={{
+            textAlign: "center",
+            padding: "48px 24px",
+            marginBottom: 30,
+          }}
+        >
+          <div style={{ maxWidth: 460, margin: "0 auto" }}>
+            <h3 style={{ marginBottom: 8 }}>
+              {filter === "custom" ? "No user-created baskets yet" : "No baskets found"}
+            </h3>
+            <p className="muted" style={{ fontSize: 13, marginBottom: 20 }}>
+              {filter === "custom"
+                ? "Design your own custom thematic portfolio with 2–4 verified Solana tokenized stocks. Add your name, optional socials, and trade atomically with zero dust."
+                : "No baskets match the selected filter category."}
+            </p>
+            {filter === "custom" && (
+              <Link
+                href="/basket/builder"
+                className="btn small"
+                style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+              >
+                <Plus size={14} /> Build First Custom Basket
+              </Link>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="basket-grid basket-catalog" style={{ marginBottom: 30 }}>
+          {visible.map((b, i) => (
+            <BasketCard key={b.id} basket={b} index={i} />
+          ))}
+        </div>
+      )}
       <div className="panel panel-pad">
         <div className="flex-start">
           <ShieldCheck size={21} className="up" />

@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { createKiteCore, executePaperOrder, executePaperSwap, valuePaperAccount, executePaperBasket, createPaperPlan, togglePaperPlan } from "@kite/sdk";
-import type { MarketAsset, MarketSnapshot, PaperAccount, MarketBasket, PaperPlan } from "@kite/sdk";
+import { createKiteCore, executePaperOrder, executePaperSwap, valuePaperAccount, executePaperBasket, createPaperPlan, togglePaperPlan, executePaperRebalance } from "@kite/sdk";
+import type { MarketAsset, MarketSnapshot, PaperAccount, MarketBasket, PaperPlan, ProgrammableBasket } from "@kite/sdk";
 import { kiteClient } from "./api-client";
 
 import { useTradingMode, type TradingMode as Mode } from "./useTradingMode";
@@ -38,6 +38,10 @@ interface KiteState {
   notify: (message: string) => void;
   clearToast: () => void;
   storageError: string | null;
+  customBaskets: ProgrammableBasket[];
+  saveCustomBasket: (basket: ProgrammableBasket) => void;
+  deleteCustomBasket: (id: string) => void;
+  rebalancePaper: (basket: ProgrammableBasket, thresholdBps?: number) => { rebalanced: boolean; legs: any[] };
 }
 const Context = createContext<KiteState | null>(null);
 export function KiteProvider({ children }: { children: React.ReactNode }) {
@@ -79,6 +83,28 @@ export function KiteProvider({ children }: { children: React.ReactNode }) {
     setToast("Recurring paper plan created.");
   }, [core]);
   const togglePlan = useCallback((id: string) => core.updateAccount(account => togglePaperPlan(account, id)), [core]);
+  const saveCustomBasket = useCallback((basket: ProgrammableBasket) => {
+    core.saveCustomBasket(basket);
+    setToast(`Saved custom basket "${basket.name}".`);
+  }, [core]);
+  const deleteCustomBasket = useCallback((id: string) => {
+    core.deleteCustomBasket(id);
+    setToast("Custom basket removed.");
+  }, [core]);
+  const rebalancePaper = useCallback((basket: ProgrammableBasket, thresholdBps = 500) => {
+    let result = { rebalanced: false, legs: [] as any[] };
+    core.updateAccount(account => {
+      const res = executePaperRebalance(account, basket.allocations, state.market?.assets ?? [], thresholdBps);
+      result = res;
+      return res.account;
+    });
+    if (result.rebalanced) {
+      setToast(`Rebalanced "${basket.name}" positions.`);
+    } else {
+      setToast(`"${basket.name}" allocations within threshold.`);
+    }
+    return result;
+  }, [core, state.market]);
   const portfolio = useMemo(() => valuePaperAccount(state.account, state.market?.assets ?? []), [state.account, state.market]);
   const value: KiteState = {
     snapshot: state.market, paper: state.account, portfolio,
@@ -88,6 +114,8 @@ export function KiteProvider({ children }: { children: React.ReactNode }) {
     watchlist: state.watchlist, toggleWatch: core.toggleWatch,
     refresh, trade, swap, tradeBasket, createPlan, togglePlan,
     resetPaper: () => { core.resetAccount(); setToast("Paper account reset."); },
+    customBaskets: state.customBaskets ?? [],
+    saveCustomBasket, deleteCustomBasket, rebalancePaper,
   };
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

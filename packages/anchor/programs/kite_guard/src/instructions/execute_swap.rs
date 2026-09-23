@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::program_option::COption;
 use anchor_lang::solana_program::program::invoke_signed;
-use anchor_spl::token::{self, Mint, MintTo, Token, TokenAccount};
+use anchor_spl::token::{self, Burn, Mint, MintTo, Token, TokenAccount};
 use crate::constants::*;
 use crate::error::KiteGuardError;
 use crate::state::*;
@@ -13,7 +13,7 @@ pub struct ExecuteSwap<'info> {
     pub fee_payer: Signer<'info>,
     #[account(mut, seeds = [b"plan_v2", plan.owner.as_ref(), plan.funding_mint.as_ref(), &plan.nonce.to_le_bytes()], bump = plan.bump, constraint = plan.version == PROTOCOL_VERSION @ KiteGuardError::UnsupportedPlanVersion)]
     pub plan: Account<'info, Plan>,
-    #[account(address = plan.funding_mint)]
+    #[account(mut, address = plan.funding_mint)]
     pub funding_mint: Account<'info, Mint>,
     /// CHECK: canonical address and data validated in handler.
     #[account(address = plan.subscription_authority)]
@@ -104,7 +104,15 @@ pub fn execute_swap<'info>(
                 == 0,
         KiteGuardError::DelegationTermsMismatch
     );
-    let before_outputs: Vec<u64> = plan.outputs.iter().map(|_| 0u64).collect();
+    require!(
+        ctx.remaining_accounts.len() == plan.outputs.len() * MOCK_ROUTE_ACCOUNTS,
+        KiteGuardError::InvalidOutput
+    );
+    let mut before_outputs: Vec<u64> = Vec::with_capacity(plan.outputs.len());
+    for i in 0..plan.outputs.len() {
+        let token = read_token(&ctx.remaining_accounts[i * MOCK_ROUTE_ACCOUNTS + 1])?;
+        before_outputs.push(token.amount);
+    }
     let ix = subscriptions_transfer_instruction(
         ctx.accounts.recurring_delegation.key(),
         ctx.accounts.subscription_authority.key(),
@@ -167,6 +175,18 @@ pub fn execute_swap<'info>(
         );
         delivered.push(amount);
     }
+    token::burn(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.key(),
+            Burn {
+                mint: ctx.accounts.funding_mint.to_account_info(),
+                from: ctx.accounts.plan_funding_token.to_account_info(),
+                authority: ctx.accounts.plan.to_account_info(),
+            },
+            &[signer],
+        ),
+        plan.funding_amount,
+    )?;
     require!(
         read_token(&ctx.accounts.plan_funding_token.to_account_info())?.amount
             == staging.amount,
