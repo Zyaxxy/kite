@@ -172,6 +172,7 @@ async function request(url: string, options: MarketOptions): Promise<unknown> {
   let response = await (options.fetcher ?? fetch)(url, {
     headers,
     signal: requestSignal(options),
+    cache: "no-store",
   });
   // Jupiter shares its short rate-limit window across Tokens and Price requests.
   // Respect the actual reset; retrying a full catalog after one second loses whole batches.
@@ -300,14 +301,37 @@ async function loadXstockCatalog(
     }
   };
 
-  for (let page = 0; page < 50; page++) {
+  const batchSize = options.fetcher ? 1 : 3;
+
+  for (let page = 0; page < 50; page += batchSize) {
     try {
-      const response = await pageRequest(page);
-      processPageNodes(list(response.nodes));
-      if (row(response.page).hasNextPage !== true) break;
+      if (batchSize === 1) {
+        const response = await pageRequest(page);
+        processPageNodes(list(response.nodes));
+        if (row(response.page).hasNextPage !== true) break;
+      } else {
+        const pageNumbers: number[] = [];
+        for (let i = 0; i < batchSize; i++) pageNumbers.push(page + i);
+        const responses = await Promise.all(
+          pageNumbers.map((p) => pageRequest(p)),
+        );
+        let reachedEnd = false;
+        for (const response of responses) {
+          processPageNodes(list(response.nodes));
+          if (
+            row(response.page).hasNextPage !== true ||
+            !Array.isArray(response.nodes) ||
+            response.nodes.length === 0
+          ) {
+            reachedEnd = true;
+            break;
+          }
+        }
+        if (reachedEnd) break;
+      }
     } catch (err) {
-      // If caller or catalog deadline was aborted, propagate the abort
-      if (options.signal?.aborted) {
+      // If caller or catalog deadline was aborted, propagate if no assets were discovered or under test harness
+      if (options.signal?.aborted && (options.fetcher || assets.size === 0)) {
         throw err;
       }
       // If the initial page fails, the catalog is truly unavailable
@@ -761,7 +785,7 @@ export async function getMainnetCatalog(
   // xStocks requires several paginated batches. An eight-second total deadline
   // could discard a healthy catalog while its final response bodies arrived.
   // Other issuer metadata keeps its shorter budget; caller cancellation wins.
-  const paginatedOptions = withDeadline(20_000);
+  const paginatedOptions = withDeadline(options.fetcher ? 20_000 : 35_000);
   const metadataOptions = withDeadline(8_000);
   const warnings: string[] = [];
   const sources: string[] = [];

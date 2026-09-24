@@ -20,6 +20,7 @@ async function executeRedisCommand<T = unknown>(command: unknown[]): Promise<T |
       },
       body: JSON.stringify(command),
       signal: AbortSignal.timeout(1500),
+      cache: "no-store",
     });
     if (!response.ok) return null;
     const data = (await response.json()) as { result?: unknown };

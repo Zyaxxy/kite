@@ -34,22 +34,55 @@ const fallbackQuotes = new Map<string, number>();
 export async function getServerMarketCatalog(): Promise<MarketSnapshot> {
   if (catalog && catalog.expiresAt > Date.now()) return catalog.value;
   if (catalogPending) return catalogPending;
-  catalogPending = getMainnetCatalog()
-    .then((value) => {
-      catalog = {
-        value,
-        expiresAt:
-          Date.now() + (value.status === "unavailable" ? 5_000 : CATALOG_TTL),
-      };
-      if (value.assets.length) {
-        void setRedisCatalog(value, 86400);
-        void setDiskCatalog(value);
+  catalogPending = (async () => {
+    // 1. Check Redis for cached catalog across instances
+    if (isRedisConfigured()) {
+      try {
+        const fromRedis = await getRedisCatalog();
+        if (
+          fromRedis &&
+          fromRedis.assets.length &&
+          fromRedis.status !== "unavailable"
+        ) {
+          catalog = { value: fromRedis, expiresAt: Date.now() + CATALOG_TTL };
+          return fromRedis;
+        }
+      } catch {
+        // Non-blocking fallback
       }
-      return value;
-    })
-    .finally(() => {
-      catalogPending = null;
-    });
+    }
+
+    // 2. Check Disk Cache for persistent catalog across server restarts
+    if (isDiskCacheConfigured()) {
+      try {
+        const fromDisk = await getDiskCatalog();
+        if (
+          fromDisk &&
+          fromDisk.assets.length &&
+          fromDisk.status !== "unavailable"
+        ) {
+          catalog = { value: fromDisk, expiresAt: Date.now() + CATALOG_TTL };
+          return fromDisk;
+        }
+      } catch {
+        // Non-blocking fallback
+      }
+    }
+
+    const value = await getMainnetCatalog();
+    catalog = {
+      value,
+      expiresAt:
+        Date.now() + (value.status === "unavailable" ? 5_000 : CATALOG_TTL),
+    };
+    if (value.assets.length) {
+      void setRedisCatalog(value, 86400);
+      void setDiskCatalog(value);
+    }
+    return value;
+  })().finally(() => {
+    catalogPending = null;
+  });
   return catalogPending;
 }
 
