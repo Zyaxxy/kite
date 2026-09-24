@@ -64,7 +64,7 @@ Baskets in Kite are **curated allocation definitions into individual underlying 
 
 ### 3.2 The On-Chain Liquidity Audit & 64-Account Boundary
 On 16 September 2026, an exhaustive on-chain liquidity and atomic composition audit was conducted using unsigned Jupiter Swap V2 builds (`docs/basket-liquidity-audit.md`):
-- **The 64-Account Constraint**: In Solana V1 transactions without ALTs, transactions are strictly limited to 64 accounts and 4,096 bytes. While all 7 constituents of `SOL-MAG7` have active individual DEX pools, bundling 7 multi-hop swap routes into a single transaction requires **68 accounts**, exceeding the Solana runtime limit.
+- **The 64-Account Constraint**: In Solana V1 transactions without ALTs, transactions are strictly limited to 64 accounts and 4,096 bytes. Bundling a 7-constituent basket into a single atomic transaction requires **68 accounts**, exceeding the Solana runtime limit. Consequently, Kite does not use or offer a MAG7 basket; instead, **Digital Leaders** (`SOL-DIGITAL`) serves as the liquid, 3-asset mega-cap tech alternative.
 - **Reviewed Liquid Mainnet Baskets**: The mainnet catalog publishes four verified, liquid baskets engineered to execute atomically under 64 accounts and at <200 bps tested roundtrip loss:
 
 | Basket | ID | Ticker | Category | Constituents | Tested Accounts | Roundtrip Loss |
@@ -79,8 +79,7 @@ On 16 September 2026, an exhaustive on-chain liquidity and atomic composition au
   - `SOL-DEF` (PLTR, ANDURIL): Verified Liquid, 40 accounts, 0.52% loss.
   - `SOL-PRE` (OPENAI, ANTHROPIC, ANDURIL): Verified Liquid, 50 accounts, 0.83% loss.
   - `SOL-PREDICT` (POLYMARKET, KALSHI, ANDURIL): Moderate Liquidity, 48 accounts, 1.31% loss.
-  - `SOL-MAG7`: Audited as `isAtomicExecutable: false` (tier `review`, 68 accounts). In the UI, `SOL-DIGITAL` is recommended as its liquid, executable alternative.
-- **Canonical SDK Definitions**: The original 12 basket definitions (`SOL-MAG7`, `SOL-AI`, `SOL-CHIPS`, `SOL-CLOUD`, `SOL-LIFE`, `SOL-HEALTH`, `SOL-FIN`, `SOL-DEF`, `SOL-ENERGY`, `SOL-BUILD`, `SOL-CORE`, `SOL-PRE`) remain preserved in the SDK for devnet test plans and existing paper-trading allocations.
+- **Canonical SDK Definitions**: The 11 canonical basket definitions (`SOL-AI`, `SOL-CHIPS`, `SOL-CLOUD`, `SOL-LIFE`, `SOL-HEALTH`, `SOL-FIN`, `SOL-DEF`, `SOL-ENERGY`, `SOL-BUILD`, `SOL-CORE`, `SOL-PRE`) are preserved in the SDK for devnet test plans and existing paper-trading allocations (the MAG7 basket is not used and is completely removed).
 - **Custom / Programmable Baskets**:
   - Users can construct programmable baskets containing **between 2 and 4 assets** (`packages/sdk/src/basket/custom.ts`).
   - Restricting custom baskets to 2–4 legs guarantees atomic single-transaction execution within the 64-account boundary.

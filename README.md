@@ -116,14 +116,14 @@ There is no custodial vault or pooled intermediary in Kite. Output equities sett
 
 ### 2. Audited Basket Liquidity & The 64-Account Boundary
 A comprehensive mainnet liquidity and atomic composition audit was conducted on 16 September 2026 (`docs/basket-liquidity-audit.md`):
-- **The 64-Account Constraint**: In Solana V1 transactions without ALTs, transactions are strictly capped at 64 accounts and 4,096 bytes. While all 7 constituents of `SOL-MAG7` have liquid on-chain pools, bundling all 7 swap routes into a single atomic transaction requires **68 accounts**, exceeding the Solana runtime limit.
+- **The 64-Account Constraint**: In Solana V1 transactions without ALTs, transactions are strictly capped at 64 accounts and 4,096 bytes. Bundling 7 multi-hop swap routes (such as a 7-constituent MAG7 basket) into a single atomic transaction requires **68 accounts**, exceeding the Solana runtime limit. Consequently, Kite does not use or offer a MAG7 basket; instead, **Digital Leaders** (`SOL-DIGITAL`) serves as the liquid, 3-asset mega-cap tech alternative.
 - **Reviewed Liquid Mainnet Baskets**: The published mainnet catalog provides verified, liquid baskets tested at <200 bps roundtrip loss and <64 accounts:
   - **Digital Leaders (`SOL-DIGITAL` / `sol-digital-leaders`)**: AAPL, MSFT, NVDA (3 legs, 51 accounts, 24 bps roundtrip loss).
   - **AI Platforms (`SOL-AI3` / `sol-ai-focused`)**: NVDA, GOOGL, AMZN (3 legs, 52 accounts, 42 bps roundtrip loss).
   - **Everyday Essentials (`SOL-LIFE3` / `sol-everyday-focused`)**: AAPL, AMZN, KO (3 legs, 56 accounts, 80 bps roundtrip loss).
   - **A Wider Lens (`SOL-CORE` / `sol-core`)**: SPY, QQQ, GLD (3 legs, 59 accounts, 20 bps roundtrip loss).
-- **Other Audited Tiers**: The SDK audit engine (`packages/sdk/src/basket/liquidity-audit.ts`) records verified liquidity for `SOL-CHIPS` (52 accounts, 67 bps), `SOL-DEF` (40 accounts, 52 bps), `SOL-PRE` (50 accounts, 83 bps), and `SOL-PREDICT` (48 accounts, 131 bps). `SOL-MAG7` is flagged as `isAtomicExecutable: false` (tier `review`) with `SOL-DIGITAL` recommended as its executable alternative.
-- **Canonical SDK Definitions**: The original 12 basket definitions are preserved in the SDK for devnet recurring test plans and existing paper-trading allocations.
+- **Other Audited Tiers**: The SDK audit engine (`packages/sdk/src/basket/liquidity-audit.ts`) records verified liquidity for `SOL-CHIPS` (52 accounts, 67 bps), `SOL-DEF` (40 accounts, 52 bps), `SOL-PRE` (50 accounts, 83 bps), and `SOL-PREDICT` (48 accounts, 131 bps).
+- **Canonical SDK Definitions**: The 11 canonical basket definitions are preserved in the SDK for devnet recurring test plans and existing paper-trading allocations (the MAG7 basket is not used and is completely removed).
 - **Custom / Programmable Baskets**: Users can build custom baskets with **2 to 4 assets** summing to 10,000 basis points (`packages/sdk/src/basket/custom.ts`). This range guarantees atomic single-transaction execution within the 64-account boundary. Drift rebalancing proposals are computed via `packages/sdk/src/rebalance.ts`.
 
 ### 3. Backpack Securities Integration

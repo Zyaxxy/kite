@@ -1,4 +1,4 @@
-import type { MarketSnapshot } from "@kite/sdk";
+import type { MarketSnapshot, BasketPerformance } from "@kite/sdk";
 
 export function isRedisConfigured(): boolean {
   return Boolean(
@@ -104,3 +104,40 @@ export async function setRedisCatalog(
     // Non-blocking fallback
   }
 }
+
+export async function getRedisBasketPerformance(
+  key: string,
+): Promise<BasketPerformance | null> {
+  if (!isRedisConfigured()) return null;
+  try {
+    const raw = await executeRedisCommand<string>(["GET", `kite:perf:${key}`]);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && parsed.basketId && parsed.status !== "unavailable") {
+      return parsed as BasketPerformance;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export async function setRedisBasketPerformance(
+  key: string,
+  performance: BasketPerformance,
+  ttlSeconds = 900,
+): Promise<void> {
+  if (!isRedisConfigured() || performance.status === "unavailable") return;
+  try {
+    await executeRedisCommand([
+      "SET",
+      `kite:perf:${key}`,
+      JSON.stringify(performance),
+      "EX",
+      ttlSeconds,
+    ]);
+  } catch {
+    // Non-blocking fallback
+  }
+}
+

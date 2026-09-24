@@ -12,6 +12,7 @@ export * from "./basket/atomic-swap";
 export * from "./basket/liquidity";
 export * from "./basket/custom";
 export * from "./basket/liquidity-audit";
+export * from "./basket/performance";
 export * from "./rebalance";
 export * from "./pyth-streaming";
 // Preserve upstream adapter imports; frontend prices use the markets pipeline.

@@ -39,6 +39,7 @@ import { useBaskets } from "./useBaskets";
 import { StockResearchPanel } from "./StockResearch";
 import { PaperSwap } from "./PaperSwap";
 import { researchClient } from "./research-client";
+import { BasketPerformancePanel } from "./BasketPerformancePanel";
 
 export function PaperTrade({ asset }: { asset: MarketAsset }) {
   const { paper, trade, swap, snapshot, hydrated, accountReadFailed } =
@@ -950,6 +951,9 @@ export function BasketDetail({ id }: { id: string }) {
               {basket.description}
             </p>
           </div>
+
+          <BasketPerformancePanel basket={basket} />
+
           <div className="discovery-hero" style={{ minHeight: 210 }}>
             <div className="hero-copy">
               <p className="eyebrow">The composition</p>

@@ -107,7 +107,7 @@ test("plan creation accepts explicit stock/basket targets and bounds integer ter
   assert.equal(
     policy.parseCreateDevnetPlan({
       ...create(),
-      target: { type: "basket", id: "mag7" },
+      target: { type: "basket", id: "sol-digital-leaders" },
     }).target.type,
     "basket",
   );

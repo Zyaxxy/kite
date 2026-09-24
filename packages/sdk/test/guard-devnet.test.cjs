@@ -289,7 +289,6 @@ test('all 11 public baskets compose atomic create and collect V1 messages within
       assert.equal(decoded.message.version, 1);
       assert.deepEqual(Object.keys(decoded.transaction.signatures), [payer]);
       assert.equal(decoded.transaction.signatures[payer], null, 'fixture remains unsigned');
-      if (basket.ticker === 'SOL-MAG7') t.diagnostic(`MAG7 ${action}: ${accounts.size} accounts, ${composed.serializedBytes} unsigned serialized bytes`);
     }
   }
 });

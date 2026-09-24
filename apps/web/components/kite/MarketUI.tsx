@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowUpRight,
   ArrowRight,
@@ -10,9 +10,20 @@ import {
   Layers3,
   Building2,
   ExternalLink,
+  TrendingUp,
+  TrendingDown,
+  BarChart3,
 } from "lucide-react";
 import { BackpackCatalog } from "./BackpackCatalog";
-import { formatSocialUrl, type BackpackSecurity, type MarketAsset, type MarketBasket } from "@kite/sdk";
+import {
+  formatSocialUrl,
+  calculateBasket24hGrowth,
+  type BackpackSecurity,
+  type MarketAsset,
+  type MarketBasket,
+  type BasketPerformance,
+} from "@kite/sdk";
+import { basketPerformanceClient } from "./basket-performance-client";
 import { OrbitArt } from "./Brand";
 import { getCompanyLogo } from "../../lib/company-logos";
 import {
@@ -412,18 +423,49 @@ export function BasketCard({
   tabIndex,
   prefetch,
   presentation = "app",
+  onInspectPerformance,
 }: {
   basket: BasketDisplay;
   index?: number;
   tabIndex?: number;
   prefetch?: boolean;
   presentation?: "app" | "marketing";
+  onInspectPerformance?: (basket: BasketDisplay) => void;
 }) {
   const audit = basket.source.liquidityAudit;
   const totalVolume24h = basket.assets.reduce(
     (sum, a) => sum + (a.volume24hUsd ?? 0),
     0,
   );
+  const growth24h = useMemo(() => calculateBasket24hGrowth(basket), [basket]);
+  const [perf30d, setPerf30d] = useState<BasketPerformance | null>(() =>
+    basketPerformanceClient.peek(basket.id, "30d"),
+  );
+
+  useEffect(() => {
+    let active = true;
+    const cached = basketPerformanceClient.peek(basket.id, "30d");
+    if (cached) {
+      setPerf30d(cached);
+      return;
+    }
+    void basketPerformanceClient
+      .load(basket, "30d")
+      .then((res) => {
+        if (active) setPerf30d(res);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [basket]);
+
+  const displayPerf = perf30d ?? growth24h;
+  const is1mLoaded = Boolean(perf30d);
+  const changePct = displayPerf.changePct;
+  const isPositive = (changePct ?? 0) >= 0;
+  const pnlUsd = displayPerf.gainLossUsd;
+
   const creatorName = basket.creatorName || basket.source.creatorName;
   const creatorSocial = basket.creatorSocial || basket.source.creatorSocial;
   const formattedSocial = creatorSocial ? formatSocialUrl(creatorSocial) : undefined;
@@ -541,6 +583,49 @@ export function BasketCard({
             )}
           </div>
         )}
+        <div className="basket-growth-strip">
+          <span
+            className={`basket-growth-pill ${changePct == null ? "neutral" : isPositive ? "up" : "down"}`}
+            title={`Basket ${is1mLoaded ? "1-month (30d)" : "24-hour"} return`}
+          >
+            {changePct == null ? (
+              "—"
+            ) : (
+              <>
+                {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                {isPositive ? "+" : ""}{changePct.toFixed(2)}%
+                <small style={{ marginLeft: 3, opacity: 0.85, fontWeight: 500 }}>
+                  {is1mLoaded ? "1M" : "24h"}
+                </small>
+              </>
+            )}
+          </span>
+          {pnlUsd != null && (
+            <span
+              className="basket-growth-pnl"
+              title={`Hypothetical ${is1mLoaded ? "1-month (30d)" : "24h"} profit or loss on a standard $1,000 investment`}
+            >
+              <span className={isPositive ? "up" : "down"}>
+                {pnlUsd >= 0 ? "+" : ""}${Math.abs(pnlUsd).toFixed(2)}
+              </span>
+              <small> on $1k</small>
+            </span>
+          )}
+          {onInspectPerformance && (
+            <button
+              type="button"
+              className="basket-perf-action-btn"
+              title="Analyze performance across timeframes"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onInspectPerformance(basket);
+              }}
+            >
+              <BarChart3 size={11} /> Performance
+            </button>
+          )}
+        </div>
         <p>{basket.description}</p>
         <div className="mini-assets">
           {basket.assets.slice(0, 6).map((a) => (

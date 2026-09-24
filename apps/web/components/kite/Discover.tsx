@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -17,10 +17,13 @@ import {
 } from "lucide-react";
 import { useKite } from "./State";
 import { PageIntro } from "./Shell";
-import { AssetTable, BasketCard, Empty, money, AssetAvatar } from "./MarketUI";
+import { AssetTable, BasketCard, Empty, money, AssetAvatar, type BasketDisplay } from "./MarketUI";
 import { useBaskets } from "./useBaskets";
 import { MarketPulse, MarketHeadlines, MarketBreadth } from "./MarketPulse";
 import { NativeSelect, NativeSelectOption } from "../ui/native-select";
+import { calculateBasket24hGrowth } from "@kite/sdk";
+import { BasketPerformancePanel } from "./BasketPerformancePanel";
+import { basketPerformanceClient } from "./basket-performance-client";
 
 export function MarketStatus() {
   const { snapshot, loading, error, refresh, storageError } = useKite();
@@ -294,6 +297,11 @@ export function Markets() {
 export function Baskets() {
   const baskets = useBaskets();
   const [filter, setFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<
+    "default" | "gainers-1m" | "losers-1m" | "gainers-24h" | "losers-24h" | "name"
+  >("default");
+  const [inspectingBasket, setInspectingBasket] = useState<BasketDisplay | null>(null);
+  const [perfMapVersion, setPerfMapVersion] = useState(0);
 
   const verifiedCount = baskets.filter(
     (b) => b.source.liquidityAudit?.tier === "verified-high",
@@ -315,6 +323,48 @@ export function Baskets() {
     if (filter === "custom") return Boolean(basket.isCustom);
     return basket.source.category === filter;
   });
+
+  // Pre-warm 1-month performance for visible baskets
+  useEffect(() => {
+    let active = true;
+    Promise.all(
+      visible.map((b) => basketPerformanceClient.load(b, "30d").catch(() => null)),
+    ).then(() => {
+      if (active) setPerfMapVersion((v) => v + 1);
+    });
+    return () => {
+      active = false;
+    };
+  }, [visible]);
+
+  const sorted = useMemo(() => {
+    if (sortBy === "default") return visible;
+    return [...visible].sort((a, b) => {
+      if (sortBy === "name") return a.name.localeCompare(b.name);
+
+      if (sortBy === "gainers-1m" || sortBy === "losers-1m") {
+        const perfA =
+          basketPerformanceClient.peek(a.id, "30d")?.changePct ??
+          calculateBasket24hGrowth(a).changePct;
+        const perfB =
+          basketPerformanceClient.peek(b.id, "30d")?.changePct ??
+          calculateBasket24hGrowth(b).changePct;
+        if (perfA == null || perfB == null) {
+          if (perfA == null && perfB == null) return a.name.localeCompare(b.name);
+          return perfA == null ? 1 : -1;
+        }
+        return sortBy === "gainers-1m" ? perfB - perfA : perfA - perfB;
+      }
+
+      const gA = calculateBasket24hGrowth(a).changePct;
+      const gB = calculateBasket24hGrowth(b).changePct;
+      if (gA == null || gB == null) {
+        if (gA == null && gB == null) return a.name.localeCompare(b.name);
+        return gA == null ? 1 : -1;
+      }
+      return sortBy === "gainers-24h" ? gB - gA : gA - gB;
+    });
+  }, [visible, sortBy, perfMapVersion]);
 
   return (
     <>
@@ -367,7 +417,19 @@ export function Baskets() {
             </button>
           )}
         </div>
-        <div className="baskets-toolbar-right">
+        <div className="baskets-toolbar-right" style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <NativeSelect
+            aria-label="Sort baskets by performance or name"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+          >
+            <NativeSelectOption value="default">Default Order</NativeSelectOption>
+            <NativeSelectOption value="gainers-1m">Top Gainers (1 Month)</NativeSelectOption>
+            <NativeSelectOption value="losers-1m">Top Losers (1 Month)</NativeSelectOption>
+            <NativeSelectOption value="gainers-24h">Top Gainers (24h)</NativeSelectOption>
+            <NativeSelectOption value="losers-24h">Top Losers (24h)</NativeSelectOption>
+            <NativeSelectOption value="name">Theme A–Z</NativeSelectOption>
+          </NativeSelect>
           <NativeSelect
             aria-label="Filter by sector category"
             value={(categories as string[]).includes(filter) ? filter : "all-sectors"}
@@ -385,7 +447,7 @@ export function Baskets() {
           </NativeSelect>
         </div>
       </div>
-      {visible.length === 0 ? (
+      {sorted.length === 0 ? (
         <div
           className="panel panel-pad"
           style={{
@@ -416,9 +478,53 @@ export function Baskets() {
         </div>
       ) : (
         <div className="basket-grid basket-catalog" style={{ marginBottom: 30 }}>
-          {visible.map((b, i) => (
-            <BasketCard key={b.id} basket={b} index={i} />
+          {sorted.map((b, i) => (
+            <BasketCard
+              key={b.id}
+              basket={b}
+              index={i}
+              onInspectPerformance={(selected) => setInspectingBasket(selected)}
+            />
           ))}
+        </div>
+      )}
+      {inspectingBasket && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setInspectingBasket(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Basket Performance Inspection"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 100,
+            background: "rgba(0, 0, 0, 0.7)",
+            backdropFilter: "blur(6px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            className="modal-content basket-perf-modal-card"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: 720,
+              width: "100%",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              borderRadius: 16,
+              boxShadow: "0 24px 60px rgba(0, 0, 0, 0.5)",
+            }}
+          >
+            <BasketPerformancePanel
+              basket={inspectingBasket}
+              compact
+              onClose={() => setInspectingBasket(null)}
+            />
+          </div>
         </div>
       )}
       <div className="panel panel-pad">

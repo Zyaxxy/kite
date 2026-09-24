@@ -2,7 +2,7 @@
 
 ## Project: Kite (Non-Custodial Neo-Brokerage on Solana)
 
-Kite is a self-custody interface for tokenized equities on Solana. It offers 12 curated thematic stock baskets (e.g. `SOL-MAG7`, `SOL-AI`, `SOL-CHIPS`), automated non-custodial recurring investing (SIP / DCA) via Solana Subscriptions and the on-chain `kite_guard` Anchor program, deep stock research (1-year charts, technicals, fundamentals, news, corporate actions), and real-time market breadth and sentiment — all without holding user funds in any vault.
+Kite is a self-custody interface for tokenized equities on Solana. It offers 11 curated thematic stock baskets (e.g. `SOL-DIGITAL`, `SOL-AI`, `SOL-CHIPS`), automated non-custodial recurring investing (SIP / DCA) via Solana Subscriptions and the on-chain `kite_guard` Anchor program, deep stock research (1-year charts, technicals, fundamentals, news, corporate actions), and real-time market breadth and sentiment — all without holding user funds in any vault.
 
 Both a paper-trading sandbox ($10,000 virtual USD) and wallet-approved mainnet trading are supported. Web and mobile share a single SDK.
 
@@ -70,12 +70,11 @@ node --test packages/sdk/test/*.test.cjs
 - **Paper Trading**: Every device starts with $10,000 virtual USD. Simulates buys, sells, basket orders, stock-to-stock swaps, and recurring plans at live reference prices. Device-local, never backfills missed intervals. Not a forecast.
 - **Actual Trading**: Non-custodial mainnet via connected Solana wallets (Phantom, Solflare) or Privy embedded wallets. Quotes and executes V1 transactions through Jupiter.
 
-### 2. Thematic Stock Baskets (12 curated)
-Baskets are **allocation definitions, not synthetic tokens**. Buying a basket delivers individual tokenized equities directly to the user's wallet via a single atomic V1 transaction. Equal-weight allocation using the Largest Remainder Method (Hare-Niemeyer) in BigInt arithmetic — zero dust leakage. If any constituent is missing or unpriced, the basket is marked unavailable.
+### 2. Thematic Stock Baskets (11 curated)
+Baskets are **allocation definitions, not synthetic tokens**. Buying a basket delivers individual tokenized equities directly to the user's wallet via a single atomic V1 transaction. Equal-weight allocation using the Largest Remainder Method (Hare-Niemeyer) in BigInt arithmetic — zero dust leakage. If any constituent is missing or unpriced, the basket is marked unavailable. (Note: A 7-asset MAG7 basket is not used due to Solana's 64-account transaction limit; `SOL-DIGITAL` serves as the liquid, 3-asset mega-cap tech alternative for mainnet atomic execution.)
 
 | Basket | Ticker | Category | Constituents |
 |---|---|---|---|
-| The Magnificent Seven | `SOL-MAG7` | Technology | AAPL, MSFT, NVDA, AMZN, GOOGL, META, TSLA |
 | Intelligence Layer | `SOL-AI` | Technology | NVDA, MSFT, GOOGL, AMZN, ORCL |
 | The Silicon Stack | `SOL-CHIPS` | Technology | NVDA, AMD, AVGO, TSM, ASML |
 | Work in the Cloud | `SOL-CLOUD` | Technology | MSFT, CRM, ORCL, NOW |
