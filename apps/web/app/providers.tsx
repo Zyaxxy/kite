@@ -15,8 +15,9 @@ const WalletProviders = dynamic(() => import("./wallet-providers"), {
   ),
 });
 export function Providers({ children }: { children: React.ReactNode }) {
-  const path = usePathname();
-  const workspace =
+  const pathname = usePathname();
+  const path = pathname || "";
+  const isWorkspace =
     [
       "/app",
       "/markets",
@@ -29,11 +30,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
     ].includes(path) ||
     path.startsWith("/stock/") ||
     path.startsWith("/basket/");
-  if (!workspace && path !== "/" && path !== "/landing") return <>{children}</>;
-  const publicPage = path === "/" || path === "/landing";
+
   return (
     <KiteProvider>
-      {publicPage ? children : <WalletProviders>{children}</WalletProviders>}
+      {isWorkspace ? <WalletProviders>{children}</WalletProviders> : children}
     </KiteProvider>
   );
 }

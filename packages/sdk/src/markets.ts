@@ -172,7 +172,8 @@ async function request(url: string, options: MarketOptions): Promise<unknown> {
   let response = await (options.fetcher ?? fetch)(url, {
     headers,
     signal: requestSignal(options),
-  });
+    cache: "no-store",
+  } as RequestInit);
   // Jupiter shares its short rate-limit window across Tokens and Price requests.
   // Respect the actual reset; retrying a full catalog after one second loses whole batches.
   if (response.status === 429) {
@@ -193,7 +194,8 @@ async function request(url: string, options: MarketOptions): Promise<unknown> {
     response = await (options.fetcher ?? fetch)(url, {
       headers,
       signal: requestSignal(options),
-    });
+      cache: "no-store",
+    } as RequestInit);
   }
   if (!response.ok)
     throw new Error(`Market provider returned HTTP ${response.status}`);
@@ -262,54 +264,69 @@ async function loadXstockCatalog(
       throw new Error("xStocks catalog response is unavailable");
     return response;
   };
-  // The issuer exposes hasNextPage, not a total page count. Speculate at most two pages ahead.
-  for (let start = 0; start < 100; start += 3) {
-    const pages = await Promise.allSettled(
-      [start, start + 1, start + 2]
-        .filter((page) => page < 100)
-        .map(pageRequest),
-    );
-    for (const result of pages) {
-      if (result.status === "rejected") throw result.reason;
-      const response = result.value;
-      for (const item of list(response.nodes)) {
-        const value = row(item);
-        const underlying = row(value.underlying);
-        for (const deployment of list(value.deployments)) {
-          const token = row(deployment);
-          const mint = string(token.address);
-          if (
-            token.network !== "Solana" ||
-            !validMint(mint) ||
-            !string(value.symbol)
-          )
-            continue;
-          const asset = baseAsset(
-            mint,
-            string(value.symbol),
-            string(value.name),
-            "xstocks",
-            "https://api.xstocks.fi/api/v2/public/assets",
-          );
-          asset.logoUrl = logo(value.logo);
-          asset.underlyingSymbol =
-            string(underlying.symbol) ||
-            string(value.underlyingSymbol) ||
-            asset.symbol.replace(/x$/, "");
-          asset.kind =
-            underlying.type === "ETF"
-              ? "etf"
-              : underlying.type === "Equity"
-                ? "equity"
-                : "unknown";
-          asset.tradingHalted = value.isTradingHalted === true;
-          assets.set(mint, asset);
-        }
+
+  const processPageNodes = (nodes: unknown[]): void => {
+    for (const item of nodes) {
+      const value = row(item);
+      const underlying = row(value.underlying);
+      for (const deployment of list(value.deployments)) {
+        const token = row(deployment);
+        const mint = string(token.address);
+        if (
+          token.network !== "Solana" ||
+          !validMint(mint) ||
+          !string(value.symbol)
+        )
+          continue;
+        const asset = baseAsset(
+          mint,
+          string(value.symbol),
+          string(value.name),
+          "xstocks",
+          "https://api.xstocks.fi/api/v2/public/assets",
+        );
+        asset.logoUrl = logo(value.logo);
+        asset.underlyingSymbol =
+          string(underlying.symbol) ||
+          string(value.underlyingSymbol) ||
+          asset.symbol.replace(/x$/, "");
+        asset.kind =
+          underlying.type === "ETF"
+            ? "etf"
+            : underlying.type === "Equity"
+              ? "equity"
+              : "unknown";
+        asset.tradingHalted = value.isTradingHalted === true;
+        assets.set(mint, asset);
       }
-      if (row(response.page).hasNextPage !== true) return [...assets.values()];
+    }
+  };
+
+  for (let page = 0; page < 50; page++) {
+    try {
+      const response = await pageRequest(page);
+      processPageNodes(list(response.nodes));
+      if (row(response.page).hasNextPage !== true) break;
+    } catch (err) {
+      // If caller or catalog deadline was aborted, propagate the abort
+      if (options.signal?.aborted) {
+        throw err;
+      }
+      // If the initial page fails, the catalog is truly unavailable
+      if (page === 0 || assets.size === 0) {
+        throw err;
+      }
+      // If a subsequent deep page times out or fails (e.g. rate limit, 503),
+      // preserve the assets already successfully discovered instead of failing closed to 0
+      break;
     }
   }
-  throw new Error("xStocks catalog pagination exceeded its safety limit");
+
+  if (assets.size === 0) {
+    throw new Error("xStocks catalog returned no valid assets");
+  }
+
+  return [...assets.values()];
 }
 
 async function getPrestockProducts(options: MarketOptions): Promise<Row[]> {
@@ -321,7 +338,7 @@ async function getPrestockProducts(options: MarketOptions): Promise<Row[]> {
     return prestockProductsCache.products;
   const response = await (options.fetcher ?? fetch)(
     "https://prestocks.com/products",
-    { signal: requestSignal(options) },
+    { signal: requestSignal(options), cache: "no-store" } as RequestInit,
   );
   if (!response.ok)
     throw new Error("PreStocks product metadata is unavailable");

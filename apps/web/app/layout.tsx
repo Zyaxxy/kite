@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Providers } from "./providers";
 import { ThemeProvider } from "../components/kite/ThemeMode";
 import { PrivacyChoices } from "../components/kite/PrivacyChoices";
@@ -57,6 +59,8 @@ export default function RootLayout({
           <Providers>{children}</Providers>
           <PrivacyChoices />
         </ThemeProvider>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

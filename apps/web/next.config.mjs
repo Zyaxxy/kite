@@ -34,7 +34,7 @@ const config = {
               "img-src 'self' data: blob: https:",
               "font-src 'self' data:",
               "style-src 'self' 'unsafe-inline'",
-              `script-src 'self' 'unsafe-inline' ${process.env.NODE_ENV === "development" ? "'unsafe-eval'" : ""} https://challenges.cloudflare.com`,
+              `script-src 'self' 'unsafe-inline' ${process.env.NODE_ENV === "development" ? "'unsafe-eval'" : ""} https://challenges.cloudflare.com https://va.vercel-scripts.com`,
               "connect-src 'self' https: wss: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*",
               "frame-src https://auth.privy.io https://*.privy.io https://*.walletconnect.com https://verify.walletconnect.org https://challenges.cloudflare.com",
               "worker-src 'self' blob:",
