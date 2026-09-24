@@ -206,8 +206,7 @@ export function HomeScreen({
             ) : null}
           </View>
           <Text style={ui.small}>
-            Based on {pulse.breadth.coveredAssets} assets with reported daily
-            change.
+            Based on {pulse.breadth.coveredAssets} actively traded assets with 24h returns (out of {pulse.totalAssets} catalog assets; remaining had no trades).
           </Text>
         </View>
       ) : null}

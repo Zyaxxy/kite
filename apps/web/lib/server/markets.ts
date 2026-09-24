@@ -218,9 +218,11 @@ export async function getServerMarkets(
         fromRedis.status !== "unavailable" &&
         fromRedis.assets.some((a) => a.issuer === "xstocks")
       ) {
+        const age = Math.max(0, Date.now() - new Date(fromRedis.asOf).getTime());
+        const remainingTtl = Math.max(0, PRICE_TTL - age);
         cached = {
           value: fromRedis,
-          expiresAt: Date.now() + PRICE_TTL,
+          expiresAt: Date.now() + remainingTtl,
         };
       }
     } catch {
@@ -238,9 +240,11 @@ export async function getServerMarkets(
         fromDisk.status !== "unavailable" &&
         fromDisk.assets.some((a) => a.issuer === "xstocks")
       ) {
+        const age = Math.max(0, Date.now() - new Date(fromDisk.asOf).getTime());
+        const remainingTtl = Math.max(0, PRICE_TTL - age);
         cached = {
           value: fromDisk,
-          expiresAt: Date.now() + PRICE_TTL,
+          expiresAt: Date.now() + remainingTtl,
         };
       }
     } catch {

@@ -99,7 +99,7 @@ export function MarketPulse() {
 
 export function MarketBreadth() {
   const { snapshot } = useKite();
-  const { breadth, volumeCoveredAssets } = useMemo(
+  const { breadth, volumeCoveredAssets, totalAssets } = useMemo(
     () => getMarketPulse(snapshot?.assets ?? []),
     [snapshot],
   );
@@ -161,8 +161,7 @@ export function MarketBreadth() {
         </span>
       </div>
       <small className="breadth-disclosure">
-        Based on {breadth.coveredAssets} assets with reported returns. Volume
-        covers {volumeCoveredAssets} assets.
+        Based on {breadth.coveredAssets} actively traded assets with reported 24h DEX returns (out of {totalAssets || "all"} catalog assets; remaining tokens had no trades in the last 24h). Volume covers {volumeCoveredAssets} assets.
       </small>
     </section>
   );
