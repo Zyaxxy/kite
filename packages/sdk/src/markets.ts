@@ -194,6 +194,7 @@ async function request(url: string, options: MarketOptions): Promise<unknown> {
     response = await (options.fetcher ?? fetch)(url, {
       headers,
       signal: requestSignal(options),
+      cache: "no-store",
     });
   }
   if (!response.ok)
@@ -301,7 +302,7 @@ async function loadXstockCatalog(
     }
   };
 
-  const batchSize = options.fetcher ? 1 : 3;
+  const batchSize = options.fetcher ? 1 : 4;
 
   for (let page = 0; page < 50; page += batchSize) {
     try {
@@ -312,11 +313,18 @@ async function loadXstockCatalog(
       } else {
         const pageNumbers: number[] = [];
         for (let i = 0; i < batchSize; i++) pageNumbers.push(page + i);
-        const responses = await Promise.all(
+        const settled = await Promise.allSettled(
           pageNumbers.map((p) => pageRequest(p)),
         );
         let reachedEnd = false;
-        for (const response of responses) {
+        for (let i = 0; i < settled.length; i++) {
+          const item = settled[i];
+          if (item.status === "rejected") {
+            if (page === 0 && i === 0) throw item.reason;
+            reachedEnd = true;
+            break;
+          }
+          const response = item.value;
           processPageNodes(list(response.nodes));
           if (
             row(response.page).hasNextPage !== true ||
@@ -360,7 +368,7 @@ async function getPrestockProducts(options: MarketOptions): Promise<Row[]> {
     return prestockProductsCache.products;
   const response = await (options.fetcher ?? fetch)(
     "https://prestocks.com/products",
-    { signal: requestSignal(options) },
+    { signal: requestSignal(options), cache: "no-store" },
   );
   if (!response.ok)
     throw new Error("PreStocks product metadata is unavailable");

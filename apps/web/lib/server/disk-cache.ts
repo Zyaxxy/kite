@@ -34,6 +34,27 @@ async function getCacheDir(): Promise<string | null> {
   return null;
 }
 
+function isValidCatalog(
+  snapshot: MarketSnapshot | null | undefined,
+): snapshot is MarketSnapshot {
+  if (!snapshot) return false;
+  if (snapshot.network !== "mainnet-beta") return false;
+  if (snapshot.status === "unavailable") return false;
+  if (!Array.isArray(snapshot.assets) || snapshot.assets.length === 0) return false;
+
+  const hasXstocks = snapshot.assets.some((asset) => asset.issuer === "xstocks");
+  if (!hasXstocks) return false;
+
+  if (
+    Array.isArray(snapshot.warnings) &&
+    snapshot.warnings.some((warning) => /xstocks.*could not be loaded/i.test(warning))
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
 export async function getDiskMarketSnapshot(): Promise<MarketSnapshot | null> {
   try {
     const dir = await getCacheDir();
@@ -41,13 +62,7 @@ export async function getDiskMarketSnapshot(): Promise<MarketSnapshot | null> {
     const file = path.join(dir, "snapshot.json");
     const raw = await fs.readFile(file, "utf8");
     const parsed = JSON.parse(raw);
-    if (
-      parsed &&
-      parsed.network === "mainnet-beta" &&
-      Array.isArray(parsed.assets) &&
-      parsed.assets.length > 0 &&
-      parsed.status !== "unavailable"
-    ) {
+    if (isValidCatalog(parsed)) {
       return parsed as MarketSnapshot;
     }
     return null;
@@ -57,7 +72,7 @@ export async function getDiskMarketSnapshot(): Promise<MarketSnapshot | null> {
 }
 
 export async function setDiskMarketSnapshot(snapshot: MarketSnapshot): Promise<void> {
-  if (!snapshot || snapshot.status === "unavailable" || !snapshot.assets.length) return;
+  if (!isValidCatalog(snapshot)) return;
   try {
     const dir = await getCacheDir();
     if (!dir) return;
@@ -77,12 +92,7 @@ export async function getDiskCatalog(): Promise<MarketSnapshot | null> {
     const file = path.join(dir, "catalog.json");
     const raw = await fs.readFile(file, "utf8");
     const parsed = JSON.parse(raw);
-    if (
-      parsed &&
-      parsed.network === "mainnet-beta" &&
-      Array.isArray(parsed.assets) &&
-      parsed.assets.length > 0
-    ) {
+    if (isValidCatalog(parsed)) {
       return parsed as MarketSnapshot;
     }
     return null;
@@ -92,7 +102,7 @@ export async function getDiskCatalog(): Promise<MarketSnapshot | null> {
 }
 
 export async function setDiskCatalog(catalog: MarketSnapshot): Promise<void> {
-  if (!catalog || !catalog.assets.length) return;
+  if (!isValidCatalog(catalog)) return;
   try {
     const dir = await getCacheDir();
     if (!dir) return;

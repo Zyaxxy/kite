@@ -226,6 +226,7 @@ export async function getBackpackCatalog(
             signal: options.signal
               ? AbortSignal.any([options.signal, timeout])
               : timeout,
+            cache: "no-store",
           });
           if (!response.ok)
             throw new Error(`Backpack returned HTTP ${response.status}.`);

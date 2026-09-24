@@ -42,7 +42,8 @@ export async function getServerMarketCatalog(): Promise<MarketSnapshot> {
         if (
           fromRedis &&
           fromRedis.assets.length &&
-          fromRedis.status !== "unavailable"
+          fromRedis.status !== "unavailable" &&
+          fromRedis.assets.some((a) => a.issuer === "xstocks")
         ) {
           catalog = { value: fromRedis, expiresAt: Date.now() + CATALOG_TTL };
           return fromRedis;
@@ -59,7 +60,8 @@ export async function getServerMarketCatalog(): Promise<MarketSnapshot> {
         if (
           fromDisk &&
           fromDisk.assets.length &&
-          fromDisk.status !== "unavailable"
+          fromDisk.status !== "unavailable" &&
+          fromDisk.assets.some((a) => a.issuer === "xstocks")
         ) {
           catalog = { value: fromDisk, expiresAt: Date.now() + CATALOG_TTL };
           return fromDisk;
@@ -75,7 +77,7 @@ export async function getServerMarketCatalog(): Promise<MarketSnapshot> {
       expiresAt:
         Date.now() + (value.status === "unavailable" ? 5_000 : CATALOG_TTL),
     };
-    if (value.assets.length) {
+    if (value.assets.length && value.assets.some((a) => a.issuer === "xstocks")) {
       void setRedisCatalog(value, 86400);
       void setDiskCatalog(value);
     }
@@ -144,7 +146,7 @@ function refresh(initial?: MarketSnapshot): Promise<MarketSnapshot> {
         value: retainReferences(value),
         expiresAt: Date.now() + PRICE_TTL,
       };
-      if (value.status !== "unavailable") {
+      if (value.status !== "unavailable" && value.assets.some((a) => a.issuer === "xstocks")) {
         void setRedisMarketSnapshot(cached.value, 86400);
         void setDiskMarketSnapshot(cached.value);
       }
@@ -213,7 +215,8 @@ export async function getServerMarkets(
       if (
         fromRedis &&
         fromRedis.assets.length &&
-        fromRedis.status !== "unavailable"
+        fromRedis.status !== "unavailable" &&
+        fromRedis.assets.some((a) => a.issuer === "xstocks")
       ) {
         cached = {
           value: fromRedis,
@@ -232,7 +235,8 @@ export async function getServerMarkets(
       if (
         fromDisk &&
         fromDisk.assets.length &&
-        fromDisk.status !== "unavailable"
+        fromDisk.status !== "unavailable" &&
+        fromDisk.assets.some((a) => a.issuer === "xstocks")
       ) {
         cached = {
           value: fromDisk,
