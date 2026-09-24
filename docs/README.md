@@ -5,6 +5,7 @@ Kite is a self-custody interface for tokenized equities on Solana. It combines l
 ## Start here
 
 - [Product overview](overview.md) — the problem Kite solves and the product in one page.
+- [Architecture diagrams](architecture-diagrams.md) — Mermaid visual diagrams detailing system architecture and execution flows.
 - [How Kite works](how-it-works.md) — the user journey and the system behind it.
 - [Kite Guard protocol specification](kite-guard-protocol.md) — on-chain execution guard, Anchor instructions, and account layout.
 - [V2 Roadmap & Architecture](v2-roadmap-and-architecture.md) — composable brokerage milestones and protocol architecture.
