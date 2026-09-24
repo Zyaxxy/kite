@@ -23,6 +23,7 @@ apps/mobile/ios/
 .kite-collections/
 .kite-investment-worker/
 .kite-investments/
+.kite-cache/
 
 .kite-investing-state/
 .kite-worker-state/

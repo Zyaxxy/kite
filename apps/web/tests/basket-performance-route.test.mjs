@@ -6,6 +6,7 @@ import { runInNewContext } from "node:vm";
 import ts from "typescript";
 
 const require = createRequire(import.meta.url);
+const sdk = require("../../../packages/sdk/dist/index.js");
 const compiled = ts.transpileModule(
   readFileSync(
     new URL("../app/api/baskets/performance/route.ts", import.meta.url),
@@ -45,6 +46,7 @@ function route({ baskets = [mockBasket], status = "live" } = {}) {
       setRedisBasketPerformance: async () => {},
     },
     "@kite/sdk": {
+      resolveCanonicalBasket: (id) => baskets.find((b) => b.id.toLowerCase() === id.toLowerCase()) ?? sdk.resolveCanonicalBasket(id),
       calculateBasket24hGrowth: (basket, amount) => ({
         basketId: basket.id,
         timeframe: "24h",
@@ -87,6 +89,10 @@ function route({ baskets = [mockBasket], status = "live" } = {}) {
     console,
     process,
     URL,
+    AbortSignal,
+    Request,
+    Response,
+    fetch,
   });
 
   return exports;

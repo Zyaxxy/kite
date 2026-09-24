@@ -51,7 +51,7 @@ export async function getRedisMarketSnapshot(): Promise<MarketSnapshot | null> {
 
 export async function setRedisMarketSnapshot(
   snapshot: MarketSnapshot,
-  ttlSeconds = 60,
+  ttlSeconds = 86400,
 ): Promise<void> {
   if (!isRedisConfigured() || snapshot.status === "unavailable") return;
   try {
@@ -89,7 +89,7 @@ export async function getRedisCatalog(): Promise<MarketSnapshot | null> {
 
 export async function setRedisCatalog(
   catalog: MarketSnapshot,
-  ttlSeconds = 3600,
+  ttlSeconds = 86400,
 ): Promise<void> {
   if (!isRedisConfigured() || !catalog.assets.length) return;
   try {
@@ -125,7 +125,7 @@ export async function getRedisBasketPerformance(
 export async function setRedisBasketPerformance(
   key: string,
   performance: BasketPerformance,
-  ttlSeconds = 900,
+  ttlSeconds = 3600,
 ): Promise<void> {
   if (!isRedisConfigured() || performance.status === "unavailable") return;
   try {
@@ -140,4 +140,5 @@ export async function setRedisBasketPerformance(
     // Non-blocking fallback
   }
 }
+
 

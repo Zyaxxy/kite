@@ -324,18 +324,20 @@ export function Baskets() {
     return basket.source.category === filter;
   });
 
-  // Pre-warm 1-month performance for visible baskets
+  // Subscribe to performance arrivals so sorting automatically updates when 1M metrics load
   useEffect(() => {
-    let active = true;
-    Promise.all(
-      visible.map((b) => basketPerformanceClient.load(b, "30d").catch(() => null)),
-    ).then(() => {
-      if (active) setPerfMapVersion((v) => v + 1);
+    return basketPerformanceClient.subscribe(() => {
+      setPerfMapVersion((v) => v + 1);
     });
-    return () => {
-      active = false;
-    };
-  }, [visible]);
+  }, []);
+
+  useEffect(() => {
+    if (sortBy === "gainers-1m" || sortBy === "losers-1m") {
+      visible.forEach((b) => {
+        void basketPerformanceClient.load(b, "30d").catch(() => null);
+      });
+    }
+  }, [visible, sortBy]);
 
   const sorted = useMemo(() => {
     if (sortBy === "default") return visible;

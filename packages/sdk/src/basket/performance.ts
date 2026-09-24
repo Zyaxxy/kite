@@ -270,12 +270,16 @@ export async function loadConstituentHistoricalBars(
       const now = options.now ? options.now() : Date.now();
       const encoded = encodeURIComponent(providerSymbol);
       const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?range=1y&interval=1d`;
+      const timeoutSignal = AbortSignal.timeout(4_000);
+      const effectiveSignal = options.signal
+        ? AbortSignal.any([options.signal, timeoutSignal])
+        : timeoutSignal;
       const res = await (options.fetcher ?? fetch)(url, {
         headers: {
           Accept: "application/json",
           "User-Agent": "Kite/1.0 (Thematic Basket Analytics)",
         },
-        signal: options.signal ?? AbortSignal.timeout(8_000),
+        signal: effectiveSignal,
       });
 
       if (!res.ok) return [];
@@ -304,7 +308,7 @@ export async function loadConstituentHistoricalBars(
       }
       historicalBarsCache.set(key, {
         bars,
-        expiresAt: Date.now() + 5 * 60_000,
+        expiresAt: Date.now() + 15 * 60_000,
       });
 
       return bars;
@@ -403,7 +407,8 @@ export async function fetchBasketHistoricalPerformance(params: {
     const res = constituentBarResults[idx];
     const upper = (asset.underlyingSymbol || asset.symbol || "").toUpperCase();
     if (res.status === "fulfilled" && res.value.length > 0) {
-      constituentBarsMap.set(asset.mint, res.value);
+      const assetKey = asset.mint || asset.underlyingSymbol || asset.symbol;
+      constituentBarsMap.set(assetKey, res.value);
     }
     if (BASKET_EQUITY_PYTH_FEEDS[upper] || XSTOCKS_PYTH_FEEDS[upper]) {
       sources.add("Pyth Network Reference Feeds");
@@ -447,7 +452,7 @@ export async function fetchBasketHistoricalPerformance(params: {
 
   // Build daily forward-filled price map per constituent
   const filledPrices = new Map<string, Map<string, number>>();
-  for (const [mint, bars] of constituentBarsMap.entries()) {
+  for (const [key, bars] of constituentBarsMap.entries()) {
     const dateMap = new Map<string, number>();
     let lastClose: number | null = null;
     for (const d of sortedDates) {
@@ -459,7 +464,7 @@ export async function fetchBasketHistoricalPerformance(params: {
         dateMap.set(d, lastClose);
       }
     }
-    filledPrices.set(mint, dateMap);
+    filledPrices.set(key, dateMap);
   }
 
   const startDate = sortedDates[0];
@@ -472,7 +477,8 @@ export async function fetchBasketHistoricalPerformance(params: {
   const constituents: BasketConstituentPerformance[] = members.map(({ asset, weightBps }) => {
     totalWeightBps += weightBps;
     const weightPct = weightBps / 100;
-    const dateMap = filledPrices.get(asset.mint);
+    const assetKey = asset.mint || asset.underlyingSymbol || asset.symbol;
+    const dateMap = filledPrices.get(assetKey);
     const startPrice = dateMap?.get(startDate) ?? null;
     const endPrice = dateMap?.get(endDate) ?? (asset.priceUsd ?? asset.underlyingPriceUsd ?? null);
 
@@ -508,7 +514,8 @@ export async function fetchBasketHistoricalPerformance(params: {
     let dayPricedWeight = 0;
 
     for (const { asset, weightBps } of members) {
-      const dateMap = filledPrices.get(asset.mint);
+      const assetKey = asset.mint || asset.underlyingSymbol || asset.symbol;
+      const dateMap = filledPrices.get(assetKey);
       const startPrice = dateMap?.get(startDate);
       const dayPrice = dateMap?.get(date);
 

@@ -1,7 +1,7 @@
 import { Landing } from "../components/kite/Landing";
 import { getServerMarkets } from "@/lib/server/markets";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export default async function Page() {
   let initialSnapshot = null;

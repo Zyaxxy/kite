@@ -11,6 +11,13 @@ import {
   getRedisMarketSnapshot,
   setRedisMarketSnapshot,
 } from "./redis";
+import {
+  isDiskCacheConfigured,
+  getDiskCatalog,
+  setDiskCatalog,
+  getDiskMarketSnapshot,
+  setDiskMarketSnapshot,
+} from "./disk-cache";
 
 type Deferred = (task: Promise<unknown>) => void;
 const PRICE_TTL = 30_000;
@@ -34,7 +41,10 @@ export async function getServerMarketCatalog(): Promise<MarketSnapshot> {
         expiresAt:
           Date.now() + (value.status === "unavailable" ? 5_000 : CATALOG_TTL),
       };
-      if (value.assets.length) void setRedisCatalog(value, 3600);
+      if (value.assets.length) {
+        void setRedisCatalog(value, 86400);
+        void setDiskCatalog(value);
+      }
       return value;
     })
     .finally(() => {
@@ -102,7 +112,8 @@ function refresh(initial?: MarketSnapshot): Promise<MarketSnapshot> {
         expiresAt: Date.now() + PRICE_TTL,
       };
       if (value.status !== "unavailable") {
-        void setRedisMarketSnapshot(cached.value, 60);
+        void setRedisMarketSnapshot(cached.value, 86400);
+        void setDiskMarketSnapshot(cached.value);
       }
     };
     const value = await getMainnetMarkets({
@@ -161,6 +172,8 @@ export async function getServerMarkets(
     if (pending) options.waitUntil?.(pending.catch(() => undefined));
     return { ...cached.value, refreshing: Boolean(pending) };
   }
+
+  // 1. Check Redis for recent snapshot across lambdas
   if (!cached && isRedisConfigured()) {
     try {
       const fromRedis = await getRedisMarketSnapshot();
@@ -173,12 +186,31 @@ export async function getServerMarkets(
           value: fromRedis,
           expiresAt: Date.now() + PRICE_TTL,
         };
-        return { ...cached.value, refreshing: false };
       }
     } catch {
       // Non-blocking fallback
     }
   }
+
+  // 2. Check Disk Cache for persistent snapshot (e.g. across server restarts / local dev)
+  if (!cached && isDiskCacheConfigured()) {
+    try {
+      const fromDisk = await getDiskMarketSnapshot();
+      if (
+        fromDisk &&
+        fromDisk.assets.length &&
+        fromDisk.status !== "unavailable"
+      ) {
+        cached = {
+          value: fromDisk,
+          expiresAt: Date.now() + PRICE_TTL,
+        };
+      }
+    } catch {
+      // Non-blocking fallback
+    }
+  }
+
   const identity = cached ? undefined : await getServerMarketCatalog();
   if (identity && !identity.assets.length)
     return { ...identity, refreshing: false };

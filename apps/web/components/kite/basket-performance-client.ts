@@ -9,9 +9,52 @@ interface CacheEntry {
 class BasketPerformanceClient {
   private cache = new Map<string, CacheEntry>();
   private inFlight = new Map<string, Promise<BasketPerformance>>();
+  private queue: (() => Promise<void>)[] = [];
+  private activeCount = 0;
+  private maxConcurrent = 2;
+  private listeners = new Set<() => void>();
 
   private makeKey(basketId: string, timeframe: BasketTimeframe, amount = 1000): string {
     return `${basketId}:${timeframe}:${amount}`;
+  }
+
+  subscribe(fn: () => void): () => void {
+    this.listeners.add(fn);
+    return () => this.listeners.delete(fn);
+  }
+
+  private notify() {
+    this.listeners.forEach((fn) => fn());
+  }
+
+  private enqueue<T>(task: () => Promise<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const execute = async () => {
+        this.activeCount++;
+        try {
+          const result = await task();
+          resolve(result);
+        } catch (err) {
+          reject(err);
+        } finally {
+          this.activeCount--;
+          this.next();
+        }
+      };
+
+      if (this.activeCount < this.maxConcurrent) {
+        void execute();
+      } else {
+        this.queue.push(execute);
+      }
+    });
+  }
+
+  private next() {
+    if (this.activeCount < this.maxConcurrent && this.queue.length > 0) {
+      const nextTask = this.queue.shift();
+      if (nextTask) void nextTask();
+    }
   }
 
   peek(basketId: string, timeframe: BasketTimeframe = "30d", amount = 1000): BasketPerformance | null {
@@ -38,7 +81,7 @@ class BasketPerformanceClient {
     const existingPromise = this.inFlight.get(key);
     if (existingPromise) return existingPromise;
 
-    const operation = (async () => {
+    const operation = this.enqueue(async () => {
       try {
         const params = new URLSearchParams({
           id: basketId,
@@ -65,7 +108,7 @@ class BasketPerformanceClient {
         }
 
         const res = await fetch(`/api/baskets/performance?${params.toString()}`, {
-          signal: signal ?? AbortSignal.timeout(10_000),
+          signal: signal ?? AbortSignal.timeout(8_000),
         });
 
         if (!res.ok) {
@@ -74,18 +117,19 @@ class BasketPerformanceClient {
 
         const data: BasketPerformance = await res.json();
 
-        // 10 minutes cache for historical timeframes, 1 minute for 24h
-        const ttlMs = timeframe === "24h" ? 60_000 : 600_000;
+        // 1 hour cache for historical timeframes, 1 minute for 24h
+        const ttlMs = timeframe === "24h" ? 60_000 : 3600_000;
         this.cache.set(key, {
           performance: data,
           expiresAt: Date.now() + ttlMs,
         });
 
+        this.notify();
         return data;
       } finally {
         this.inFlight.delete(key);
       }
-    })();
+    });
 
     this.inFlight.set(key, operation);
     return operation;

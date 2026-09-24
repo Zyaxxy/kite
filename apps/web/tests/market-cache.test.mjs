@@ -90,6 +90,15 @@ function cache({ getCatalog = async () => snapshot(), getMarkets } = {}) {
           setRedisCatalog: async () => undefined,
         };
       }
+      if (name === "./disk-cache") {
+        return {
+          isDiskCacheConfigured: () => false,
+          getDiskMarketSnapshot: async () => null,
+          setDiskMarketSnapshot: async () => undefined,
+          getDiskCatalog: async () => null,
+          setDiskCatalog: async () => undefined,
+        };
+      }
       assert.equal(name, "@kite/sdk");
       return {
         resolveReviewedMarketBaskets: sdk.resolveReviewedMarketBaskets,

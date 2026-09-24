@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   fetchBasketHistoricalPerformance,
   calculateBasket24hGrowth,
+  resolveCanonicalBasket,
   type BasketTimeframe,
   type BasketPerformance,
 } from "@kite/sdk";
@@ -114,21 +115,40 @@ export async function GET(request: Request | NextRequest) {
   }
 
   const calculatePromise = (async (): Promise<BasketPerformance> => {
-    const markets = await getServerMarketCatalog();
-    let basket = markets.baskets.find((b) => b.id.toLowerCase() === basketId.toLowerCase());
+    // 1. Resolve canonical baskets in 0ms without any network calls
+    let basket = resolveCanonicalBasket(basketId);
 
-    // Support user-created custom baskets passed via allocations
+    // 2. Support user-created custom baskets passed via allocations in 0ms
     if (!basket && rawAllocations) {
       const parts = rawAllocations.split(",").map((p) => p.trim()).filter(Boolean);
       const members = parts
         .map((part) => {
           const [sym, weightStr] = part.split(":");
-          const asset = markets.assets.find(
-            (a) =>
-              (a.underlyingSymbol || a.symbol).toUpperCase() === (sym || "").toUpperCase() ||
-              a.mint === sym,
-          );
-          return asset ? { asset, weight: Number(weightStr) || 2500 } : null;
+          const symbol = (sym || "").trim().toUpperCase();
+          if (!symbol) return null;
+          return {
+            asset: {
+              mint: `custom-${symbol.toLowerCase()}`,
+              symbol,
+              underlyingSymbol: symbol,
+              name: symbol,
+              issuer: "xstocks" as const,
+              kind: "equity" as const,
+              verified: true,
+              tradingHalted: false,
+              priceUsd: null,
+              change24hPct: null,
+              decimals: 8,
+              logoUrl: null,
+              volume24hUsd: null,
+              liquidityUsd: null,
+              marketCapUsd: null,
+              updatedAt: null,
+              priceObservedAt: null,
+              sourceUrl: "https://api.xstocks.fi/api/v2/public/assets",
+            },
+            weight: Number(weightStr) || 2500,
+          };
         })
         .filter((item): item is NonNullable<typeof item> => Boolean(item));
 
@@ -146,9 +166,24 @@ export async function GET(request: Request | NextRequest) {
       }
     }
 
+    // 3. Fallback: check dynamic catalog only if not canonical and no allocations provided
+    if (!basket) {
+      try {
+        const markets = await getServerMarketCatalog();
+        basket = markets.baskets.find((b) => b.id.toLowerCase() === basketId.toLowerCase()) ?? null;
+      } catch {
+        // Non-blocking fallback
+      }
+    }
+
     if (!basket) {
       throw new Error("NOT_FOUND");
     }
+
+    const timeoutSignal = AbortSignal.timeout(8_000);
+    const effectiveSignal = request.signal
+      ? AbortSignal.any([request.signal, timeoutSignal])
+      : timeoutSignal;
 
     let performance: BasketPerformance;
     if (timeframe === "24h") {
@@ -158,12 +193,12 @@ export async function GET(request: Request | NextRequest) {
         basket,
         timeframe,
         baseAmountUsd: amount,
-        options: { signal: request.signal },
+        options: { signal: effectiveSignal },
       });
     }
 
-    // Cache the verified calculation: 15 mins for historical timeframes, 1 min for 24h
-    const ttlSeconds = timeframe === "24h" ? 60 : 900;
+    // Cache the verified calculation: 1 hour (3600s) for historical timeframes, 1 min for 24h
+    const ttlSeconds = timeframe === "24h" ? 60 : 3600;
     setMemoryCached(cacheKey, performance, ttlSeconds * 1000);
     void setRedisBasketPerformance(cacheKey, performance, ttlSeconds);
 

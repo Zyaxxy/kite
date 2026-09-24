@@ -172,8 +172,7 @@ async function request(url: string, options: MarketOptions): Promise<unknown> {
   let response = await (options.fetcher ?? fetch)(url, {
     headers,
     signal: requestSignal(options),
-    cache: "no-store",
-  } as RequestInit);
+  });
   // Jupiter shares its short rate-limit window across Tokens and Price requests.
   // Respect the actual reset; retrying a full catalog after one second loses whole batches.
   if (response.status === 429) {
@@ -194,8 +193,7 @@ async function request(url: string, options: MarketOptions): Promise<unknown> {
     response = await (options.fetcher ?? fetch)(url, {
       headers,
       signal: requestSignal(options),
-      cache: "no-store",
-    } as RequestInit);
+    });
   }
   if (!response.ok)
     throw new Error(`Market provider returned HTTP ${response.status}`);
@@ -338,7 +336,7 @@ async function getPrestockProducts(options: MarketOptions): Promise<Row[]> {
     return prestockProductsCache.products;
   const response = await (options.fetcher ?? fetch)(
     "https://prestocks.com/products",
-    { signal: requestSignal(options), cache: "no-store" } as RequestInit,
+    { signal: requestSignal(options) },
   );
   if (!response.ok)
     throw new Error("PreStocks product metadata is unavailable");
@@ -455,174 +453,234 @@ function parsePrestockProducts(html: string): Row[] {
   return products;
 }
 
+export interface BasketConstituentDefinition {
+  id: string;
+  name: string;
+  ticker: string;
+  category: MarketBasket["category"];
+  description: string;
+  symbols: string[];
+  issuer: MarketAsset["issuer"];
+}
+
+export const CANONICAL_BASKET_DEFINITIONS: BasketConstituentDefinition[] = [
+  {
+    id: "sol-ai-infra",
+    name: "Intelligence Layer",
+    ticker: "SOL-AI",
+    category: "technology",
+    description:
+      "Compute and cloud platforms behind artificial intelligence. Equal allocations across five companies.",
+    symbols: ["NVDA", "MSFT", "GOOGL", "AMZN", "ORCL"],
+    issuer: "xstocks",
+  },
+  {
+    id: "sol-chips",
+    name: "The Silicon Stack",
+    ticker: "SOL-CHIPS",
+    category: "technology",
+    description:
+      "From chip design to fabrication and lithography: five links in the semiconductor supply chain, equally weighted.",
+    symbols: ["NVDA", "AMD", "AVGO", "TSM", "ASML"],
+    issuer: "xstocks",
+  },
+  {
+    id: "sol-cloud",
+    name: "Work in the Cloud",
+    ticker: "SOL-CLOUD",
+    category: "technology",
+    description:
+      "Enterprise software, databases and business workflows. Equal allocations across Microsoft, Salesforce, Oracle and ServiceNow.",
+    symbols: ["MSFT", "CRM", "ORCL", "NOW"],
+    issuer: "xstocks",
+  },
+  {
+    id: "sol-everyday",
+    name: "Everyday Economy",
+    ticker: "SOL-LIFE",
+    category: "consumer",
+    description:
+      "Devices, shopping, meals and drinks that connect companies to everyday spending. Five equal allocations.",
+    symbols: ["AAPL", "AMZN", "MCD", "SBUX", "KO"],
+    issuer: "xstocks",
+  },
+  {
+    id: "sol-health",
+    name: "Health, Ahead",
+    ticker: "SOL-HEALTH",
+    category: "healthcare",
+    description:
+      "Medicines, medical products and healthcare services. Equal exposure across five healthcare companies.",
+    symbols: ["LLY", "JNJ", "ABBV", "UNH", "MRK"],
+    issuer: "xstocks",
+  },
+  {
+    id: "sol-finance",
+    name: "Money in Motion",
+    ticker: "SOL-FIN",
+    category: "finance",
+    description:
+      "Banking, capital markets and payment networks. Four equal allocations to the infrastructure of finance.",
+    symbols: ["JPM", "GS", "V", "MA"],
+    issuer: "xstocks",
+  },
+  {
+    id: "sol-defense",
+    name: "Strategic Systems",
+    ticker: "SOL-DEF",
+    category: "industrials",
+    description:
+      "Aerospace, defense systems and data software. Equal allocations across Lockheed Martin, RTX, Northrop Grumman and Palantir.",
+    symbols: ["LMT", "RTX", "NOC", "PLTR"],
+    issuer: "xstocks",
+  },
+  {
+    id: "sol-energy",
+    name: "Energy Backbone",
+    ticker: "SOL-ENERGY",
+    category: "energy",
+    description:
+      "Three energy producers with equal allocations. A focused energy thesis with exposure to commodity cycles.",
+    symbols: ["XOM", "CVX", "COP"],
+    issuer: "xstocks",
+  },
+  {
+    id: "sol-industry",
+    name: "Built to Move",
+    ticker: "SOL-BUILD",
+    category: "industrials",
+    description:
+      "Machinery, agriculture, aerospace and industrial systems. Equal allocations to Caterpillar, Deere, GE Aerospace and Honeywell.",
+    symbols: ["CAT", "DE", "GE", "HON"],
+    issuer: "xstocks",
+  },
+  {
+    id: "sol-core",
+    name: "A Wider Lens",
+    ticker: "SOL-CORE",
+    category: "diversified",
+    description:
+      "Equal allocations to S&P 500, Nasdaq-100 and gold exposure through issuer-listed ETF tokens. Index holdings overlap.",
+    symbols: ["SPY", "QQQ", "GLD"],
+    issuer: "xstocks",
+  },
+  {
+    id: "sol-pre-stocks",
+    name: "Private Frontiers",
+    ticker: "SOL-PRE",
+    category: "private",
+    description:
+      "Equal allocations across the currently published PreStocks catalog. Private company exposure carries distinct risks.",
+    symbols: [],
+    issuer: "prestocks",
+  },
+];
+
+export const REVIEWED_BASKET_DEFINITIONS: BasketConstituentDefinition[] = [
+  {
+    id: "sol-digital-leaders",
+    name: "Digital Leaders",
+    ticker: "SOL-DIGITAL",
+    category: "technology",
+    description:
+      "Three equal allocations to Apple, Microsoft and NVIDIA. A focused selection from the largest technology companies.",
+    symbols: ["AAPL", "MSFT", "NVDA"],
+    issuer: "xstocks",
+  },
+  {
+    id: "sol-ai-focused",
+    name: "AI Platforms",
+    ticker: "SOL-AI3",
+    category: "technology",
+    description:
+      "NVIDIA, Alphabet and Amazon, equally weighted. A focused selection across AI compute and cloud platforms.",
+    symbols: ["NVDA", "GOOGL", "AMZN"],
+    issuer: "xstocks",
+  },
+  {
+    id: "sol-everyday-focused",
+    name: "Everyday Essentials",
+    ticker: "SOL-LIFE3",
+    category: "consumer",
+    description:
+      "Apple, Amazon and Coca-Cola, equally weighted. Three companies spanning devices, shopping and everyday consumption.",
+    symbols: ["AAPL", "AMZN", "KO"],
+    issuer: "xstocks",
+  },
+  CANONICAL_BASKET_DEFINITIONS.find((definition) => definition.id === "sol-core")!,
+];
+
+/** Resolves a canonical basket definition into a MarketBasket in 0ms without external requests. */
+export function resolveCanonicalBasket(id: string): MarketBasket | null {
+  const normId = id.trim().toLowerCase();
+  const allDefs = [
+    ...REVIEWED_BASKET_DEFINITIONS,
+    ...CANONICAL_BASKET_DEFINITIONS.filter((d) => d.id !== "sol-core"),
+  ];
+  const def = allDefs.find(
+    (d) => d.id.toLowerCase() === normId || d.ticker.toLowerCase() === normId,
+  );
+  if (!def || !def.symbols.length) return null;
+  const count = def.symbols.length;
+  const assets = def.symbols.map((symbol, index) => ({
+    asset: {
+      mint: `mint-${symbol.toLowerCase()}`,
+      symbol,
+      underlyingSymbol: symbol,
+      name: symbol,
+      issuer: def.issuer,
+      kind: "equity" as const,
+      verified: true,
+      tradingHalted: false,
+      priceUsd: null,
+      change24hPct: null,
+      decimals: 8,
+      logoUrl: null,
+      volume24hUsd: null,
+      liquidityUsd: null,
+      marketCapUsd: null,
+      updatedAt: null,
+      priceObservedAt: null,
+      sourceUrl: "https://api.xstocks.fi/api/v2/public/assets",
+    },
+    weight: Math.floor(10_000 / count) + (index < 10_000 % count ? 1 : 0),
+  }));
+  return {
+    id: def.id,
+    name: def.name,
+    ticker: def.ticker,
+    category: def.category,
+    description: def.description,
+    assets,
+    available: true,
+    missingSymbols: [],
+  };
+}
+
 /** Canonical baskets also back devnet test plans; never silently rewrite their IDs. */
 export function resolveMarketBaskets(
   assets: MarketAsset[],
   options: { reviewedOnly?: boolean; includeAll?: boolean } = {},
 ): MarketBasket[] {
-  const definitions: Array<{
-    id: string;
-    name: string;
-    ticker: string;
-    description: string;
-    symbols: string[];
-    issuer: MarketAsset["issuer"];
-    category: MarketBasket["category"];
-  }> = [
-    {
-      id: "sol-ai-infra",
-      name: "Intelligence Layer",
-      ticker: "SOL-AI",
-      category: "technology",
-      description:
-        "Compute and cloud platforms behind artificial intelligence. Equal allocations across five companies.",
-      symbols: ["NVDA", "MSFT", "GOOGL", "AMZN", "ORCL"],
-      issuer: "xstocks",
-    },
-    {
-      id: "sol-chips",
-      name: "The Silicon Stack",
-      ticker: "SOL-CHIPS",
-      category: "technology",
-      description:
-        "From chip design to fabrication and lithography: five links in the semiconductor supply chain, equally weighted.",
-      symbols: ["NVDA", "AMD", "AVGO", "TSM", "ASML"],
-      issuer: "xstocks",
-    },
-    {
-      id: "sol-cloud",
-      name: "Work in the Cloud",
-      ticker: "SOL-CLOUD",
-      category: "technology",
-      description:
-        "Enterprise software, databases and business workflows. Equal allocations across Microsoft, Salesforce, Oracle and ServiceNow.",
-      symbols: ["MSFT", "CRM", "ORCL", "NOW"],
-      issuer: "xstocks",
-    },
-    {
-      id: "sol-everyday",
-      name: "Everyday Economy",
-      ticker: "SOL-LIFE",
-      category: "consumer",
-      description:
-        "Devices, shopping, meals and drinks that connect companies to everyday spending. Five equal allocations.",
-      symbols: ["AAPL", "AMZN", "MCD", "SBUX", "KO"],
-      issuer: "xstocks",
-    },
-    {
-      id: "sol-health",
-      name: "Health, Ahead",
-      ticker: "SOL-HEALTH",
-      category: "healthcare",
-      description:
-        "Medicines, medical products and healthcare services. Equal exposure across five healthcare companies.",
-      symbols: ["LLY", "JNJ", "ABBV", "UNH", "MRK"],
-      issuer: "xstocks",
-    },
-    {
-      id: "sol-finance",
-      name: "Money in Motion",
-      ticker: "SOL-FIN",
-      category: "finance",
-      description:
-        "Banking, capital markets and payment networks. Four equal allocations to the infrastructure of finance.",
-      symbols: ["JPM", "GS", "V", "MA"],
-      issuer: "xstocks",
-    },
-    {
-      id: "sol-defense",
-      name: "Strategic Systems",
-      ticker: "SOL-DEF",
-      category: "industrials",
-      description:
-        "Aerospace, defense systems and data software. Equal allocations across Lockheed Martin, RTX, Northrop Grumman and Palantir.",
-      symbols: ["LMT", "RTX", "NOC", "PLTR"],
-      issuer: "xstocks",
-    },
-    {
-      id: "sol-energy",
-      name: "Energy Backbone",
-      ticker: "SOL-ENERGY",
-      category: "energy",
-      description:
-        "Three energy producers with equal allocations. A focused energy thesis with exposure to commodity cycles.",
-      symbols: ["XOM", "CVX", "COP"],
-      issuer: "xstocks",
-    },
-    {
-      id: "sol-industry",
-      name: "Built to Move",
-      ticker: "SOL-BUILD",
-      category: "industrials",
-      description:
-        "Machinery, agriculture, aerospace and industrial systems. Equal allocations to Caterpillar, Deere, GE Aerospace and Honeywell.",
-      symbols: ["CAT", "DE", "GE", "HON"],
-      issuer: "xstocks",
-    },
-    {
-      id: "sol-core",
-      name: "A Wider Lens",
-      ticker: "SOL-CORE",
-      category: "diversified",
-      description:
-        "Equal allocations to S&P 500, Nasdaq-100 and gold exposure through issuer-listed ETF tokens. Index holdings overlap.",
-      symbols: ["SPY", "QQQ", "GLD"],
-      issuer: "xstocks",
-    },
-    {
-      id: "sol-pre-stocks",
-      name: "Private Frontiers",
-      ticker: "SOL-PRE",
-      category: "private",
-      description:
-        "Equal allocations across the currently published PreStocks catalog. Private company exposure carries distinct risks.",
-      symbols: [
-        ...new Set(
-          assets
-            .filter(
-              (asset) => asset.issuer === "prestocks" && !asset.tradingHalted,
-            )
-            .map((asset) => asset.underlyingSymbol),
-        ),
-      ].sort(),
-      issuer: "prestocks",
-    },
-  ];
-  // New IDs keep existing paper/devnet plans tied to their original allocations.
-  // Mainnet publishes only the subsets reviewed in docs/basket-liquidity-audit.md.
-  const reviewed: typeof definitions = [
-    {
-      id: "sol-digital-leaders",
-      name: "Digital Leaders",
-      ticker: "SOL-DIGITAL",
-      category: "technology",
-      description:
-        "Three equal allocations to Apple, Microsoft and NVIDIA. A focused selection from the largest technology companies.",
-      symbols: ["AAPL", "MSFT", "NVDA"],
-      issuer: "xstocks",
-    },
-    {
-      id: "sol-ai-focused",
-      name: "AI Platforms",
-      ticker: "SOL-AI3",
-      category: "technology",
-      description:
-        "NVIDIA, Alphabet and Amazon, equally weighted. A focused selection across AI compute and cloud platforms.",
-      symbols: ["NVDA", "GOOGL", "AMZN"],
-      issuer: "xstocks",
-    },
-    {
-      id: "sol-everyday-focused",
-      name: "Everyday Essentials",
-      ticker: "SOL-LIFE3",
-      category: "consumer",
-      description:
-        "Apple, Amazon and Coca-Cola, equally weighted. Three companies spanning devices, shopping and everyday consumption.",
-      symbols: ["AAPL", "AMZN", "KO"],
-      issuer: "xstocks",
-    },
-    definitions.find((definition) => definition.id === "sol-core")!,
-  ];
+  const definitions: BasketConstituentDefinition[] = CANONICAL_BASKET_DEFINITIONS.map((def) => {
+    if (def.id === "sol-pre-stocks") {
+      return {
+        ...def,
+        symbols: [
+          ...new Set(
+            assets
+              .filter(
+                (asset) => asset.issuer === "prestocks" && !asset.tradingHalted,
+              )
+              .map((asset) => asset.underlyingSymbol),
+          ),
+        ].sort(),
+      };
+    }
+    return def;
+  });
+
+  const reviewed = REVIEWED_BASKET_DEFINITIONS;
   const sourceDefinitions = options.reviewedOnly
     ? reviewed
     : options.includeAll
