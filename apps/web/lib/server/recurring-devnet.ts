@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { PublicKey, type TransactionInstruction } from "@solana/web3.js";
+import { Keypair, PublicKey, type TransactionInstruction } from "@solana/web3.js";
 import {
   getAssociatedTokenAddressSync,
   TOKEN_PROGRAM_ID,
@@ -22,6 +22,7 @@ import {
   KITE_GUARD_PROGRAM_ID,
   MAINNET_SUBSCRIPTIONS_PROGRAM,
   resolveDevnetBasketAssets,
+  signV1Collection,
   toTokenAmount,
   validateDevnetXStockManifest,
   type DevnetGuardPlan,
@@ -34,6 +35,7 @@ import {
   assertRecurringDevnet,
   assertRecurringV1,
   authorizeRecurringTransaction,
+  executeRecurringTransaction,
   recurringAuthorizationConfigured,
   recurringDevnetRpc,
   recurringLatestBlockhash,
@@ -577,3 +579,130 @@ export async function closeDevnetRecurringPlan(input: {
     buildGuardCloseInstructions(plan, rentPayer),
   );
 }
+
+function getBotKeypair(): Keypair | null {
+  const raw =
+    process.env.BOT_KEYPAIR?.trim() ||
+    process.env.KITE_FAUCET_SECRET_KEY?.trim();
+  if (!raw) return null;
+  try {
+    if (raw.startsWith("[") && raw.endsWith("]")) {
+      return Keypair.fromSecretKey(new Uint8Array(JSON.parse(raw)));
+    }
+    if (/^[0-9a-fA-F]{128}$/.test(raw)) {
+      return Keypair.fromSecretKey(Uint8Array.from(Buffer.from(raw, "hex")));
+    }
+    return Keypair.fromSecretKey(new Uint8Array(JSON.parse(raw)));
+  } catch {
+    return null;
+  }
+}
+
+/** Executes an automated collection pass across all active devnet plans, signing and submitting any due installments. */
+export async function runDevnetCollectorPass(): Promise<{
+  scanned: number;
+  due: number;
+  collected: number;
+  skipped: number;
+  failed: number;
+  results: Array<{
+    plan: string;
+    periodIndex: number;
+    signature?: string;
+    status?: string;
+    error?: string;
+  }>;
+}> {
+  const botKeypair = getBotKeypair();
+  if (!botKeypair) {
+    throw new Error(
+      "No BOT_KEYPAIR or KITE_FAUCET_SECRET_KEY configured on the server to pay gas fees.",
+    );
+  }
+
+  await assertRecurringDevnet();
+  const [nowSeconds, accounts] = await Promise.all([
+    chainNow(),
+    recurringDevnetRpc<
+      Array<{ pubkey: string; account: NonNullable<RpcAccount> }>
+    >("getProgramAccounts", [
+      GUARD_PROGRAM,
+      {
+        encoding: "base64",
+        commitment: "confirmed",
+        filters: [{ dataSize: 1045 }],
+      },
+    ]),
+  ]);
+
+  let collected = 0;
+  let skipped = 0;
+  let failed = 0;
+  const results: Array<{
+    plan: string;
+    periodIndex: number;
+    signature?: string;
+    status?: string;
+    error?: string;
+  }> = [];
+
+  for (const { pubkey, account } of accounts) {
+    let plan: DevnetGuardPlan;
+    try {
+      plan = decodeGuardPlan(Buffer.from(account.data[0], "base64"), pubkey);
+    } catch {
+      continue;
+    }
+
+    let duePeriodIndex: number;
+    try {
+      duePeriodIndex = guardDuePeriod(plan, nowSeconds);
+    } catch {
+      skipped++;
+      continue;
+    }
+
+    try {
+      const prepared = await collectDevnetRecurringPlan({
+        plan: pubkey,
+        feePayer: botKeypair.publicKey.toBase58(),
+        expectedPeriodIndex: duePeriodIndex,
+      });
+
+      const signedTransaction = await signV1Collection(
+        prepared.transaction,
+        botKeypair.secretKey,
+      );
+
+      const execResult = await executeRecurringTransaction({
+        authorization: prepared.authorization,
+        signedTransaction,
+      });
+
+      results.push({
+        plan: pubkey,
+        periodIndex: duePeriodIndex,
+        signature: execResult.signature,
+        status: execResult.status,
+      });
+      collected++;
+    } catch (e: unknown) {
+      results.push({
+        plan: pubkey,
+        periodIndex: duePeriodIndex,
+        error: e instanceof Error ? e.message : "Failed to collect plan",
+      });
+      failed++;
+    }
+  }
+
+  return {
+    scanned: accounts.length,
+    due: collected + failed,
+    collected,
+    skipped,
+    failed,
+    results,
+  };
+}
+

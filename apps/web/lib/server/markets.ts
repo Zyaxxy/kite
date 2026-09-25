@@ -78,8 +78,10 @@ export async function getServerMarketCatalog(): Promise<MarketSnapshot> {
         Date.now() + (value.status === "unavailable" ? 5_000 : CATALOG_TTL),
     };
     if (value.assets.length && value.assets.some((a) => a.issuer === "xstocks")) {
-      void setRedisCatalog(value, 86400);
-      void setDiskCatalog(value);
+      await Promise.allSettled([
+        setRedisCatalog(value, 86400),
+        setDiskCatalog(value),
+      ]);
     }
     return value;
   })().finally(() => {
@@ -161,6 +163,16 @@ function refresh(initial?: MarketSnapshot): Promise<MarketSnapshot> {
     });
     publish(value);
     if (
+      value.status !== "unavailable" &&
+      value.assets.some((a) => a.issuer === "xstocks") &&
+      cached?.value
+    ) {
+      await Promise.allSettled([
+        setRedisMarketSnapshot(cached.value, 86400),
+        setDiskMarketSnapshot(cached.value),
+      ]);
+    }
+    if (
       includePriceReferences &&
       (value.sources.includes("Jupiter Price V3") ||
         value.sources.includes("Pyth Network Oracles"))
@@ -219,7 +231,7 @@ export async function getServerMarkets(
         fromRedis.assets.some((a) => a.issuer === "xstocks")
       ) {
         const age = Math.max(0, Date.now() - new Date(fromRedis.asOf).getTime());
-        const remainingTtl = Math.max(0, PRICE_TTL - age);
+        const remainingTtl = age < PRICE_TTL ? PRICE_TTL - age : 5_000;
         cached = {
           value: fromRedis,
           expiresAt: Date.now() + remainingTtl,
@@ -241,7 +253,7 @@ export async function getServerMarkets(
         fromDisk.assets.some((a) => a.issuer === "xstocks")
       ) {
         const age = Math.max(0, Date.now() - new Date(fromDisk.asOf).getTime());
-        const remainingTtl = Math.max(0, PRICE_TTL - age);
+        const remainingTtl = age < PRICE_TTL ? PRICE_TTL - age : 5_000;
         cached = {
           value: fromDisk,
           expiresAt: Date.now() + remainingTtl,
@@ -252,7 +264,7 @@ export async function getServerMarkets(
     }
   }
 
-  const identity = cached ? undefined : await getServerMarketCatalog();
+  const identity = cached ? cached.value : await getServerMarketCatalog();
   if (identity && !identity.assets.length)
     return { ...identity, refreshing: false };
   const task = refresh(identity);

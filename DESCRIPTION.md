@@ -1,69 +1,57 @@
 # Kite: Non-Custodial Neo-Brokerage on Solana
 
-Kite is a self-custody interface for tokenized equities on Solana. It brings the core wealth-building engine of traditional finance—**1-click thematic index baskets, custom programmable baskets, and automated recurring investing (SIP / DCA)**—directly on-chain with zero central vaults, zero synthetic wrappers, and instant sub-second settlement.
+Kite brings traditional finance's core wealth engine—**automated recurring investing (SIP / DCA)** and **thematic index baskets**—to Solana with 100% self-custody, zero vaults, and instant settlement across **Web & Mobile (iOS / Android / Solana Saga & Seeker)**.
 
 ---
 
 ## The Problem
 
-Over 90% of retail wealth in traditional finance is built through automated recurring contributions (401k / SIP) into diversified index baskets. Yet global retail investors face massive barriers:
-- **TradFi Exclusion:** High minimums ($25k+), US SSN requirements, and multi-week wiring exclude billions worldwide.
-- **Crypto Wealth Gap:** Users are stuck in emotional trading; building an equity portfolio on-chain requires multiple manual swaps with high slippage and persistent token dust.
-- **Custodial Wrapper Risk:** Existing index tokens rely on synthetic wrappers or centralized vaults vulnerable to exploits.
+Over 90% of retail wealth in traditional finance is built through automated recurring contributions (401k / SIP) into index baskets. Yet Web3 lacks self-custody wealth rails:
+- **No Non-Custodial Recurring:** Recurring DCA in crypto meant giving up custody to CEXs or doing repetitive high-slippage manual swaps.
+- **TradFi Exclusion:** High minimums ($25k+) and US SSN rules exclude 4.5B people.
+- **Custodial Wrapper Risk:** Existing index tokens rely on centralized vaults vulnerable to exploits.
 
 ---
 
 ## The Solution: Kite
 
-### 1. 11 Curated Thematic Stock Baskets
-Invest in curated baskets from $1 in a single atomic transaction. *(Note: A 7-asset MAG7 basket is excluded due to Solana's 64-account tx limit; `SOL-DIGITAL` serves as the liquid 3-asset mega-cap alternative for guaranteed atomic execution without ALTs).*
-- `SOL-DIGITAL` (Tech Leaders: AAPL, MSFT, NVDA)
-- `SOL-AI` (AI Infrastructure: NVDA, MSFT, GOOGL, AMZN, ORCL)
-- `SOL-CHIPS` (Semiconductors: NVDA, AMD, AVGO, TSM, ASML)
-- `SOL-CLOUD` (Enterprise Cloud: MSFT, CRM, ORCL, NOW)
-- `SOL-LIFE` (Everyday Economy: AAPL, AMZN, MCD, SBUX, KO)
-- `SOL-HEALTH` (Healthcare: LLY, JNJ, ABBV, UNH, MRK)
-- `SOL-FIN` (Financial Rails: JPM, GS, V, MA)
-- `SOL-DEF` (Defense: LMT, RTX, NOC, PLTR)
-- `SOL-ENERGY` (Energy: XOM, CVX, COP)
-- `SOL-BUILD` (Industrials: CAT, DE, GE, HON)
-- `SOL-CORE` (Macro: SPY, QQQ, GLD)
-- `SOL-PRE` (Pre-IPO: Dynamic PreStocks catalog)
+### 1. Flagship Engine: Automated Recurring Investing (SIP / DCA)
+Kite's core innovation is **100% Non-Custodial Recurring Investing** on Solana. Users dollar-cost average into individual stocks, curated baskets, or custom portfolios without locking funds in any vault:
+- **Solana Subscriptions:** Users grant a revocable, budget-capped recurring delegation via official Solana Subscriptions (`De1eg...`) to a dedicated plan PDA.
+- **Anchor Contract (`kite_guard`):** Deployed on devnet (`8Fm9...`). Keepers pay gas to trigger due installments with zero withdrawal or redirect authority.
+- **Atomic Execution & Direct Delivery:** Guard pulls funds via Subscriptions CPI, allocates using **Hare-Niemeyer BigInt math**, and delivers tokenized equities directly to user ATAs.
+- **Fail-Closed Safety:** Transient staging balances must return strictly to zero or the installment reverts.
+- **Flexible Cadence & Clean Exit:** Daily, weekly, bi-weekly, or monthly intervals with month-end clamping (Feb 28/30). Cancel anytime; `close_plan` reclaims 100% of rent lamports.
 
 ### 2. Custom Basket Builder & Social Sharing
-Investors can compose, share, and automate personal portfolios:
-- **Build Custom Baskets:** Pick 2–4 verified equities/ETFs, safely adhering to Solana's 64-account limit for guaranteed single-tx atomic execution.
-- **Hare-Niemeyer Zero-Dust Math:** Uses the **Hare-Niemeyer (Largest Remainder) algorithm in BigInt arithmetic** to allocate exact basis points (10,000 bps) with zero fractional dust leakage (equal-weight, market-cap, or custom bps).
-- **Shareable Links:** Custom baskets encode into compact URL-safe share links (`encodeBasketShareCode`) with creator name and social handles (`@handle`). Anyone can view, paper trade, fork, or buy in 1 click.
-- **Drift Monitoring & Rebalance:** Real-time drift tracking against target basis points with configurable rebalance thresholds.
+- **Build Custom Baskets:** Compose 2–4 verified equities/ETFs under Solana's 64-account limit for guaranteed single-tx atomic execution.
+- **Hare-Niemeyer Zero-Dust Math:** Uses the **Hare-Niemeyer (Largest Remainder) algorithm in BigInt arithmetic** for exact 10,000 bps distribution with zero dust leakage (equal, market-cap, or custom bps).
+- **Shareable Links:** Generates compact URL-safe links (`encodeBasketShareCode`) with creator name and social handles (`@handle`). Anyone can view, paper trade, fork, or execute with 1 click.
+- **Drift Monitoring:** Tracks live drift against target weights with configurable rebalance thresholds.
 
-### 3. Direct Wallet Delivery & Recurring Investing (SIP / DCA)
-- **Direct Wallet Delivery:** Baskets are allocation definitions, not synthetic tokens. Underlying equities land directly in user ATAs with zero intermediate vaults or wrap fees.
-- **Solana Subscriptions + Kite Guard:** Recurring plans delegate to a plan PDA via official Solana Subscriptions (`De1eg...`). Keepers execute swaps through Raydium CPMM directly to owner ATAs; transient balances must return to zero or the leg reverts.
+### 3. 11 Curated Thematic Stock Baskets
+Invest in curated baskets from $1 in a single atomic transaction. Baskets are **allocation definitions, not synthetic tokens**—equities settle directly in user ATAs with zero wrap fees.
+- **11 Baskets:** `SOL-DIGITAL` (Tech), `SOL-AI` (AI), `SOL-CHIPS` (Semis), `SOL-CLOUD` (Cloud), `SOL-LIFE` (Consumer), `SOL-HEALTH` (Health), `SOL-FIN` (Finance), `SOL-DEF` (Defense), `SOL-ENERGY` (Energy), `SOL-BUILD` (Industrials), `SOL-CORE` (Macro ETFs), and `SOL-PRE` (Pre-IPO).
 
-### 4. Dual Trading Modes & 5-Tab Research Suite
-- **$10k Paper Sandbox:** Simulates swaps, baskets, custom portfolios, and recurring plans at real prices.
-- **Live Mainnet Trading:** Non-custodial trading via Phantom, Solflare, or Privy embedded wallets via Jupiter Swap V2.
-- **5-Tab Research Suite:** 1-year OHLCV charts with SVG scrubbing, SMA 20/50/200, RSI-14, quarterly/annual fundamentals, live Google News RSS proxy, dividends, and filings.
+### 4. Cross-Platform: Web & Mobile Apps (In Active Development)
+- **Web dApp:** Next.js 15 App Router dApp with responsive trading, research, and Privy social login.
+- **Mobile App (In Active Development):** React Native / Expo dApp supporting **Solana Mobile Wallet Adapter (MWA)** for 1-tap signing with Phantom, Solflare, and Seed Vault on Android / Solana Saga & Seeker, plus Privy on iOS.
+
+### 5. Dual Trading Modes & 5-Tab Stock Research
+- **$10k Paper Sandbox:** Simulates recurring SIPs, swaps, and custom baskets at real prices.
+- **Live Mainnet Trading:** Non-custodial trading via Phantom, Solflare, or Privy via Jupiter Swap V2.
+- **5-Tab Research Suite:** 1-year OHLCV charts with SVG scrubbing, SMA/RSI technicals, fundamentals, Google News RSS proxy, and SEC filings.
 
 ---
 
 ## Hackathon Bounty Integrations
-
-- **PreStocks ($10k Bounty):** Integrates the official PreStocks API (`https://prestocks.com/api/prestocks`) to power `SOL-PRE`, enabling 1-click exposure to tokenized pre-IPO private equities with strict compliance.
-- **Pyth Market Data:** Real-time Pyth equity feeds power reference pricing and our **Fail-Closed Safety Invariant**—trades cleanly block if DEX quotes deviate from Pyth or an asset halts.
-
----
-
-## Technical Architecture & Readiness
-
-- **Shared SDK (`@kite/sdk`):** Monorepo TypeScript core with **176 automated passing tests** (+ 86 web integration tests; 260+ tests overall).
-- **Smart Contract (`kite_guard`):** Deployed on Solana devnet (`8Fm9HENPAFnyo6L8cHJFx62HHsZ6ez6CPUDuzgKAzrjs`).
-- **Cross-Platform:** Next.js 15 App Router web dApp + Expo React Native mobile client (Solana Mobile Wallet Adapter on Saga/Seeker).
+- **PreStocks ($10k Bounty):** Integrates PreStocks API (`https://prestocks.com/api/prestocks`) to power `SOL-PRE` for 1-click tokenized pre-IPO tech equities.
+- **Pyth Market Data:** Pyth oracle feeds power reference pricing and our **Fail-Closed Safety Invariant**—trades cleanly block if DEX quotes deviate from Pyth.
 
 ---
 
-## Links
-
+## Technical Readiness & Links
+- **Shared SDK (`@kite/sdk`):** Monorepo core with **176 automated passing tests** (+ 86 web integration tests; 260+ tests overall).
+- **Smart Contract (`kite_guard`):** Anchor program on Solana devnet (`8Fm9HENPAFnyo6L8cHJFx62HHsZ6ez6CPUDuzgKAzrjs`).
 - **Live Demo:** [https://kite.runs-on.dev](https://kite.runs-on.dev)
 - **GitHub:** [https://github.com/Zyaxxy/kite](https://github.com/Zyaxxy/kite)
