@@ -646,7 +646,14 @@ export async function runDevnetCollectorPass(): Promise<{
     error?: string;
   }> = [];
 
+  const startedAt = Date.now();
+  // Safe deadline for external 30s cron providers (e.g. cron-job.org)
+  const MAX_PASS_DURATION_MS = 20_000;
+
   for (const { pubkey, account } of accounts) {
+    if (Date.now() - startedAt > MAX_PASS_DURATION_MS) {
+      break;
+    }
     let plan: DevnetGuardPlan;
     try {
       plan = decodeGuardPlan(Buffer.from(account.data[0], "base64"), pubkey);
