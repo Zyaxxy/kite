@@ -264,6 +264,12 @@ export async function getServerMarkets(
     }
   }
 
+  // If cached data was loaded from Redis or Disk, return it immediately if fresh
+  if (cached && cached.expiresAt > Date.now()) {
+    if (pending) options.waitUntil?.(pending.catch(() => undefined));
+    return { ...cached.value, refreshing: Boolean(pending) };
+  }
+
   const identity = cached ? cached.value : await getServerMarketCatalog();
   if (identity && !identity.assets.length)
     return { ...identity, refreshing: false };
