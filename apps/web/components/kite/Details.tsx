@@ -20,7 +20,11 @@ import {
   Scale,
   RefreshCw,
 } from "lucide-react";
-import { encodeBasketShareCode, calculateBasketRebalance, formatSocialUrl } from "@kite/sdk";
+import {
+  encodeBasketShareCode,
+  calculateBasketRebalance,
+  formatSocialUrl,
+} from "@kite/sdk";
 import { useKite } from "./State";
 import type { MarketAsset } from "@kite/sdk";
 import {
@@ -352,7 +356,8 @@ export function StockDetail({ symbol }: { symbol: string }) {
                   }}
                 >
                   <span>
-                    Underlying share: <strong>{money(asset.underlyingPriceUsd)}</strong>
+                    Underlying share:{" "}
+                    <strong>{money(asset.underlyingPriceUsd)}</strong>
                   </span>
                   {isSignificantDivergence && (
                     <span
@@ -362,14 +367,18 @@ export function StockDetail({ symbol }: { symbol: string }) {
                         gap: 3,
                         padding: "1px 7px",
                         borderRadius: 9999,
-                        background: isPremium ? "rgba(245, 158, 11, 0.12)" : "rgba(59, 130, 246, 0.12)",
+                        background: isPremium
+                          ? "rgba(245, 158, 11, 0.12)"
+                          : "rgba(59, 130, 246, 0.12)",
                         border: `1px solid ${isPremium ? "rgba(245, 158, 11, 0.3)" : "rgba(59, 130, 246, 0.3)"}`,
                         color: isPremium ? "#fbbf24" : "#60a5fa",
                         fontSize: 10,
                         fontWeight: 600,
                       }}
                     >
-                      {isPremium ? `+${priceDivergencePct!.toFixed(1)}% Premium` : `-${priceDivergencePct!.toFixed(1)}% Discount`}
+                      {isPremium
+                        ? `+${priceDivergencePct!.toFixed(1)}% Premium`
+                        : `-${priceDivergencePct!.toFixed(1)}% Discount`}
                     </span>
                   )}
                   {asset.isRealTimePyth ? (
@@ -418,10 +427,12 @@ export function StockDetail({ symbol }: { symbol: string }) {
                   {asset.underlyingPriceUpdatedAt ? (
                     <span className="muted" style={{ fontSize: 11 }}>
                       ·{" "}
-                      {new Date(asset.underlyingPriceUpdatedAt).toLocaleTimeString(
-                        [],
-                        { hour: "2-digit", minute: "2-digit" },
-                      )}
+                      {new Date(
+                        asset.underlyingPriceUpdatedAt,
+                      ).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
                     </span>
                   ) : null}
                   <span className="muted" style={{ fontSize: 11 }}>
@@ -454,13 +465,35 @@ export function StockDetail({ symbol }: { symbol: string }) {
                 color: "#fbbf24",
               }}
             >
-              <AlertTriangle size={18} style={{ color: "#f59e0b", flexShrink: 0, marginTop: 2 }} />
+              <AlertTriangle
+                size={18}
+                style={{ color: "#f59e0b", flexShrink: 0, marginTop: 2 }}
+              />
               <div style={{ flex: 1 }}>
-                <strong style={{ color: "#fbbf24", display: "block", fontSize: 13, marginBottom: 4 }}>
-                  Price Discrepancy Warning ({priceDivergencePct!.toFixed(1)}% {isPremium ? "Premium" : "Discount"})
+                <strong
+                  style={{
+                    color: "#fbbf24",
+                    display: "block",
+                    fontSize: 13,
+                    marginBottom: 4,
+                  }}
+                >
+                  Price Discrepancy Warning ({priceDivergencePct!.toFixed(1)}%{" "}
+                  {isPremium ? "Premium" : "Discount"})
                 </strong>
-                <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: "var(--ink)", opacity: 0.9 }}>
-                  This on-chain token is trading at {money(asset.priceUsd)}, which diverges significantly from the underlying share price ({money(asset.underlyingPriceUsd)}). On-chain AMM pool prices on Solana may be distorted due to low liquidity or depegging.
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 12,
+                    lineHeight: 1.5,
+                    color: "var(--ink)",
+                    opacity: 0.9,
+                  }}
+                >
+                  This on-chain token is trading at {money(asset.priceUsd)},
+                  which diverges significantly from the underlying share price (
+                  {money(asset.underlyingPriceUsd)}). On-chain AMM pool prices
+                  on Solana may be distorted due to low liquidity or depegging.
                 </p>
               </div>
             </div>
@@ -481,13 +514,29 @@ export function StockDetail({ symbol }: { symbol: string }) {
                 color: "var(--down)",
               }}
             >
-              <AlertOctagon size={18} style={{ color: "var(--down)", flexShrink: 0, marginTop: 2 }} />
+              <AlertOctagon
+                size={18}
+                style={{ color: "var(--down)", flexShrink: 0, marginTop: 2 }}
+              />
               <div style={{ flex: 1 }}>
-                <strong style={{ display: "block", fontSize: 13, marginBottom: 4 }}>
-                  Low Pool Liquidity Warning ({compactMoney(asset.liquidityUsd)} TVL)
+                <strong
+                  style={{ display: "block", fontSize: 13, marginBottom: 4 }}
+                >
+                  Low Pool Liquidity Warning ({compactMoney(asset.liquidityUsd)}{" "}
+                  TVL)
                 </strong>
-                <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: "var(--ink)", opacity: 0.9 }}>
-                  The on-chain AMM pool on Solana has very little depth. Swaps or market orders will experience severe slippage and price impact.
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 12,
+                    lineHeight: 1.5,
+                    color: "var(--ink)",
+                    opacity: 0.9,
+                  }}
+                >
+                  The on-chain AMM pool on Solana has very little depth. Swaps
+                  or market orders will experience severe slippage and price
+                  impact.
                 </p>
               </div>
             </div>
@@ -637,31 +686,32 @@ export function StockDetail({ symbol }: { symbol: string }) {
             <p className="muted" style={{ fontSize: 11 }}>
               Invest in {asset.symbol} on your terms.
             </p>
-            {(isSignificantDivergence || isLowLiquidity) && !asset.tradingHalted && (
-              <div
-                className="notice warning"
-                style={{
-                  margin: "12px 0",
-                  padding: "10px 14px",
-                  fontSize: 11,
-                  lineHeight: 1.4,
-                  display: "flex",
-                  gap: 8,
-                  alignItems: "center",
-                  borderRadius: 8,
-                  border: "1px solid rgba(245, 158, 11, 0.35)",
-                  background: "rgba(245, 158, 11, 0.08)",
-                  color: "#fbbf24",
-                }}
-              >
-                <AlertTriangle size={14} style={{ flexShrink: 0 }} />
-                <span>
-                  {isSignificantDivergence
-                    ? `Caution: Token trades at a ${priceDivergencePct!.toFixed(1)}% ${isPremium ? "premium" : "discount"} over the real share.`
-                    : "Caution: Pool has low liquidity; large orders may slip."}
-                </span>
-              </div>
-            )}
+            {(isSignificantDivergence || isLowLiquidity) &&
+              !asset.tradingHalted && (
+                <div
+                  className="notice warning"
+                  style={{
+                    margin: "12px 0",
+                    padding: "10px 14px",
+                    fontSize: 11,
+                    lineHeight: 1.4,
+                    display: "flex",
+                    gap: 8,
+                    alignItems: "center",
+                    borderRadius: 8,
+                    border: "1px solid rgba(245, 158, 11, 0.35)",
+                    background: "rgba(245, 158, 11, 0.08)",
+                    color: "#fbbf24",
+                  }}
+                >
+                  <AlertTriangle size={14} style={{ flexShrink: 0 }} />
+                  <span>
+                    {isSignificantDivergence
+                      ? `Caution: Token trades at a ${priceDivergencePct!.toFixed(1)}% ${isPremium ? "premium" : "discount"} over the real share.`
+                      : "Caution: Pool has low liquidity; large orders may slip."}
+                  </span>
+                </div>
+              )}
             {mode === "paper" ? (
               <PaperTrade asset={asset} />
             ) : asset.tradingHalted ? (
@@ -707,8 +757,15 @@ export function StockDetail({ symbol }: { symbol: string }) {
 }
 export function BasketDetail({ id }: { id: string }) {
   const router = useRouter();
-  const basket = useBaskets().find((b) => b.id === id);
-  const { paper, mode, tradeBasket, customBaskets, deleteCustomBasket, rebalancePaper } = useKite();
+  const basket = useBaskets(id).find((b) => b.id === id);
+  const {
+    paper,
+    mode,
+    tradeBasket,
+    customBaskets,
+    deleteCustomBasket,
+    rebalancePaper,
+  } = useKite();
   const [amount, setAmount] = useState("100");
   const [review, setReview] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -731,8 +788,11 @@ export function BasketDetail({ id }: { id: string }) {
   const isCustom = Boolean(basket.isCustom);
   const customConfig = customBaskets.find((cb) => cb.id === basket.id);
   const creatorName = basket.source.creatorName || customConfig?.creatorName;
-  const creatorSocial = basket.source.creatorSocial || customConfig?.creatorSocial;
-  const formattedSocial = creatorSocial ? formatSocialUrl(creatorSocial) : undefined;
+  const creatorSocial =
+    basket.source.creatorSocial || customConfig?.creatorSocial;
+  const formattedSocial = creatorSocial
+    ? formatSocialUrl(creatorSocial)
+    : undefined;
   const audit = basket.source.liquidityAudit;
 
   const totalVolume24h = basket.assets.reduce(
@@ -743,7 +803,9 @@ export function BasketDetail({ id }: { id: string }) {
   const userHoldingsInBasket = basket.assets.map((a) => {
     const pos = paper.positions.find((p) => p.mint === a.mint);
     const price = a.priceUsd ?? 0;
-    const valMicros = BigInt(Math.round((pos?.quantity ?? 0) * price * 1_000_000));
+    const valMicros = BigInt(
+      Math.round((pos?.quantity ?? 0) * price * 1_000_000),
+    );
     return { mint: a.mint, valueUsdMicros: valMicros };
   });
 
@@ -830,10 +892,19 @@ export function BasketDetail({ id }: { id: string }) {
       <div className="detail-grid">
         <div className="stack">
           <div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+                marginBottom: 12,
+              }}
+            >
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <p className="eyebrow" style={{ margin: 0 }}>
-                  {basket.source.category || (isCustom ? "Custom Allocation" : "A Kite Point of View")}
+                  {basket.source.category ||
+                    (isCustom ? "Custom Allocation" : "A Kite Point of View")}
                 </p>
                 {audit && (
                   <span
@@ -892,7 +963,11 @@ export function BasketDetail({ id }: { id: string }) {
                       onClick={handleShare}
                       title="Copy basket share link"
                     >
-                      {copiedShare ? <Check size={13} className="up" /> : <Share2 size={13} />}
+                      {copiedShare ? (
+                        <Check size={13} className="up" />
+                      ) : (
+                        <Share2 size={13} />
+                      )}
                       {copiedShare ? "Copied" : "Share"}
                     </button>
                     <button
@@ -940,7 +1015,9 @@ export function BasketDetail({ id }: { id: string }) {
                     <ExternalLink size={12} />
                   </a>
                 ) : (
-                  <span style={{ fontWeight: 600, color: "var(--ink)" }}>{creatorName}</span>
+                  <span style={{ fontWeight: 600, color: "var(--ink)" }}>
+                    {creatorName}
+                  </span>
                 )}
               </div>
             )}
@@ -971,7 +1048,10 @@ export function BasketDetail({ id }: { id: string }) {
             <section className="panel panel-pad">
               <div className="section-head">
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Gauge size={18} className={audit.tier === "verified-high" ? "up" : "muted"} />
+                  <Gauge
+                    size={18}
+                    className={audit.tier === "verified-high" ? "up" : "muted"}
+                  />
                   <h3 style={{ margin: 0 }}>Mainnet DEX Liquidity Breakdown</h3>
                 </div>
                 <span
@@ -1001,7 +1081,14 @@ export function BasketDetail({ id }: { id: string }) {
               <dl className="stats-grid" style={{ margin: "16px 0" }}>
                 <div>
                   <dt>Execution Format</dt>
-                  <dd style={{ color: "#10b981", display: "flex", alignItems: "center", gap: 4 }}>
+                  <dd
+                    style={{
+                      color: "#10b981",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
                     <CheckCircle2 size={14} /> Atomic Solana V1
                   </dd>
                 </div>
@@ -1015,7 +1102,11 @@ export function BasketDetail({ id }: { id: string }) {
                 </div>
                 <div>
                   <dt>Combined 24h DEX Vol</dt>
-                  <dd>{totalVolume24h > 0 ? compactMoney(totalVolume24h) : "Active pools"}</dd>
+                  <dd>
+                    {totalVolume24h > 0
+                      ? compactMoney(totalVolume24h)
+                      : "Active pools"}
+                  </dd>
                 </div>
               </dl>
 
@@ -1027,8 +1118,17 @@ export function BasketDetail({ id }: { id: string }) {
                   border: "1px solid var(--line)",
                 }}
               >
-                <span className="eyebrow" style={{ fontSize: 10 }}>Routing Venues</span>
-                <p style={{ margin: "4px 0 0", fontSize: 12, fontWeight: 500, color: "var(--ink)" }}>
+                <span className="eyebrow" style={{ fontSize: 10 }}>
+                  Routing Venues
+                </span>
+                <p
+                  style={{
+                    margin: "4px 0 0",
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: "var(--ink)",
+                  }}
+                >
                   {audit.liquidityVenueSummary}
                 </p>
                 <p className="fineprint" style={{ margin: "4px 0 0" }}>
@@ -1038,78 +1138,121 @@ export function BasketDetail({ id }: { id: string }) {
 
               {audit.recommendedAlternativeTicker && (
                 <p className="fineprint" style={{ margin: "8px 0 0" }}>
-                  Recommended alternative: <strong>{audit.recommendedAlternativeTicker}</strong>
+                  Recommended alternative:{" "}
+                  <strong>{audit.recommendedAlternativeTicker}</strong>
                 </p>
               )}
             </section>
           )}
 
           {/* Drift Analysis and 1-Click Rebalance for Custom Baskets */}
-          {isCustom && customConfig && totalHeldMicros > BigInt(0) && driftAnalysis && (
-            <section className="panel panel-pad">
-              <div className="section-head">
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Scale size={18} className={driftAnalysis.hasDrift ? "down" : "up"} />
-                  <h3 style={{ margin: 0 }}>Target vs Actual Portfolio Drift</h3>
-                </div>
-                {mode === "paper" && driftAnalysis.hasDrift && (
-                  <button
-                    type="button"
-                    className="btn secondary small"
-                    onClick={handleRebalance}
-                    disabled={rebalancing}
+          {isCustom &&
+            customConfig &&
+            totalHeldMicros > BigInt(0) &&
+            driftAnalysis && (
+              <section className="panel panel-pad">
+                <div className="section-head">
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 8 }}
                   >
-                    <RefreshCw size={13} className={rebalancing ? "spin" : ""} />
-                    1-Click Rebalance
-                  </button>
-                )}
-              </div>
-
-              <p className="fineprint" style={{ margin: "8px 0 14px" }}>
-                Total basket position value: {money(Number(totalHeldMicros) / 1_000_000)}. Rebalancing threshold: {(customConfig.rebalanceRules.driftThresholdBps / 100).toFixed(1)}%.
-              </p>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {driftAnalysis.plan.legs.map((leg) => {
-                  const asset = basket.assets.find((a) => a.mint === leg.mint);
-                  const driftBps = leg.currentWeightBps - leg.targetWeightBps;
-                  return (
-                    <div
-                      key={leg.mint}
-                      className="flex-between"
-                      style={{
-                        padding: "8px 12px",
-                        background: "rgba(255, 255, 255, 0.02)",
-                        borderRadius: 6,
-                        border: "1px solid var(--line)",
-                      }}
+                    <Scale
+                      size={18}
+                      className={driftAnalysis.hasDrift ? "down" : "up"}
+                    />
+                    <h3 style={{ margin: 0 }}>
+                      Target vs Actual Portfolio Drift
+                    </h3>
+                  </div>
+                  {mode === "paper" && driftAnalysis.hasDrift && (
+                    <button
+                      type="button"
+                      className="btn secondary small"
+                      onClick={handleRebalance}
+                      disabled={rebalancing}
                     >
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        {asset && <AssetAvatar asset={asset} small />}
-                        <strong>{asset?.symbol ?? leg.mint.slice(0, 4)}</strong>
-                      </div>
-                      <div style={{ textAlign: "right" }}>
-                        <span style={{ fontSize: 12 }}>
-                          Current: {(leg.currentWeightBps / 100).toFixed(1)}% · Target: {(leg.targetWeightBps / 100).toFixed(1)}%
-                        </span>
-                        <span
+                      <RefreshCw
+                        size={13}
+                        className={rebalancing ? "spin" : ""}
+                      />
+                      1-Click Rebalance
+                    </button>
+                  )}
+                </div>
+
+                <p className="fineprint" style={{ margin: "8px 0 14px" }}>
+                  Total basket position value:{" "}
+                  {money(Number(totalHeldMicros) / 1_000_000)}. Rebalancing
+                  threshold:{" "}
+                  {(
+                    customConfig.rebalanceRules.driftThresholdBps / 100
+                  ).toFixed(1)}
+                  %.
+                </p>
+
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 10 }}
+                >
+                  {driftAnalysis.plan.legs.map((leg) => {
+                    const asset = basket.assets.find(
+                      (a) => a.mint === leg.mint,
+                    );
+                    const driftBps = leg.currentWeightBps - leg.targetWeightBps;
+                    return (
+                      <div
+                        key={leg.mint}
+                        className="flex-between"
+                        style={{
+                          padding: "8px 12px",
+                          background: "rgba(255, 255, 255, 0.02)",
+                          borderRadius: 6,
+                          border: "1px solid var(--line)",
+                        }}
+                      >
+                        <div
                           style={{
-                            display: "block",
-                            fontSize: 11,
-                            fontWeight: 600,
-                            color: Math.abs(driftBps) < 50 ? "var(--muted)" : driftBps > 0 ? "var(--up)" : "var(--down)",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
                           }}
                         >
-                          {driftBps > 0 ? `+${(driftBps / 100).toFixed(1)}% Overweight` : driftBps < 0 ? `${(driftBps / 100).toFixed(1)}% Underweight` : "Balanced"}
-                          {leg.action !== "hold" && ` (${leg.action.toUpperCase()})`}
-                        </span>
+                          {asset && <AssetAvatar asset={asset} small />}
+                          <strong>
+                            {asset?.symbol ?? leg.mint.slice(0, 4)}
+                          </strong>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <span style={{ fontSize: 12 }}>
+                            Current: {(leg.currentWeightBps / 100).toFixed(1)}%
+                            · Target: {(leg.targetWeightBps / 100).toFixed(1)}%
+                          </span>
+                          <span
+                            style={{
+                              display: "block",
+                              fontSize: 11,
+                              fontWeight: 600,
+                              color:
+                                Math.abs(driftBps) < 50
+                                  ? "var(--muted)"
+                                  : driftBps > 0
+                                    ? "var(--up)"
+                                    : "var(--down)",
+                            }}
+                          >
+                            {driftBps > 0
+                              ? `+${(driftBps / 100).toFixed(1)}% Overweight`
+                              : driftBps < 0
+                                ? `${(driftBps / 100).toFixed(1)}% Underweight`
+                                : "Balanced"}
+                            {leg.action !== "hold" &&
+                              ` (${leg.action.toUpperCase()})`}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          )}
+                    );
+                  })}
+                </div>
+              </section>
+            )}
 
           <section className="panel panel-pad">
             <div className="section-head">
@@ -1123,13 +1266,34 @@ export function BasketDetail({ id }: { id: string }) {
                 {basket.assets.map((asset) => (
                   <li key={asset.mint}>
                     <AssetName asset={asset} />
-                    <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 16 }}
+                    >
                       <div style={{ textAlign: "right", minWidth: 90 }}>
-                        <span style={{ fontSize: 11, color: "var(--muted)", display: "block" }}>
-                          {asset.liquidityUsd ? `${compactMoney(asset.liquidityUsd)} TVL` : "Pool active"} · {asset.volume24hUsd ? `${compactMoney(asset.volume24hUsd)} 24h` : "—"}
+                        <span
+                          style={{
+                            fontSize: 11,
+                            color: "var(--muted)",
+                            display: "block",
+                          }}
+                        >
+                          {asset.liquidityUsd
+                            ? `${compactMoney(asset.liquidityUsd)} TVL`
+                            : "Pool active"}{" "}
+                          ·{" "}
+                          {asset.volume24hUsd
+                            ? `${compactMoney(asset.volume24hUsd)} 24h`
+                            : "—"}
                         </span>
                       </div>
-                      <div style={{ textAlign: "right", minWidth: 65, fontSize: 12, fontWeight: 600 }}>
+                      <div
+                        style={{
+                          textAlign: "right",
+                          minWidth: 65,
+                          fontSize: 12,
+                          fontWeight: 600,
+                        }}
+                      >
                         {(
                           (basket.source.assets.find(
                             (a) => a.asset.mint === asset.mint,

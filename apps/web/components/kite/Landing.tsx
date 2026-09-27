@@ -1,155 +1,35 @@
 "use client";
 import Link from "next/link";
+import { useState } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
-  BookOpen,
   CalendarDays,
   Check,
   Layers3,
+  Repeat2,
   ShieldCheck,
-  Wallet2,
 } from "lucide-react";
+import { resolveAllMarketBaskets, type MarketSnapshot } from "@kite/sdk";
 import { Brand } from "./Brand";
 import { useKite } from "./State";
-import { useMemo } from "react";
-import {
-  resolveAllMarketBaskets,
-  type MarketAsset,
-  type MarketSnapshot,
-} from "@kite/sdk";
-import { useBaskets } from "./useBaskets";
-import { AssetAvatar, Change, money } from "./MarketUI";
+import { AssetAvatar } from "./MarketUI";
 import { PrimaryNavigation } from "./Shell";
 import { ThemeToggle } from "./ThemeMode";
 import styles from "./Landing.module.css";
 
-function curatedAsset(
-  mint: string,
-  symbol: string,
-  underlyingSymbol: string,
-  name: string,
-  priceUsd: number,
-  change24hPct: number,
-): MarketAsset {
-  return {
-    mint,
-    symbol,
-    underlyingSymbol,
-    name,
-    issuer: "xstocks",
-    kind: "equity",
-    verified: true,
-    tradingHalted: false,
-    priceUsd,
-    change24hPct,
-    decimals: 8,
-    logoUrl: null,
-    volume24hUsd: null,
-    liquidityUsd: null,
-    marketCapUsd: null,
-    updatedAt: null,
-    priceObservedAt: null,
-    sourceUrl: "https://api.xstocks.fi/api/v2/public/assets",
-  };
-}
-
-const CURATED_LANDING_ASSETS: MarketAsset[] = [
-  curatedAsset(
-    "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
-    "NVDAx",
-    "NVDA",
-    "NVIDIA",
-    120.85,
-    2.45,
-  ),
-  curatedAsset(
-    "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
-    "AAPLx",
-    "AAPL",
-    "Apple",
-    228.2,
-    0.85,
-  ),
-  curatedAsset(
-    "XspE8mwXBymgupnTUpqdBiCYNmHQ5fUYWBio4n6pW7b",
-    "MSFTx",
-    "MSFT",
-    "Microsoft",
-    432.1,
-    1.15,
-  ),
-  curatedAsset(
-    "XsHtf5EcmSttHupb4Aeo6LUtReFnsw5sNoFspCPpzqC",
-    "AMZNx",
-    "AMZN",
-    "Amazon",
-    186.4,
-    -0.42,
-  ),
-];
-
-const LANDING_FALLBACK_ASSETS: MarketAsset[] = [
-  CURATED_LANDING_ASSETS[1], // AAPLx
-  CURATED_LANDING_ASSETS[2], // MSFTx
-  CURATED_LANDING_ASSETS[0], // NVDAx
-  CURATED_LANDING_ASSETS[3], // AMZNx
-  curatedAsset(
-    "XsGGvdc8bLSm5tYrskoxepGEdskUXGsxWrqdcBCmF5v",
-    "GOOGLx",
-    "GOOGL",
-    "Alphabet",
-    165.0,
-    0.5,
-  ),
-  curatedAsset(
-    "XsvPaaDM1tempmjrhcTCvdBNEdkDuhbTCadqh5UdZXJ",
-    "METAx",
-    "META",
-    "Meta Platforms",
-    510.0,
-    1.2,
-  ),
-  curatedAsset(
-    "XsToNmecKL8vgadpHsmbnumepStCPCPgtbcuBHMpZzp",
-    "TSLAx",
-    "TSLA",
-    "Tesla",
-    240.0,
-    -1.1,
-  ),
-];
-
+const CADENCES = ["daily", "weekly", "monthly"] as const;
 export function Landing({
   initialSnapshot,
-}: {
-  initialSnapshot?: MarketSnapshot | null;
-} = {}) {
-  const { snapshot, loading } = useKite();
-  const currentSnapshot = snapshot ?? initialSnapshot ?? null;
-  const liveAssets = (currentSnapshot?.assets ?? [])
-    .filter((asset) => asset.priceUsd != null && !asset.tradingHalted)
-    .slice(0, 4);
-  const assets = liveAssets.length >= 4 ? liveAssets : CURATED_LANDING_ASSETS;
-  const featured = assets[0];
-  const baskets = useBaskets();
-  const liveBasket = baskets.find((item) => item.assets.length >= 3);
-  const fallbackBaskets = useMemo(
-    () => resolveAllMarketBaskets(LANDING_FALLBACK_ASSETS),
-    [],
-  );
-  const basket =
-    liveBasket ??
-    (fallbackBaskets[0]
-      ? {
-          id: fallbackBaskets[0].id,
-          name: fallbackBaskets[0].name,
-          description: fallbackBaskets[0].description,
-          assets: fallbackBaskets[0].assets.map((a) => a.asset),
-          available: true,
-          source: fallbackBaskets[0],
-        }
-      : undefined);
+}: { initialSnapshot?: MarketSnapshot | null } = {}) {
+  const { snapshot } = useKite();
+  const [cadence, setCadence] = useState<(typeof CADENCES)[number]>("weekly");
+  const current = snapshot ?? initialSnapshot;
+  const baskets = current?.baskets ?? resolveAllMarketBaskets([]);
+  const featured =
+    baskets.find((b) => b.available) ??
+    baskets.find((b) => b.assets.length > 0);
+  const planHref = `/sip?cadence=${cadence}${featured ? `&basket=${encodeURIComponent(featured.id)}` : ""}#new-plan`;
   return (
     <>
       <header className="workspace-header landing-nav-header">
@@ -162,292 +42,249 @@ export function Landing({
           </div>
           <div className="landing-nav-actions">
             <ThemeToggle />
-            <Link href="/app" className="btn small landing-open">
-              Open Kite <ArrowUpRight size={17} />
+            <Link href="/sip" className="btn small landing-open">
+              Make a plan <ArrowUpRight size={16} aria-hidden="true" />
             </Link>
           </div>
         </div>
       </header>
-      <main className={styles.page}>
+      <main id="main-content" className={styles.page}>
         <section className={styles.hero}>
           <div className={styles.heroCopy}>
-            <p className={styles.kicker}>
-              <span /> YOUR WORLD, ONCHAIN
-            </p>
+            <p className={styles.kicker}>A LITTLE. REGULARLY. YOURS.</p>
             <h1>
-              Your ideas.
+              Good ideas
               <br />
-              Your next move.
-              <br />
-              <em>Your Kite.</em>
+              deserve <em>a routine.</em>
             </h1>
             <p>
-              A clearer view of the companies you believe in. Discover tokenized
-              stocks, explore ideas, and bring your investments together on
-              Solana.
+              Turn the companies you believe in into a basket. Choose your
+              amount, set your rhythm, and keep your investments in your own
+              wallet.
             </p>
             <div className={styles.actions}>
-              <Link href="/app" className="btn">
-                Explore the markets <ArrowUpRight size={16} />
+              <Link className="btn" href={planHref}>
+                Build your investing routine{" "}
+                <ArrowUpRight size={17} aria-hidden="true" />
               </Link>
               <Link href="/baskets" className="text-link">
-                Find your theme <ArrowRight size={15} />
+                Find your basket <ArrowRight size={16} aria-hidden="true" />
               </Link>
             </div>
-            <div className={styles.heroNote}>
-              <ShieldCheck size={16} /> Your assets stay in your wallet.
-            </div>
+            <p className={styles.note}>
+              <ShieldCheck size={16} aria-hidden="true" />
+              Try recurring with devnet test tokens or paper practice. Mainnet
+              purchases are available separately.
+            </p>
           </div>
-          <div
-            className={styles.product}
-            aria-label="Preview of current Kite market data"
-          >
-            <div className={styles.productTop}>
-              <Brand />
-              <span>
-                <span className="status-dot" /> MARKET SNAPSHOT
+          <div className={styles.plan} aria-label="Recurring plan preview">
+            <div className={styles.planTop}>
+              <span className="eyebrow">YOUR INVESTING RHYTHM</span>
+              <Repeat2 size={20} aria-hidden="true" />
+            </div>
+            <div className={styles.planTitle}>
+              <span className={styles.planIcon}>
+                <Layers3 size={24} aria-hidden="true" />
               </span>
-            </div>
-            <div className={styles.productHeading}>
               <div>
-                <small>YOUR NEXT IDEA</small>
-                <h2>A world to explore.</h2>
-              </div>
-              <BookOpen size={22} />
-            </div>
-            {featured ? (
-              <Link
-                href={`/stock/${featured.mint}`}
-                className={styles.featured}
-              >
-                <div className={styles.featuredName}>
-                  <AssetAvatar asset={featured} />
-                  <div>
-                    <strong>{featured.name.replace(/ xStock$/i, "")}</strong>
-                    <small>{featured.symbol} · Token price</small>
-                  </div>
-                  <ArrowUpRight size={18} />
-                </div>
-                <div className={styles.featuredPrice}>
-                  <strong>{money(featured.priceUsd)}</strong>
-                  <span>
-                    <Change value={featured.change24hPct} /> <small>24h</small>
-                  </span>
-                </div>
-                <div className={styles.priceCaption}>
-                  Latest available market price <ArrowRight size={15} />
-                </div>
-              </Link>
-            ) : (
-              <div className={styles.unavailable} role="status">
-                <BookOpen size={28} />
-                <strong>
-                  {loading
-                    ? "Connecting to the markets…"
-                    : "Your research starts here."}
-                </strong>
+                <h2>{featured?.name ?? "Start with a theme"}</h2>
                 <p>
-                  {loading
-                    ? "Loading issuer-listed companies and observed prices."
-                    : "Live prices are temporarily unavailable. Explore the issuer catalog in Kite."}
+                  {featured
+                    ? `${featured.assets.length} individual assets`
+                    : "Choose your basket in Kite"}
                 </p>
               </div>
-            )}
-            <div className={styles.marketList}>
-              {assets.slice(1).map((asset) => (
-                <Link key={asset.mint} href={`/stock/${asset.mint}`}>
-                  <AssetAvatar asset={asset} small />
-                  <div>
-                    <strong>{asset.name.replace(/ xStock$/i, "")}</strong>
-                    <small>{asset.symbol}</small>
-                  </div>
-                  <span>
-                    {money(asset.priceUsd)}
-                    <small>
-                      <Change value={asset.change24hPct} />
-                    </small>
-                  </span>
-                </Link>
+            </div>
+            <div
+              className={styles.cadence}
+              role="group"
+              aria-label="Preview an investing frequency"
+            >
+              {CADENCES.map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={cadence === value}
+                  onClick={() => setCadence(value)}
+                >
+                  {value.charAt(0).toUpperCase() + value.slice(1)}
+                </button>
               ))}
             </div>
-            <div className={styles.productBottom}>
-              <ShieldCheck size={14} /> Issuer-listed assets. Observed prices.
+            <div className={styles.schedule}>
+              <CalendarDays size={19} aria-hidden="true" />
+              <div>
+                <strong>
+                  {cadence === "daily"
+                    ? "Make it a daily habit."
+                    : cadence === "weekly"
+                      ? "A little room, every week."
+                      : "Give your month a plan."}
+                </strong>
+                <p>You choose the amount and duration in the next step.</p>
+              </div>
             </div>
+            <div className={styles.constituents}>
+              {featured?.assets.length ? (
+                featured.assets.slice(0, 4).map(({ asset, weight }) => (
+                  <div key={asset.mint}>
+                    <AssetAvatar asset={asset} small />
+                    <span>{asset.name.replace(/ xStock$/i, "")}</span>
+                    <strong>
+                      {(weight / 100).toLocaleString(undefined, {
+                        maximumFractionDigits: 2,
+                      })}
+                      %
+                    </strong>
+                  </div>
+                ))
+              ) : (
+                <p>
+                  Live issuer allocations appear here when the catalog is
+                  available.
+                </p>
+              )}
+            </div>
+            <Link href={planHref} className="btn full">
+              Set up this rhythm <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+            <small className={styles.previewCaption}>
+              Plan preview · no active subscription
+            </small>
           </div>
         </section>
-        <div className={styles.strip}>
-          <span>
-            <Wallet2 /> Self-custody on Solana
-          </span>
-          <span>
-            <BookOpen /> Research before you invest
-          </span>
-          <span>
-            <Layers3 /> Ideas, brought together
-          </span>
-        </div>
-        <section className={styles.research}>
+        <section className={styles.how} aria-labelledby="routine-heading">
           <div>
-            <p className={styles.kicker}>01 / GET THE FULL PICTURE</p>
-            <h2>
-              Go beyond
+            <p className={styles.kicker}>01 / AN IDEA BECOMES A HABIT</p>
+            <h2 id="routine-heading">
+              A plan that fits
               <br />
-              the ticker.
+              the way you invest.
             </h2>
             <p>
-              Get to know the company behind your next idea. Bring price
-              history, fundamentals, headlines, and corporate events into one
-              view.
+              Set up a bounded delegation with Solana Subscriptions. Keep
+              ownership of your funds and revoke future installments from your
+              wallet.
             </p>
-            <Link href="/app" className="text-link">
-              Find a company <ArrowRight size={16} />
-            </Link>
           </div>
-          <div className={styles.researchTools}>
+          <ol>
             {[
               {
-                icon: BookOpen,
-                title: "Understand the business",
-                text: "Company profiles, revenue, earnings, and financial history.",
+                title: "Pick your point of view.",
+                text: "Choose a thematic basket or one stock. See exactly what is in the allocation.",
               },
               {
-                icon: CalendarDays,
-                title: "Follow what matters",
-                text: "Company news, dividends, splits, and upcoming events.",
+                title: "Choose a comfortable rhythm.",
+                text: "Daily, weekly, every two weeks or monthly in paper practice. Onchain test plans use fixed intervals.",
               },
               {
-                icon: Layers3,
-                title: "See more of the market",
-                text: "Explore xStocks, PreStocks, and Backpack’s securities catalog.",
+                title: "Review it. Keep control.",
+                text: "Approve the amount and duration, follow each receipt, and cancel future collections when you need to.",
               },
-            ].map(({ icon: Icon, title, text }) => (
-              <div key={title}>
-                <span>
-                  <Icon size={22} />
-                </span>
+            ].map(({ title, text }, index) => (
+              <li key={title}>
+                <span>0{index + 1}</span>
                 <div>
                   <h3>{title}</h3>
                   <p>{text}</p>
                 </div>
-                <ArrowUpRight size={16} />
-              </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+        <section className={styles.collection} aria-labelledby="themes-heading">
+          <div className={styles.sectionHead}>
+            <div>
+              <p className={styles.kicker}>
+                02 / START WITH SOMETHING YOU BELIEVE IN
+              </p>
+              <h2 id="themes-heading">Big ideas. Clear allocations.</h2>
+            </div>
+            <Link href="/baskets" className="text-link">
+              View the collection <ArrowRight size={15} aria-hidden="true" />
+            </Link>
+          </div>
+          <div className={styles.themeGrid}>
+            {baskets.slice(0, 3).map((basket, index) => (
+              <Link
+                key={basket.id}
+                href={`/basket/${basket.id}`}
+                className={styles.theme}
+              >
+                <span className={styles.themeNumber}>
+                  0{index + 1}
+                  <ArrowUpRight size={19} aria-hidden="true" />
+                </span>
+                <h3>{basket.name}</h3>
+                <p>{basket.description}</p>
+                <div>
+                  {basket.assets.slice(0, 4).map(({ asset }) => (
+                    <AssetAvatar key={asset.mint} asset={asset} small />
+                  ))}
+                  <span>
+                    {basket.assets.length
+                      ? `${basket.assets.length} assets`
+                      : "View allocation"}
+                  </span>
+                </div>
+              </Link>
             ))}
           </div>
+          <p className={styles.note}>
+            Availability depends on issuer status and current trading routes.
+            Missing market data stays unavailable.
+          </p>
         </section>
-        <section className={styles.themes}>
-          <div className={styles.allocation}>
-            <div className={styles.allocationTitle}>
-              <span className="eyebrow">INSIDE A KITE BASKET</span>
-              <Layers3 size={20} />
-            </div>
-            <h3>{basket?.name ?? "An idea, shared across companies."}</h3>
-            <p>Individual assets. One clear allocation.</p>
-            {basket?.assets.length ? (
-              <>
-                <div className={styles.allocationBar} aria-hidden="true">
-                  {basket.source.assets.map((item, index) => (
-                    <span
-                      key={item.asset.mint}
-                      style={{
-                        flex: item.weight,
-                        opacity: 1 - (index % 5) * 0.13,
-                      }}
-                    />
-                  ))}
-                </div>
-                <div className={styles.allocationRows}>
-                  {basket.source.assets.slice(0, 5).map((item) => (
-                    <div key={item.asset.mint}>
-                      <AssetAvatar asset={item.asset} small />
-                      <span>{item.asset.symbol}</span>
-                      <strong>
-                        {(item.weight / 100).toLocaleString(undefined, {
-                          maximumFractionDigits: 2,
-                        })}
-                        %
-                      </strong>
-                    </div>
-                  ))}
-                  {basket.assets.length > 5 && (
-                    <small>
-                      + {basket.assets.length - 5} more assets in the full
-                      allocation
-                    </small>
-                  )}
-                </div>
-              </>
-            ) : (
-              <div className={styles.allocationEmpty}>
-                <Layers3 size={32} />
-                <p>
-                  Explore each theme to see its constituent companies and
-                  weights.
-                </p>
-              </div>
-            )}
-            <div className={styles.allocationFoot}>
-              <Check size={15} /> Delivered as individual tokens to your wallet
-            </div>
-          </div>
-          <div className={styles.themeCopy}>
-            <p className={styles.kicker}>02 / INVEST IN A POINT OF VIEW</p>
-            <h2>
-              Big ideas.
-              <br />
-              Thoughtful baskets.
-            </h2>
-            <p>
-              From the next wave of technology to everyday essentials. Look
-              inside a theme, understand its companies, and review the complete
-              allocation before investing.
-            </p>
-            <Link href="/baskets" className="btn">
-              Explore the collection <ArrowUpRight size={16} />
-            </Link>
-            <small>
-              Availability depends on each asset and the complete trading route.
-            </small>
-          </div>
-        </section>
-        <section className={styles.ownership}>
+        <section className={styles.creator}>
           <div>
-            <p className={styles.kicker}>03 / KEEP IT YOURS</p>
+            <p className={styles.kicker}>
+              03 / FOR PEOPLE WITH A POINT OF VIEW
+            </p>
             <h2>
-              A clearer portfolio.
-              <br />A wallet you control.
+              Create a basket.
+              <br />
+              Give it a following.
             </h2>
             <p>
-              Bring your holdings and activity together. Review every trade in
-              your own wallet and see where each investment takes you.
+              Build a clear allocation, publish with a creator invite, and share
+              a subscription Blink. Follow confirmed volume and recurring
+              engagement in your studio.
             </p>
-            <Link href="/portfolio" className="text-link">
-              Your portfolio on Kite <ArrowRight size={16} />
+            <Link href="/basket/builder" className="btn secondary">
+              Open the creator studio{" "}
+              <ArrowUpRight size={16} aria-hidden="true" />
             </Link>
           </div>
-          <div
-            className={styles.walletDiagram}
-            aria-label="Investments are delivered directly to your own wallet"
-          >
+          <div className={styles.creatorDetails}>
             <div>
-              <Layers3 size={24} />
-              <span>Your selected assets</span>
+              <Check size={18} aria-hidden="true" />
+              <span>Private drafts for everyone</span>
             </div>
-            <span className={styles.walletArrow}>
-              <ArrowRight size={28} />
-            </span>
             <div>
-              <Wallet2 size={28} />
-              <span>Your Solana wallet</span>
-              <small>You hold the keys</small>
+              <Check size={18} aria-hidden="true" />
+              <span>Public publishing by invitation</span>
+            </div>
+            <div>
+              <Check size={18} aria-hidden="true" />
+              <span>Devnet subscription Blinks</span>
+            </div>
+            <div>
+              <Check size={18} aria-hidden="true" />
+              <span>Points from verified mainnet activity</span>
             </div>
           </div>
         </section>
         <section className={styles.cta}>
-          <span className={styles.kicker}>FOLLOW YOUR CURIOSITY</span>
-          <h2>Your next idea is waiting.</h2>
-          <p>Find the companies and themes that mean something to you.</p>
-          <Link href="/app" className="btn">
-            Start exploring <ArrowUpRight size={17} />
+          <div>
+            <p className={styles.kicker}>START AT YOUR OWN PACE</p>
+            <h2>
+              Your next investment
+              <br />
+              can become a routine.
+            </h2>
+          </div>
+          <Link href="/sip" className="btn">
+            Make your first plan <ArrowUpRight size={18} aria-hidden="true" />
           </Link>
         </section>
         <footer className={styles.footer}>
@@ -457,9 +294,11 @@ export function Landing({
             <br />
             Issuer eligibility and trading restrictions apply.
           </p>
-          <Link href="/privacy">
-            Data &amp; privacy <ArrowUpRight size={13} />
-          </Link>
+          <nav aria-label="Footer">
+            <Link href="/privacy">Privacy</Link>
+            <Link href="/terms">Terms</Link>
+            <Link href="/creators">Creators</Link>
+          </nav>
         </footer>
       </main>
     </>

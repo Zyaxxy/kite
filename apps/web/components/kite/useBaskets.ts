@@ -2,23 +2,32 @@ import { useMemo } from "react";
 import { resolveAllMarketBaskets, resolveProgrammableBasket } from "@kite/sdk";
 import { useKite } from "./State";
 import type { BasketDisplay } from "./MarketUI";
+import { usePublishedBaskets } from "./creator-client";
 
-export function useBaskets(): BasketDisplay[] {
+export function useBaskets(id?: string): BasketDisplay[] {
   const { snapshot, customBaskets } = useKite();
+  const { baskets: published } = usePublishedBaskets(id);
   return useMemo(() => {
-    const curated = (snapshot?.baskets ?? resolveAllMarketBaskets([])).map((b) => ({
-      id: b.id,
-      name: b.name,
-      description: b.description,
-      assets: b.assets.map((a) => a.asset),
-      available: b.available,
-      source: b,
-      isCustom: Boolean(b.isCustom),
-      creatorName: b.creatorName,
-      creatorSocial: b.creatorSocial,
-    }));
+    const curated = (snapshot?.baskets ?? resolveAllMarketBaskets([])).map(
+      (b) => ({
+        id: b.id,
+        name: b.name,
+        description: b.description,
+        assets: b.assets.map((a) => a.asset),
+        available: b.available,
+        source: b,
+        isCustom: Boolean(b.isCustom),
+        creatorName: b.creatorName,
+        creatorSocial: b.creatorSocial,
+      }),
+    );
 
-    const custom = (customBaskets ?? []).map((cb) => {
+    const custom = [
+      ...published,
+      ...(customBaskets ?? []).filter(
+        (b) => !published.some((p) => p.id === b.id),
+      ),
+    ].map((cb) => {
       const resolved = resolveProgrammableBasket(cb, snapshot?.assets ?? []);
       return {
         id: resolved.id,
@@ -34,5 +43,5 @@ export function useBaskets(): BasketDisplay[] {
     });
 
     return [...custom, ...curated];
-  }, [snapshot, customBaskets]);
+  }, [snapshot, customBaskets, published]);
 }

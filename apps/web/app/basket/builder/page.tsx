@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Build Custom Basket | Kite",
+  title: "Basket studio",
   description:
-    "Design and execute custom thematic stock baskets with verified Solana DEX liquidity under the 64-account V1 limit.",
+    "Build your own tokenized stock allocation, save a private basket, or publish with a creator invite. Review real trading routes before you invest.",
 };
 
 import { KiteApp } from "../../../components/kite/KiteApp";

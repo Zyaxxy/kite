@@ -17,7 +17,14 @@ import {
 } from "lucide-react";
 import { useKite } from "./State";
 import { PageIntro } from "./Shell";
-import { AssetTable, BasketCard, Empty, money, AssetAvatar, type BasketDisplay } from "./MarketUI";
+import {
+  AssetTable,
+  BasketCard,
+  Empty,
+  money,
+  AssetAvatar,
+  type BasketDisplay,
+} from "./MarketUI";
 import { useBaskets } from "./useBaskets";
 import { MarketPulse, MarketHeadlines, MarketBreadth } from "./MarketPulse";
 import { NativeSelect, NativeSelectOption } from "../ui/native-select";
@@ -298,9 +305,15 @@ export function Baskets() {
   const baskets = useBaskets();
   const [filter, setFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<
-    "default" | "gainers-1m" | "losers-1m" | "gainers-24h" | "losers-24h" | "name"
+    | "default"
+    | "gainers-1m"
+    | "losers-1m"
+    | "gainers-24h"
+    | "losers-24h"
+    | "name"
   >("default");
-  const [inspectingBasket, setInspectingBasket] = useState<BasketDisplay | null>(null);
+  const [inspectingBasket, setInspectingBasket] =
+    useState<BasketDisplay | null>(null);
   const [perfMapVersion, setPerfMapVersion] = useState(0);
 
   const verifiedCount = baskets.filter(
@@ -345,14 +358,11 @@ export function Baskets() {
       if (sortBy === "name") return a.name.localeCompare(b.name);
 
       if (sortBy === "gainers-1m" || sortBy === "losers-1m") {
-        const perfA =
-          basketPerformanceClient.peek(a.id, "30d")?.changePct ??
-          calculateBasket24hGrowth(a).changePct;
-        const perfB =
-          basketPerformanceClient.peek(b.id, "30d")?.changePct ??
-          calculateBasket24hGrowth(b).changePct;
+        const perfA = basketPerformanceClient.peek(a.id, "30d")?.changePct;
+        const perfB = basketPerformanceClient.peek(b.id, "30d")?.changePct;
         if (perfA == null || perfB == null) {
-          if (perfA == null && perfB == null) return a.name.localeCompare(b.name);
+          if (perfA == null && perfB == null)
+            return a.name.localeCompare(b.name);
           return perfA == null ? 1 : -1;
         }
         return sortBy === "gainers-1m" ? perfB - perfA : perfA - perfB;
@@ -373,19 +383,40 @@ export function Baskets() {
       <div className="baskets-page-header">
         <div className="baskets-header-copy">
           <div className="baskets-title-row">
-            <h1>Thematic Baskets</h1>
+            <h1>Find an idea worth returning to.</h1>
             <span className="baskets-count-pill">{baskets.length} Themes</span>
           </div>
           <p className="baskets-subtitle">
-            Curated multi-asset portfolios executed in a single atomic transaction. Direct wallet custody with no vault tokens.
+            Explore a theme, review its allocation, then buy with your wallet or
+            try a recurring plan with devnet test tokens.
           </p>
         </div>
         <Link
           href="/basket/builder"
           className="btn small"
-          style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 6 }}
+          style={{
+            flexShrink: 0,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+          }}
         >
           <Plus size={14} /> Build Custom Basket
+        </Link>
+      </div>
+      <div
+        className="notice"
+        style={{ justifyContent: "space-between", marginBottom: 24 }}
+      >
+        <div>
+          <strong>A basket. A rhythm. Your routine.</strong>
+          <p className="fineprint">
+            Choose daily, weekly or a longer interval. Review the amount and
+            duration before approving a devnet subscription.
+          </p>
+        </div>
+        <Link href="/sip" className="btn secondary small">
+          Make a recurring plan <Repeat2 size={15} aria-hidden="true" />
         </Link>
       </div>
       <MarketStatus />
@@ -419,28 +450,45 @@ export function Baskets() {
             </button>
           )}
         </div>
-        <div className="baskets-toolbar-right" style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <div
+          className="baskets-toolbar-right"
+          style={{ display: "flex", gap: 10, alignItems: "center" }}
+        >
           <NativeSelect
             aria-label="Sort baskets by performance or name"
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as any)}
           >
-            <NativeSelectOption value="default">Default Order</NativeSelectOption>
-            <NativeSelectOption value="gainers-1m">Top Gainers (1 Month)</NativeSelectOption>
-            <NativeSelectOption value="losers-1m">Top Losers (1 Month)</NativeSelectOption>
-            <NativeSelectOption value="gainers-24h">Top Gainers (24h)</NativeSelectOption>
-            <NativeSelectOption value="losers-24h">Top Losers (24h)</NativeSelectOption>
+            <NativeSelectOption value="default">
+              Default Order
+            </NativeSelectOption>
+            <NativeSelectOption value="gainers-1m">
+              Top Gainers (1 Month)
+            </NativeSelectOption>
+            <NativeSelectOption value="losers-1m">
+              Top Losers (1 Month)
+            </NativeSelectOption>
+            <NativeSelectOption value="gainers-24h">
+              Top Gainers (24h)
+            </NativeSelectOption>
+            <NativeSelectOption value="losers-24h">
+              Top Losers (24h)
+            </NativeSelectOption>
             <NativeSelectOption value="name">Theme A–Z</NativeSelectOption>
           </NativeSelect>
           <NativeSelect
             aria-label="Filter by sector category"
-            value={(categories as string[]).includes(filter) ? filter : "all-sectors"}
+            value={
+              (categories as string[]).includes(filter) ? filter : "all-sectors"
+            }
             onChange={(e) => {
               const val = e.target.value;
               setFilter(val === "all-sectors" ? "all" : val);
             }}
           >
-            <NativeSelectOption value="all-sectors">All Sectors</NativeSelectOption>
+            <NativeSelectOption value="all-sectors">
+              All Sectors
+            </NativeSelectOption>
             {categories.map((item) => (
               <NativeSelectOption key={item} value={item}>
                 {item.charAt(0).toUpperCase() + item.slice(1)}
@@ -460,7 +508,9 @@ export function Baskets() {
         >
           <div style={{ maxWidth: 460, margin: "0 auto" }}>
             <h3 style={{ marginBottom: 8 }}>
-              {filter === "custom" ? "No user-created baskets yet" : "No baskets found"}
+              {filter === "custom"
+                ? "No user-created baskets yet"
+                : "No baskets found"}
             </h3>
             <p className="muted" style={{ fontSize: 13, marginBottom: 20 }}>
               {filter === "custom"
@@ -479,7 +529,10 @@ export function Baskets() {
           </div>
         </div>
       ) : (
-        <div className="basket-grid basket-catalog" style={{ marginBottom: 30 }}>
+        <div
+          className="basket-grid basket-catalog"
+          style={{ marginBottom: 30 }}
+        >
           {sorted.map((b, i) => (
             <BasketCard
               key={b.id}
