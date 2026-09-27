@@ -1,4 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
+import type { DevnetRecurringPlanRequest } from "@kite/sdk";
 
 function object(
   value: unknown,
@@ -35,20 +36,13 @@ function signingVersions(value: unknown): number[] {
     !Array.isArray(value) ||
     value.length > 3 ||
     value.some((item) => !Number.isInteger(item) || item < 0 || item > 1) ||
-    !value.includes(1)
+    value.length === 0 ||
+    new Set(value).size !== value.length
   )
-    throw new Error("This wallet must advertise V1 transaction signing.");
+    throw new Error("This wallet must advertise V0 or V1 transaction signing.");
   return value;
 }
-export interface CreateDevnetPlanRequest {
-  schemaVersion: 1;
-  owner: string;
-  target: { type: "stock" | "basket"; id: string };
-  amount: string;
-  periodSeconds: number;
-  periods: number;
-  supportedTransactionVersions: number[];
-}
+export type CreateDevnetPlanRequest = DevnetRecurringPlanRequest;
 export function parseCreateDevnetPlan(value: unknown): CreateDevnetPlanRequest {
   const input = object(value, [
     "schemaVersion",

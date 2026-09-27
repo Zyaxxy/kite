@@ -1,9 +1,7 @@
 import test from "node:test";
 import { createPrivateKey, createHash, createHmac, sign } from "node:crypto";
-import { createRequire } from "node:module";
-const require = createRequire(import.meta.url);
-const sdk = require("../../../packages/sdk/dist/index.js");
-const kit = require("../../../packages/sdk/node_modules/@solana/kit-v1");
+import * as sdk from "@kite/sdk";
+import * as kit from "../../../packages/sdk/node_modules/@solana/kit-v1";
 import assert from "node:assert/strict";
 import {
   Keypair,
@@ -17,7 +15,7 @@ import {
   mainnetV1Active,
   assertMainnetV1Ready,
   MAINNET_GENESIS,
-} from "../lib/server/composed-transactions.ts";
+} from "../lib/server/composed-transactions";
 
 async function fixture(expiresAt = Date.now() + 60000) {
   const owner = Keypair.generate();
@@ -44,7 +42,12 @@ async function fixture(expiresAt = Date.now() + 60000) {
   });
   return { owner, transaction, order };
 }
-function signedBytes(transaction, owner) {
+function signedBytes(
+  transaction: Awaited<
+    ReturnType<typeof sdk.inspectWalletTransaction>
+  >["transaction"],
+  owner: Keypair,
+) {
   const privateKey = createPrivateKey({
     key: Buffer.concat([
       Buffer.from("302e020100300506032b657004220420", "hex"),
@@ -59,12 +62,13 @@ function signedBytes(transaction, owner) {
     privateKey,
   );
   return Buffer.from(
-    kit
-      .getTransactionEncoder()
-      .encode({
-        ...transaction,
-        signatures: { [owner.publicKey.toBase58()]: signature },
-      }),
+    kit.getTransactionEncoder().encode({
+      ...transaction,
+      signatures: {
+        [kit.address(owner.publicKey.toBase58())]:
+          signature as unknown as kit.SignatureBytes,
+      },
+    }),
   ).toString("base64");
 }
 test("composed execution binds wallet, message, expiry and server signature", async () => {
@@ -113,7 +117,7 @@ test("V1 gating requires a correctly owned, activated feature account", async ()
   const bytes = Buffer.alloc(9);
   bytes[0] = 1;
   globalThis.fetch = async (_, init) => {
-    const { method } = JSON.parse(init.body);
+    const { method } = JSON.parse(String(init?.body));
     bytes.writeBigUInt64LE(BigInt(activeSlot), 1);
     return Response.json({
       result:
@@ -145,10 +149,10 @@ test("new orders require both wallet V1 signing and activated mainnet", async ()
   let calls = 0;
   globalThis.fetch = async (_, init) => {
     calls++;
-    const { method } = JSON.parse(init.body);
+    const { method } = JSON.parse(String(init?.body));
     const bytes = Buffer.alloc(9);
     bytes[0] = active ? 1 : 0;
-    bytes.writeBigUInt64LE(10n, 1);
+    bytes.writeBigUInt64LE(BigInt(10), 1);
     return Response.json({
       result:
         method === "getGenesisHash"
@@ -175,7 +179,7 @@ test("new orders require both wallet V1 signing and activated mainnet", async ()
     globalThis.fetch = fetch;
   }
 });
-test("old v0 authorizations can still be verified but cannot be newly issued", async () => {
+test("new and prior v0 single-transaction authorizations remain message and wallet bound", async () => {
   const prior = process.env.KITE_TRADE_SECRET;
   process.env.KITE_TRADE_SECRET = "test-only-composed-authorization-secret";
   try {
@@ -188,17 +192,14 @@ test("old v0 authorizations can still be verified but cannot be newly issued", a
       }).compileToV0Message(),
     );
     const unsigned = Buffer.from(tx.serialize()).toString("base64");
-    await assert.rejects(
-      authorizeComposed({
-        transaction: unsigned,
-        transactionVersion: 0,
-        taker: owner.publicKey.toBase58(),
-        expiresAt: Date.now() + 60000,
-        serializedBytes: tx.serialize().length,
-        lastValidBlockHeight: 100,
-      }),
-      /require V1/,
-    );
+    const newOrder = await authorizeComposed({
+      transaction: unsigned,
+      transactionVersion: 0,
+      taker: owner.publicKey.toBase58(),
+      expiresAt: Date.now() + 60000,
+      serializedBytes: tx.serialize().length,
+      lastValidBlockHeight: 100,
+    });
     const payload = Buffer.from(
       JSON.stringify({
         kind: "kite-composed-v1",
@@ -218,6 +219,15 @@ test("old v0 authorizations can still be verified but cannot be newly issued", a
         .update(payload)
         .digest("base64url");
     tx.sign([owner]);
+    assert.equal(
+      (
+        await verifyComposed(
+          newOrder.authorization,
+          Buffer.from(tx.serialize()).toString("base64"),
+        )
+      ).version,
+      0,
+    );
     assert.equal(
       (
         await verifyComposed(

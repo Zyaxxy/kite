@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { UNKNOWN_TRADE_MESSAGE } from "@kite/sdk";
 import { readLimitedJson } from "@/lib/server/request-policy";
+import { recordConfirmedBasketReceipt } from "@/lib/server/basket-receipts";
 import {
   assertMainnet,
   mainnetRpc,
@@ -84,8 +85,14 @@ export async function POST(request: NextRequest) {
       if (
         state &&
         ["confirmed", "finalized"].includes(state.confirmationStatus)
-      )
+      ) {
+        await recordConfirmedBasketReceipt(
+          verified.basketReceipt,
+          verified.taker,
+          signature,
+        );
         return reply({ status: "Success", signature });
+      }
       await new Promise((resolve) => setTimeout(resolve, 1200));
     }
     return reply(
@@ -94,7 +101,9 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     const isRpcReject = error instanceof Error && error.name === "RpcError";
-    const effectivelySubmitted = submitted && !isRpcReject;
+    // A later receipt-read failure cannot turn an acknowledged broadcast into a safe retry.
+    const effectivelySubmitted =
+      submitted && (Boolean(signature) || !isRpcReject);
     return reply(
       {
         status: effectivelySubmitted ? "Unknown" : "Failed",

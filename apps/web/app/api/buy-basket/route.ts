@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       (body.customAllocations !== undefined &&
         (!Array.isArray(body.customAllocations) ||
           body.customAllocations.length < 2 ||
-          body.customAllocations.length > 4 ||
+          body.customAllocations.length > 8 ||
           !body.customAllocations.every(
             (a) =>
               a &&

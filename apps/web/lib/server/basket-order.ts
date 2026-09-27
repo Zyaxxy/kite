@@ -9,28 +9,37 @@ import {
   TOKEN_PROGRAM_ID,
   TOKEN_2022_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
+  createAssociatedTokenAccountIdempotentInstruction,
 } from "@solana/spl-token";
 import {
   allocateBasketInput,
   validateJupiterExactInInstruction,
-  composeMainnetTransaction,
+  composeBasketV0Chunks,
+  BUNDLE_ATOMICITY_WARNING,
   hasCompleteIssuerCatalogs,
   toTokenAmount,
   MAINNET_SOL_MINT,
   type BasketOrderRequest,
   type BasketOrder,
+  type BasketPurchaseOrder,
+  type BasketSwapLeg,
+  type MarketAsset,
   type SwapToken,
 } from "@kite/sdk";
 import { getServerMarketCatalog } from "./markets";
 import { getTradeMintDecimals } from "./mint-precision";
 import {
-  assertMainnetV1Ready,
+  assertMainnetV0Ready,
   authorizeComposed,
   latestBlockhash,
   mainnetRpc,
   simulateComposed,
   type RpcAccount,
 } from "./composed-transactions";
+import { authorizeBundle } from "./bundle-authorization";
+import { prepareJitoTip } from "./jito-bundles";
+import { loadVerifiedLookupTables } from "./jupiter-lookup-tables";
+import { resolvePublishedCreatorBasket } from "./creator-store";
 
 type ApiInstruction = {
   programId: string;
@@ -159,7 +168,7 @@ function balance(account: RpcAccount, mint: string, owner: string): bigint {
 }
 export async function prepareBasketOrder(
   input: BasketOrderRequest,
-): Promise<BasketOrder> {
+): Promise<BasketPurchaseOrder> {
   return prepareAllocationOrder(input);
 }
 
@@ -168,16 +177,19 @@ export async function prepareTokenSwapOrder(
   input: Omit<BasketOrderRequest, "basketId">,
   outputToken: SwapToken,
 ): Promise<BasketOrder> {
-  return prepareAllocationOrder(
+  const order = await prepareAllocationOrder(
     { ...input, basketId: outputToken.mint },
     outputToken,
   );
+  if ("kind" in order)
+    throw new Error("Single-token swaps cannot use bundles.");
+  return order;
 }
 
 async function prepareAllocationOrder(
   input: BasketOrderRequest,
   outputToken?: SwapToken,
-): Promise<BasketOrder> {
+): Promise<BasketPurchaseOrder> {
   const apiKey = process.env.JUPITER_API_KEY;
   if (!apiKey) throw new Error("Jupiter routing is not configured.");
   const taker = new PublicKey(input.taker).toBase58();
@@ -194,7 +206,7 @@ async function prepareAllocationOrder(
     throw new Error(
       "Choose an amount and slippage from 1 to 300 basis points.",
     );
-  await assertMainnetV1Ready(input.supportedTransactionVersions);
+  await assertMainnetV0Ready(input.supportedTransactionVersions);
   const market = await getServerMarketCatalog();
   if (
     market.backpackSecurities?.some(
@@ -209,12 +221,21 @@ async function prepareAllocationOrder(
     throw new Error(
       "This Backpack security is discovery-only until Solana transfers can be verified.",
     );
-  const customAllocations = input.customAllocations;
+  const published = outputToken
+    ? null
+    : await resolvePublishedCreatorBasket(input.basketId);
+  if (input.basketId.startsWith("creator-") && !published)
+    throw new Error("This published creator basket is unavailable.");
+  if (published && input.customAllocations !== undefined)
+    throw new Error(
+      "Published basket allocations are immutable. Remove client allocation overrides.",
+    );
+  const customAllocations = published?.allocations ?? input.customAllocations;
   let basket:
     | {
         id: string;
         missingSymbols: string[];
-        assets: Array<{ asset: any; weight: number }>;
+        assets: Array<{ asset: MarketAsset | SwapToken; weight: number }>;
       }
     | undefined;
 
@@ -224,15 +245,22 @@ async function prepareAllocationOrder(
       missingSymbols: [],
       assets: [{ asset: outputToken, weight: 10_000 }],
     };
-  } else if (customAllocations && Array.isArray(customAllocations) && customAllocations.length > 0) {
-    if (customAllocations.length < 2 || customAllocations.length > 4) {
-      throw new Error("Custom baskets must contain between 2 and 4 assets.");
+  } else if (
+    customAllocations &&
+    Array.isArray(customAllocations) &&
+    customAllocations.length > 0
+  ) {
+    if (customAllocations.length < 2 || customAllocations.length > 8) {
+      throw new Error(
+        "Custom baskets must contain between 2 and 8 assets, subject to route capacity.",
+      );
     }
     const seen = new Set<string>();
     let totalBps = 0;
-    const resolvedAssets: Array<{ asset: any; weight: number }> = [];
+    const resolvedAssets: Array<{ asset: MarketAsset; weight: number }> = [];
     for (const alloc of customAllocations) {
-      if (seen.has(alloc.mint)) throw new Error("Duplicate mint in custom basket.");
+      if (seen.has(alloc.mint))
+        throw new Error("Duplicate mint in custom basket.");
       seen.add(alloc.mint);
       if (!Number.isInteger(alloc.weightBps) || alloc.weightBps <= 0) {
         throw new Error("Custom allocation weights must be positive integers.");
@@ -240,12 +268,16 @@ async function prepareAllocationOrder(
       totalBps += alloc.weightBps;
       const asset = market.assets.find((a) => a.mint === alloc.mint);
       if (!asset || !asset.verified || asset.tradingHalted) {
-        throw new Error(`Asset ${alloc.mint} is unavailable or halted for trading.`);
+        throw new Error(
+          `Asset ${alloc.mint} is unavailable or halted for trading.`,
+        );
       }
       resolvedAssets.push({ asset, weight: alloc.weightBps });
     }
     if (totalBps !== 10_000) {
-      throw new Error("Custom allocation weights must total exactly 10,000 basis points.");
+      throw new Error(
+        "Custom allocation weights must total exactly 10,000 basis points.",
+      );
     }
     basket = {
       id: input.basketId || "custom",
@@ -257,7 +289,9 @@ async function prepareAllocationOrder(
   }
 
   if (
-    (!outputToken && !customAllocations && !hasCompleteIssuerCatalogs(market)) ||
+    (!outputToken &&
+      !customAllocations &&
+      !hasCompleteIssuerCatalogs(market)) ||
     !basket ||
     basket.missingSymbols.length ||
     !basket.assets.length ||
@@ -396,14 +430,14 @@ async function prepareAllocationOrder(
       return r;
     }),
   );
-  const instructions: TransactionInstruction[] = [];
-  const setupKeys = new Set<string>();
+  const legs: BasketSwapLeg[] = [];
   for (let i = 0; i < routes.length; i++) {
     const r = routes[i];
     if (!r) continue;
+    const instructions: TransactionInstruction[] = [];
+    // Every leg is independently executable: ATA setup cannot depend on an earlier chunk.
+    const setupKeys = new Set<string>();
     // A destination override asks Jupiter not to create its ATA. Create it ourselves.
-    const { createAssociatedTokenAccountIdempotentInstruction } =
-      await import("@solana/spl-token");
     if (!setupKeys.has(destinations[i]))
       instructions.push(
         createAssociatedTokenAccountIdempotentInstruction(
@@ -429,6 +463,14 @@ async function prepareAllocationOrder(
       }
       if (instruction.programId.equals(ASSOCIATED_TOKEN_PROGRAM_ID)) {
         const key = instruction.keys[1].pubkey.toBase58();
+        if (
+          ![inputMint, allocations[i].mint, MAINNET_SOL_MINT].includes(
+            instruction.keys[3].pubkey.toBase58(),
+          )
+        )
+          throw new Error(
+            "A route tried to create an unrelated token account.",
+          );
         if (setupKeys.has(key)) continue;
         setupKeys.add(key);
       }
@@ -441,65 +483,108 @@ async function prepareAllocationOrder(
       );
     for (const other of r.otherInstructions ?? [])
       instructions.push(ix(other, taker));
+    legs.push({ allocationIndex: i, instructions });
   }
-  if (!instructions.length)
-    throw new Error("This allocation does not require a swap.");
-  // V1 encodes route accounts inline; provider lookup tables are not needed.
+  if (!legs.length) throw new Error("This allocation does not require a swap.");
+  const lookupTables = await loadVerifiedLookupTables(
+    routes
+      .filter((route): route is Route => route !== null)
+      .map((route) => route.addressesByLookupTableAddress),
+  );
   const lifetime = await latestBlockhash();
-  const built = await composeMainnetTransaction({
+  const composition = {
     payer: taker,
-    ...lifetime,
-    instructions,
-    allowV1: true,
-  });
+    blockhash: lifetime.blockhash,
+    legs,
+    lookupTables,
+    basketAssetCount: basket.assets.length,
+  };
+  let tip: Awaited<ReturnType<typeof prepareJitoTip>> | undefined;
+  let chunks: ReturnType<typeof composeBasketV0Chunks>;
+  if (basket.assets.length <= 4) {
+    try {
+      chunks = composeBasketV0Chunks(composition);
+    } catch (error) {
+      if (basket.assets.length <= 3) throw error;
+      tip = await prepareJitoTip(taker);
+      chunks = composeBasketV0Chunks({
+        ...composition,
+        finalTipInstruction: tip.instruction,
+      });
+    }
+  } else {
+    tip = await prepareJitoTip(taker);
+    chunks = composeBasketV0Chunks({
+      ...composition,
+      finalTipInstruction: tip.instruction,
+    });
+  }
   const addresses = [
     ...destinations,
     ...(inputMint !== MAINNET_SOL_MINT ? [inputAta] : []),
+    taker,
   ];
   const before = await mainnetRpc<{ value: RpcAccount[] }>(
     "getMultipleAccounts",
     [addresses, { encoding: "base64", commitment: "confirmed" }],
   );
-  const simulation = await simulateComposed(built.transaction, addresses);
-  if (!simulation.accounts || simulation.accounts.length !== addresses.length)
-    throw new Error("Basket settlement could not be verified by simulation.");
-  for (let i = 0; i < routes.length; i++)
-    if (
-      routes[i] &&
-      balance(simulation.accounts[i], allocations[i].mint, taker) -
-        balance(before.value[i], allocations[i].mint, taker) <
+  const walletBefore = before.value[addresses.length - 1];
+  if (!walletBefore || !Number.isSafeInteger(walletBefore.lamports))
+    throw new Error("The fee payer balance is unavailable.");
+  let totalLamports = BigInt(0);
+  // Chunks deliberately do not consume each other's outputs. Independent simulation validates
+  // every route's delivery; Jito subsequently simulates the sequential signed bundle itself.
+  for (const chunk of chunks) {
+    const simulation = await simulateComposed(chunk.transaction, addresses);
+    if (!simulation.accounts || simulation.accounts.length !== addresses.length)
+      throw new Error("Basket settlement could not be verified by simulation.");
+    for (const i of chunk.allocationIndexes) {
+      if (
+        balance(simulation.accounts[i], allocations[i].mint, taker) -
+          balance(before.value[i], allocations[i].mint, taker) <
         BigInt(routes[i]!.otherAmountThreshold)
-    )
-      throw new Error(
-        "A basket route did not deliver its minimum output to your wallet.",
-      );
-  if (inputMint !== MAINNET_SOL_MINT) {
-    const n = addresses.length - 1;
-    const spent =
-      balance(before.value[n], inputMint, taker) -
-      balance(simulation.accounts[n], inputMint, taker);
-    const swapAmount = allocations
-      .filter((a) => a.mint !== inputMint)
-      .reduce((s, a) => s + a.amount, BigInt(0));
-    if (spent > swapAmount || spent < BigInt(0))
-      throw new Error(
-        "The simulated input debit exceeds the reviewed allocation.",
-      );
+      )
+        throw new Error(
+          "A basket route did not deliver its minimum output to your wallet.",
+        );
+    }
+    const swapAmount = chunk.allocationIndexes.reduce(
+      (sum, index) => sum + allocations[index].amount,
+      BigInt(0),
+    );
+    if (inputMint !== MAINNET_SOL_MINT) {
+      const n = destinations.length;
+      const spent =
+        balance(before.value[n], inputMint, taker) -
+        balance(simulation.accounts[n], inputMint, taker);
+      if (spent !== swapAmount)
+        throw new Error(
+          "The simulated input debit does not match the reviewed allocation.",
+        );
+    }
+    const walletAfter = simulation.accounts[addresses.length - 1];
+    if (!walletAfter || !Number.isSafeInteger(walletAfter.lamports))
+      throw new Error("The simulated SOL budget is unavailable.");
+    const debit = BigInt(walletBefore.lamports) - BigInt(walletAfter.lamports);
+    const minimumDebit =
+      inputMint === MAINNET_SOL_MINT ? swapAmount : BigInt(0);
+    totalLamports += debit > minimumDebit ? debit : minimumDebit;
   }
-  const order = await authorizeComposed({
-    ...built,
-    taker,
-    lastValidBlockHeight: lifetime.lastValidBlockHeight,
-    expiresAt: Date.now() + 45000,
-  });
-  return {
-    ...order,
+  // Reserve all chunks together, including fees if the RPC simulation does not deduct them.
+  if (
+    BigInt(walletBefore.lamports) <
+    totalLamports + BigInt(chunks.length * 15_000)
+  )
+    throw new Error(
+      "Your wallet needs more SOL for all basket transactions, account rent and the reviewed tip.",
+    );
+  const metadata = {
     basketId: basket.id,
     inputMint,
     inputDecimals: decimals[0],
     inAmount,
     slippageBps: input.slippageBps,
-    priorityFeeLamports: 10000,
+    priorityFeeLamports: 10_000 * chunks.length,
     outputs: allocations.map((a, i) => ({
       mint: a.mint,
       symbol: basket.assets[i].asset.symbol,
@@ -509,5 +594,50 @@ async function prepareAllocationOrder(
       minimumAmount: routes[i]?.otherAmountThreshold ?? a.amount.toString(),
       weightBps: Math.round(basket.assets[i].weight),
     })),
+  };
+  const expiresAt = Date.now() + 60_000;
+  const basketReceipt = {
+    basketId: basket.id,
+    inputMint,
+    inAmount: allocations
+      .filter((allocation) => allocation.mint !== inputMint)
+      .reduce((sum, allocation) => sum + allocation.amount, BigInt(0))
+      .toString(),
+  };
+  if (chunks.length === 1) {
+    const order = await authorizeComposed(
+      {
+        transaction: chunks[0].transaction,
+        serializedBytes: chunks[0].serializedBytes,
+        transactionVersion: 0,
+        taker,
+        lastValidBlockHeight: lifetime.lastValidBlockHeight,
+        expiresAt,
+      },
+      undefined,
+      undefined,
+      basketReceipt,
+    );
+    return { ...order, ...metadata };
+  }
+  const transactions = chunks.map((chunk) => chunk.transaction);
+  return {
+    kind: "bundle",
+    ...metadata,
+    ...authorizeBundle({
+      transactions,
+      taker,
+      expiresAt,
+      lastValidBlockHeight: lifetime.lastValidBlockHeight,
+      ...basketReceipt,
+    }),
+    transactions,
+    taker,
+    expiresAt,
+    lastValidBlockHeight: lifetime.lastValidBlockHeight,
+    transactionVersion: 0,
+    serializedBytes: chunks.map((chunk) => chunk.serializedBytes),
+    tipLamports: tip!.lamports,
+    atomicityWarning: BUNDLE_ATOMICITY_WARNING,
   };
 }

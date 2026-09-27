@@ -30,12 +30,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build SDK
-        run: pnpm build:sdk
-
       - name: Execute Bot Collector Pass
         env:
           KITE_WEB_URL: ${{ secrets.KITE_WEB_URL }}
-          KITE_RECURRING_RPC_URL: ${{ secrets.KITE_RECURRING_RPC_URL || 'https://api.devnet.solana.com' }}
-          BOT_KEYPAIR: ${{ secrets.BOT_KEYPAIR }}
-        run: node scripts/bot.mjs
+          KITE_RECURRING_EXECUTOR_SECRET: ${{ secrets.KITE_RECURRING_EXECUTOR_SECRET }}
+        run: pnpm exec tsx scripts/bot.ts

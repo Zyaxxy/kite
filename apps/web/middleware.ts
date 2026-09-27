@@ -9,6 +9,9 @@ const reads = createRequestLimiter(120);
 const writes = createRequestLimiter(20);
 export function middleware(request: NextRequest) {
   const api = request.nextUrl.pathname.startsWith("/api/");
+  const action =
+    request.nextUrl.pathname.startsWith("/api/actions/") ||
+    request.nextUrl.pathname === "/actions.json";
   const development = process.env.NODE_ENV !== "production";
   const trustProxy =
     process.env.VERCEL === "1" || process.env.KITE_TRUST_PROXY === "true";
@@ -55,10 +58,11 @@ export function middleware(request: NextRequest) {
   let response = NextResponse.next();
   if (!isLoopback(request.nextUrl.hostname) && protocol === "https")
     response.headers.set("Strict-Transport-Security", "max-age=31536000");
-  if (!api) return response;
+  if (!api && !action) return response;
   const origin = request.headers.get("origin");
   const effectiveOrigin = `${protocol}://${request.nextUrl.host}`;
   if (
+    !action &&
     !allowedOrigin(
       origin,
       effectiveOrigin,
@@ -83,7 +87,9 @@ export function middleware(request: NextRequest) {
     const retry = (mutation ? writes : reads)(ip);
     if (retry)
       response = NextResponse.json(
-        { error: "Too many requests. Please wait and try again." },
+        action
+          ? { message: "Too many requests. Please wait and try again." }
+          : { error: "Too many requests. Please wait and try again." },
         {
           status: 429,
           headers: {
@@ -101,7 +107,9 @@ export function middleware(request: NextRequest) {
         .toLowerCase() !== "application/json"
     )
       response = NextResponse.json(
-        { error: "Send an application/json request." },
+        action
+          ? { message: "Send an application/json request." }
+          : { error: "Send an application/json request." },
         { status: 415 },
       );
     else if (
@@ -109,20 +117,36 @@ export function middleware(request: NextRequest) {
       Number(request.headers.get("content-length") ?? 0) > 16_384
     )
       response = NextResponse.json(
-        { error: "The request body is too large." },
+        action
+          ? { message: "The request body is too large." }
+          : { error: "The request body is too large." },
         { status: 413 },
       );
   }
-  if (origin) {
+  if (action) {
+    // Public Actions only prepare owner-signed devnet transactions. Credentialed APIs keep their origin allowlist.
+    response.headers.set("Access-Control-Allow-Origin", "*");
+    response.headers.set(
+      "X-Blockchain-Ids",
+      "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+    );
+    response.headers.set("X-Action-Version", "2.4");
+  } else if (origin) {
     response.headers.set("Access-Control-Allow-Origin", origin);
     response.headers.append("Vary", "Origin");
   }
-  response.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  response.headers.set(
+    "Access-Control-Allow-Methods",
+    action ? "GET,POST,PUT,OPTIONS" : "GET, POST, OPTIONS",
+  );
   response.headers.set(
     "Access-Control-Allow-Headers",
-    "Content-Type, If-None-Match",
+    "Content-Type, If-None-Match, Authorization, Content-Encoding, Accept-Encoding, X-Accept-Action-Version, X-Accept-Blockchain-Ids",
   );
-  response.headers.set("Access-Control-Expose-Headers", "ETag, Retry-After");
+  response.headers.set(
+    "Access-Control-Expose-Headers",
+    "ETag, Retry-After, X-Blockchain-Ids, X-Action-Version",
+  );
   if (request.method === "OPTIONS")
     response.headers.set("Access-Control-Max-Age", "600");
   if (!isLoopback(request.nextUrl.hostname) && protocol === "https")

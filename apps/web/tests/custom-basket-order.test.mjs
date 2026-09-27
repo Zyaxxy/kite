@@ -43,9 +43,11 @@ test("customAllocations validation in prepareAllocationOrder", async () => {
       if (mod === "./jupiter-build") return { fetchJupiterBuild: async () => ({ ok: true, json: async () => ({}) }) };
       if (mod === "./markets") return { getServerMarketCatalog: async () => mockMarket };
       if (mod === "./mint-precision") return { getTradeMintDecimals: async () => 6 };
+      if (mod === "./creator-store") return { resolvePublishedCreatorBasket: async () => null };
+      if (["./bundle-authorization", "./jito-bundles", "./jupiter-lookup-tables"].includes(mod)) return {};
       if (mod === "./composed-transactions") {
         return {
-          assertMainnetV1Ready: async () => {},
+          assertMainnetV0Ready: async () => {},
           authorizeComposed: async (o) => o,
           latestBlockhash: async () => ({ blockhash: "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJziofM", lastValidBlockHeight: 100 }),
           mainnetRpc: async () => ({ value: [] }),
@@ -72,10 +74,10 @@ test("customAllocations validation in prepareAllocationOrder", async () => {
         slippageBps: 100,
         customAllocations: [{ mint: mintA, weightBps: 10000 }],
       }),
-    /between 2 and 4 assets/,
+    /between 2 and 8 assets/,
   );
 
-  // Rejects 5 allocations
+  // Rejects 9 allocations
   await assert.rejects(
     () =>
       prepareBasketOrder({
@@ -90,9 +92,13 @@ test("customAllocations validation in prepareAllocationOrder", async () => {
           { mint: key(), weightBps: 2000 },
           { mint: key(), weightBps: 2000 },
           { mint: key(), weightBps: 2000 },
+          { mint: key(), weightBps: 2000 },
+          { mint: key(), weightBps: 2000 },
+          { mint: key(), weightBps: 2000 },
+          { mint: key(), weightBps: 2000 },
         ],
       }),
-    /between 2 and 4 assets/,
+    /between 2 and 8 assets/,
   );
 
   // Rejects weight sum not 10000

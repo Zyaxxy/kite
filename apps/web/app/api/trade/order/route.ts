@@ -11,7 +11,7 @@ import {
 } from "@kite/sdk";
 import { getServerMarketCatalog } from "@/lib/server/markets";
 import { prepareTokenSwapOrder } from "@/lib/server/basket-order";
-import { assertMainnetV1Ready } from "@/lib/server/composed-transactions";
+import { assertMainnetV0Ready } from "@/lib/server/composed-transactions";
 import { getTradeMintDecimals } from "@/lib/server/mint-precision";
 import { searchJupiterSwapTokens } from "@/lib/server/swap-tokens";
 import { readLimitedJson } from "@/lib/server/request-policy";
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
           (v): v is number => typeof v === "number",
         )
       : [];
-    await assertMainnetV1Ready(supportedTransactionVersions);
+    await assertMainnetV0Ready(supportedTransactionVersions);
     const markets = await getServerMarketCatalog();
     const mints = [inputMint, outputMint];
     if (
