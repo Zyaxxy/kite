@@ -1,186 +1,111 @@
 # AGENTS.md
 
-## Project: Kite (Non-Custodial Neo-Brokerage on Solana)
+## Project
 
-Kite is a self-custody interface for tokenized equities on Solana. It offers 11 curated thematic stock baskets (e.g. `SOL-DIGITAL`, `SOL-AI`, `SOL-CHIPS`), automated non-custodial recurring investing (SIP / DCA) via Solana Subscriptions and the on-chain `kite_guard` Anchor program, deep stock research (1-year charts, technicals, fundamentals, news, corporate actions), and real-time market breadth and sentiment — all without holding user funds in any vault.
+Kite is a self-custody interface for tokenized equities on Solana. Its primary users want simple basket purchases and configurable recurring investing. Preserve the hybrid network boundary: **live spot trading is mainnet; wallet recurring is a separate devnet test-token demonstration**. Paper mode starts with $10,000 virtual cash and no seeded holdings. Web and mobile share one SDK.
 
-Both a paper-trading sandbox ($10,000 virtual USD) and wallet-approved mainnet trading are supported. Web and mobile share a single SDK.
+The project was built for the Solana tokenized stocks hackathon. Do not turn historical submission dates, liquidity audits or prior test totals into current deployment guarantees.
 
-Target: Solana Foundation $100,000 Tokenized Stocks Hackathon (Deadline: Friday, 18 September, 4:00pm ET).
+## Workspace and tooling
 
----
-
-## Workspace Architecture
-
-```
-kite/
-  ├── apps/
-  │   ├── web/                     # Next.js 15.5 App Router dApp (Privy + Wallet Adapter, Tailwind CSS)
-  │   └── mobile/                  # React Native / Expo dApp (MWA on Android, Privy web flow on iOS)
-  ├── packages/
-  │   ├── sdk/                     # Shared TypeScript SDK (@kite/sdk) — markets, baskets, paper, research, trading, recurring
-  │   └── anchor/                  # Solana smart contract: kite_guard (on-chain execution guard for recurring investments)
-  ├── docs/                        # Architecture docs, protocol security, deployment readiness, trading setup
-  ├── package.json                 # Monorepo workspaces root (pnpm 10.31.0)
-  └── turbo.json                   # Build orchestrator (Turborepo)
+```text
+apps/web/          Next.js App Router, Tailwind, Privy and Solana Wallet Adapter
+apps/mobile/       Expo / React Native; native navigation and Android MWA
+packages/sdk/      Shared @kite/sdk business logic, types and client transports
+packages/anchor/   Devnet kite_guard Anchor program
+docs/              Architecture, security, operations and verification
+scripts/bot.ts     Authenticated collector trigger; contains no fee-payer key
 ```
 
----
+Use the repository Node.js 24.12.0 / pnpm 10.31.0 toolchain and pinned lockfile. Build the SDK before web/mobile consumers. Do not upgrade unrelated dependencies while implementing a feature.
 
-## Environment & Tooling
-
-- **Node.js**: v24.12.0, **pnpm**: 10.31.0 (pinned lockfile)
-- **Web**: Next.js 15.5, Tailwind CSS, `@solana/wallet-adapter-react`, Privy for email/social sign-in
-- **Mobile**: Expo / React Native, `@solana-mobile/mobile-wallet-adapter-protocol` (Android MWA), Privy web flow (iOS/Expo web)
-- **Smart Contract**: Anchor framework (`packages/anchor`), program `kite_guard` (`8Fm9HENPAFnyo6L8cHJFx62HHsZ6ez6CPUDuzgKAzrjs`); V2 CPI implementation requires a separate devnet upgrade
-- **Transaction Format**: Solana V1 transactions composed via Jupiter Swap V2 build API. No ALTs for new transactions.
-
----
-
-## Key Commands
-
-```bash
-# Build shared SDK (required before web/mobile)
+```sh
+pnpm install --frozen-lockfile
 pnpm build:sdk
-
-# Run web dApp locally (http://localhost:3000)
 pnpm dev:web
-
-# Run mobile app locally
 pnpm dev:mobile
-
-# Build web for production
+pnpm typecheck
+pnpm test:upgrade
 pnpm build:web
-
-# Build Anchor smart contract
-pnpm build:anchor
-
-# Run Anchor tests
-pnpm test:anchor
-
-# Run SDK tests
-node --test packages/sdk/test/*.test.cjs
+pnpm --filter @kite/mobile test
+pnpm --filter @kite/mobile exec expo export --platform web --platform android --platform ios
 ```
 
----
+New tests use TypeScript and `node:test` through `tsx`; do not add new `.mjs` tests. Run existing suites separately with `node --test packages/sdk/test/*.test.cjs` and `node --test apps/web/tests/*.test.mjs`. Anchor build/runtime tests require their own toolchain; some historical fixtures target an older ABI. A successful local build is not a deployment or funded-transaction verification.
 
-## Core Product Features
+## Mainnet transaction model
 
-### 1. Dual Trading Modes
-- **Paper Trading**: Every device starts with $10,000 virtual USD. Simulates buys, sells, basket orders, stock-to-stock swaps, and recurring plans at live reference prices. Device-local, never backfills missed intervals. Not a forecast.
-- **Actual Trading**: Non-custodial mainnet via connected Solana wallets (Phantom, Solflare) or Privy embedded wallets. Quotes and executes V1 transactions through Jupiter.
+- New Jupiter spot swaps and basket purchases use **V0**. Retain version-aware signing for compatible existing flows instead of hard-coding V1 requirements in clients.
+- Resolve only Jupiter-referenced ALTs and verify their owner, active state and contents on mainnet. Client-provided tables are not trusted. A transaction must fit **1,232 serialized bytes and 64 runtime accounts**; lookup tables do not expand runtime account capacity.
+- Up to three basket assets use a single transaction or reject if the route does not fit. Four assets try single execution before a bundle. Larger allocations use **two or three ordered V0 transactions** through Jito, subject to actual route constraints.
+- Bundle preparation and execution use the shared SDK contract. Review all debits, minimum outputs, fees, transaction count and tip. Tip accounts are checked against the official Jito set; the tip is the final instruction of the last transaction, never a separate transfer transaction.
+- Validate exact ordered signed messages against the server authorization. Persist the signed payload before submission. Recover lost responses through status checks; never silently fall back to sending bundle transactions individually or build a new order while prior execution is uncertain.
+- Bundle acceptance is pending. Success requires every expected signature to have successful confirmed/finalized receipts in the same slot. Per-transaction simulation is not a stateful simulation of the entire bundle.
+- Do not promise unconditional bundle atomicity: skipped/uncled block rebroadcast can result in independent execution. There is no mainnet cross-transaction Guard in this release.
+- Mainnet preparation and execution independently verify the RPC genesis. Use server `SOLANA_RPC_URL`; browser-safe public RPC configuration is separate.
 
-### 2. Thematic Stock Baskets (11 curated)
-Baskets are **allocation definitions, not synthetic tokens**. Buying a basket delivers individual tokenized equities directly to the user's wallet via a single atomic V1 transaction. Equal-weight allocation using the Largest Remainder Method (Hare-Niemeyer) in BigInt arithmetic — zero dust leakage. If any constituent is missing or unpriced, the basket is marked unavailable. (Note: A 7-asset MAG7 basket is not used due to Solana's 64-account transaction limit; `SOL-DIGITAL` serves as the liquid, 3-asset mega-cap tech alternative for mainnet atomic execution.)
+See [Jito basket execution](docs/jito-basket-execution.md) for the authoritative transaction flow and limitations.
 
-| Basket | Ticker | Category | Constituents |
-|---|---|---|---|
-| Intelligence Layer | `SOL-AI` | Technology | NVDA, MSFT, GOOGL, AMZN, ORCL |
-| The Silicon Stack | `SOL-CHIPS` | Technology | NVDA, AMD, AVGO, TSM, ASML |
-| Work in the Cloud | `SOL-CLOUD` | Technology | MSFT, CRM, ORCL, NOW |
-| Everyday Economy | `SOL-LIFE` | Consumer | AAPL, AMZN, MCD, SBUX, KO |
-| Health, Ahead | `SOL-HEALTH` | Healthcare | LLY, JNJ, ABBV, UNH, MRK |
-| Money in Motion | `SOL-FIN` | Finance | JPM, GS, V, MA |
-| Strategic Systems | `SOL-DEF` | Industrials | LMT, RTX, NOC, PLTR |
-| Energy Backbone | `SOL-ENERGY` | Energy | XOM, CVX, COP |
-| Built to Move | `SOL-BUILD` | Industrials | CAT, DE, GE, HON |
-| A Wider Lens | `SOL-CORE` | Diversified | SPY, QQQ, GLD |
-| Private Frontiers | `SOL-PRE` | Private | Dynamic PreStocks catalog |
+## Baskets and creator publishing
 
-### 3. Recurring Investing (SIP / DCA)
-- **Paper**: Local plans with configurable cadence (daily/weekly/bi-weekly/monthly). Runs due installments only while the app is open.
-- **Devnet — Kite Guard V2**: Stock/basket plans delegate to a plan PDA through official Solana Subscriptions. Guard atomically collects, swaps through official Raydium devnet CPMM, and verifies delivery to owner ATAs. Collectors only pay fees. Owner-approved pools/minimum outputs are fixed; failed legs roll back the installment. Test tokens and pools must be provisioned separately. Mainnet wallet recurring is disabled. See `docs/kite-guard-protocol.md`.
+Baskets are allocation definitions, not synthetic tokens. BigInt Largest Remainder allocation conserves the specified funding amount across weights totaling 10,000 basis points. Outputs settle to owner wallet accounts. Missing, halted, unpriced or unsupported constituents block preparation.
 
-### 4. Stock Research Suite (5-tab panel)
-- **Overview**: 1-year daily OHLCV chart (Yahoo Finance), interactive SVG scrubber, period selectors (1M/3M/6M/1Y), day and 52-week range bars, company profile (Wikipedia + Yahoo Finance).
-- **Technicals**: SMA 20/50/200, RSI-14, 20-day average volume, trend badge.
-- **Fundamentals**: Annual/quarterly — revenue, gross profit, operating income, net income, cash flows, EPS, margins. Historical revenue bar chart.
-- **News**: Real-time stock-specific Google News RSS feed.
-- **Events**: Dividends, splits, SEC filings.
+The curated catalog is defined in the SDK; do not hard-code an asset count or old liquidity result into product copy. `/basket/builder` accepts **2–8 assets** and preserves private drafts. This range does not guarantee every live route will fit execution limits.
 
-### 5. Market Pulse (Real-Time Breadth & Sentiment)
-Real advancing/declining/unchanged asset counts with a visual breadth bar. 24h trading volume. Top mover leaderboards (volume, gainers, losers). No fabricated sentiment scores.
+Public creator publishing requires a multi-use code from server `CREATOR_INVITE_CODES`, wallet-signed review of the exact allocation, an expiring origin-bound challenge and a one-time challenge nonce. `CREATOR_AUTH_SECRET` signs the challenge. Redis stores immutable published versions and confirmed activity; publishing fails closed without durable storage.
 
-### 6. Portfolio, Activity & Watchlist
-Holdings breakdown with cost basis and unrealized PnL. Order activity log. CSV export. Bookmarkable watchlist with live pricing.
+Stats must come from confirmed, deduplicated receipts, exclude self-referrals and keep mainnet USDC units separate from devnet test units. The point formula is one point per complete $100 of mainnet USDC volume plus 100 per active mainnet subscriber. Mainnet recurring remains disabled; devnet subscribers earn no mainnet points. Never credit page views, quotes or unsigned Actions as investments.
 
----
+## Recurring protocol and Actions
 
-## Issuer & Market Data Sources
+- Paper recurring is local and runs due installments only while the application is open. It does not backfill missed intervals.
+- Wallet recurring uses `KITE_RECURRING_RPC_URL` and independently validates **devnet**. The current Guard collects test KUSD through official Solana Subscriptions and mints test stock outputs. Do not describe it as mainnet investing or a Raydium/AMM swap implementation.
+- Program IDs: Guard `8Fm9HENPAFnyo6L8cHJFx62HHsZ6ez6CPUDuzgKAzrjs`; Subscriptions `De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`. Deployment readiness must be checked against the actual on-chain program and mint authorities, not inferred from these addresses.
+- Current Anchor entrypoints are `create_plan`, `execute_swap`, `close_plan`; plan seeds are `[b"plan_v2", owner, funding_mint, nonce_u64_le]`. Read current source and IDL before changing codecs. Schedule/allocation bounds, delegation authority, owner destinations and mint authority checks must remain enforced.
+- Web, Android and Actions share recurring preparation. User cadence is daily, weekly, biweekly or fixed 30 days, bounded to a year. Do not label a fixed 30-day interval as calendar-month scheduling.
+- Actions at `/api/actions/baskets/{id}` produce unsigned V0 devnet transactions with explicit network headers. Setup must fit one transaction; never split an atomic delegation setup to bypass limits. Normal app flows may advertise V1 only when supported and activated on the configured devnet RPC.
+- `actions.json` maps basket links. Wildcard CORS is limited to public Actions routes and does not authorize privileged APIs. External social/client rendering depends on registry and network support.
+- Both GET and POST `/api/recurring/collect` require `KITE_RECURRING_EXECUTOR_SECRET` (or `CRON_SECRET`) bearer authorization. Never reuse quote HMAC secrets or faucet keys as HTTP authorization.
+- `BOT_KEYPAIR` is a server-only devnet fee payer, with the existing faucet keypair as fallback. The Guard PDA is the delegate; the scheduler wallet must never receive unrestricted owner delegation.
+- Production collector execution requires Redis leases and signed-transaction journals, bounded scans/timeouts and per-plan error isolation. Preserve unknown-submission recovery and idempotency; count confirmed installments only.
 
-- **xStocks** (`https://api.xstocks.fi`): Public US equities and ETFs as Token-2022/SPL tokens on Solana mainnet.
-- **PreStocks** (`https://prestocks.com`): Pre-IPO private company exposure. Paused/withdrawn listings are flagged.
-- **Jupiter**: Token market prices (tokens-v2, price-v3 APIs), swap routing (Swap V2 build API).
-- **Yahoo Finance**: OHLCV historical bars, fundamental timeseries, company metadata.
-- **Wikipedia API**: Company profile descriptions.
-- **Google News RSS**: Market and stock-specific headlines.
-- **Pyth Network**: Real-time equity oracle feeds (reference price comparison).
-- **Solscan**: On-chain explorer links for mints and transactions.
+See [Actions and collector operations](docs/actions-and-collector.md) before changing scheduling, delegation or keeper behavior. Do not put privileged collector routes in the mobile development tunnel allowlist.
 
-No charts, sentiment, or news are manufactured. Missing prices fail closed as "unavailable."
+## Native mobile behavior
 
----
+The native app has a welcome entry and Explore, Subscriptions, Portfolio and Activity tabs. Android development/release builds use `@solana-mobile/mobile-wallet-adapter-protocol` for authorization and exact-message signing on the device. Batch basket signing happens in one MWA session before server submission. SecureStore authorizations are separated by network; restored capabilities must be rechecked.
 
-## API Surface (`apps/web/app/api/`)
+iOS and Expo web currently support browsing and paper mode but **do not support native wallet signing**. Render that limitation honestly. Do not redirect wallet connection, trading or subscription management into the browser. Expo Go lacks the MWA native module. Native devnet plans are created and closed through the shared SDK recurring client; no keeper secret belongs in mobile code.
 
-| Endpoint | Method | Purpose |
-|---|---|---|
-| `/api/markets` | GET | Discover and price all issuer-listed tokens |
-| `/api/portfolio` | GET | Read wallet token balances |
-| `/api/trade/order` | POST | Prepare a validated V1 swap via Jupiter |
-| `/api/trade/execute` | POST | Verify signature and broadcast a quoted transaction |
-| `/api/buy-basket` | POST | Prepare an atomic multi-leg basket transaction |
-| `/api/investing` | POST | Plan setup, receipts, and authenticated executor protocol |
-| `/api/recurring` | POST | Prepare devnet Guard V2 stock/basket plans; subroutes collect, revoke, config, execute |
-| `/api/transaction/execute` | POST | Verify and broadcast composed owner-signed transactions |
-| `/api/news` | GET | Google News RSS proxy (market or stock-specific) |
-| `/api/research` | GET | Company profile, charts, technicals, fundamentals, events |
+The physical phone needs a reachable `EXPO_PUBLIC_API_BASE_URL`; `localhost` points at the phone. Preserve Expo web compatibility and avoid importing native-only modules into its bundle. Read [mobile setup](apps/mobile/README.md) for emulator/device prerequisites and verification limits.
 
-Secrets remain on the web server; only public app IDs and RPC config are in `NEXT_PUBLIC_*` / `EXPO_PUBLIC_*` variables.
+## Data and product standards
 
----
+- Sources include xStocks, PreStocks, Backpack Securities, Jupiter, Yahoo Finance, Wikipedia, Google News RSS and Pyth reference feeds. Discovery-only listings must never be treated as verified tradable mints.
+- Stock research covers overview, technicals, fundamentals, news and events where upstream data exists. Market breadth and leaderboards derive from observed data, not fabricated sentiment scores.
+- Preserve unavailable and stale-data states. Never introduce fabricated prices, balances, charts, activity, news or creator stats as production fallbacks. Clearly label paper and devnet test-token data.
+- Mainnet portfolio values come from wallet balances and available prices. Do not imply an imported wallet's full cost basis is known from balance reads. Activity shown on-device is not an exhaustive chain history.
+- Preserve the existing forest/cream/lime design system, tabular financial numbers, accessible contrast and geometric icons. No emoji. The primary task should remain easy to find on mobile and web.
 
-## Code Guidelines & Standards
+## Code and security guidelines
 
-### TypeScript / Frontend (`apps/web`, `apps/mobile`, `packages/sdk`)
-- Write modular, strictly-typed TypeScript without `any` where possible.
-- Shared business logic, types, and oracle helpers MUST live in `packages/sdk` so both web and mobile share a single source of truth.
-- Web uses `@solana/wallet-adapter-react` and dynamic imports for wallet modal components to prevent SSR hydration mismatches.
-- Mobile uses `@solana-mobile/mobile-wallet-adapter-protocol` for non-custodial signing with Phantom, Solflare, or Seed Vault on Solana Saga / Seeker.
-- No fabricated data — missing values render as "unavailable" rather than synthetic fallbacks.
+- Use strict, modular TypeScript. Shared business rules, transaction types and transports belong in `packages/sdk`; native exports must not pull Node-only server modules into Expo.
+- Keep wallet modal/provider imports SSR-safe. Clean up subscriptions, fetches and timers, and prevent stale quote responses from replacing a changed user's review.
+- Validate amount precision, funding balance, owner, network, supported transaction version, review expiry and exact signed payload before execution. Reject unsupported token extensions rather than bypassing checks.
+- Keep private keys, HMAC secrets, provider API keys, creator invites and keeper authorization out of `NEXT_PUBLIC_*`, `EXPO_PUBLIC_*`, browser bundles and logs. Only public app identifiers and restricted public endpoints belong in client config.
+- Use canonical HTTPS `KITE_SITE_URL` in deployment, explicit browser origins, and trust forwarded headers only behind a configured trusted proxy.
+- No Kite custodial vault is used for mainnet spot purchases. This does not remove issuer, market, network or execution risk; do not claim “no counterparty risk” or guaranteed fills.
+- Do not deploy contracts, fund wallets or submit real trades as an incidental test. Report which checks were static, mocked, read-only RPC or actual wallet/device execution.
 
-### Anchor / Smart Contract (`packages/anchor`)
-- Program: `kite_guard` — Anchor 1.2; V2 must be deployed separately.
-- PDA pattern: `[b"plan_v2", owner_pubkey, funding_mint_pubkey, nonce_u64_le]`.
-- Instructions: `create_plan_v2`, `execute_swap_v2`, `close_plan_v2`, `protocol_version`. Legacy create/execute reject; legacy close retains rent recovery.
-- Invariants: weights total 10,000 bps, max 20 assets subject to transaction limits, cadence at least 60s, duration at most 365 days, immutable owner destinations/pools/output floors. Devnet only.
+## Reference documentation
 
----
+- [Production upgrade and verification](docs/production-upgrade.md)
+- [Jito basket execution](docs/jito-basket-execution.md)
+- [Actions and collector operations](docs/actions-and-collector.md)
+- [Mainnet data](docs/mainnet-data.md)
+- [Stock research](docs/stock-research.md)
+- [Deployment readiness](docs/deployment-readiness.md)
+- [Devnet contract audit](docs/devnet-contract-audit.md)
+- [Mobile setup](apps/mobile/README.md)
 
-## Primitives & Protocols
-- **Jupiter:** Atomic multi-leg swaps using the Swap V2 build API. Token prices via tokens-v2 and price-v3.
-- **Solana Subscriptions:** Official program (`De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`) bounds the devnet plan PDA delegation. The Guard PDA, not a keeper wallet, signs collection CPI.
-- **Kite Guard:** V2 collects and swaps atomically via Subscriptions and Raydium devnet CPMM. The transient plan ATA must return to its starting balance; all outputs go to the owner. No cron worker or mainnet recurring deployment is included.
-- **Pyth Network:** Real-time equity oracle feeds for underlying share price references (`@pythnetwork/pyth-solana-receiver`).
-- **SPL Token / Token-2022:** Direct wallet holdings. No synthetic basket mint or Kite vault. Reject unsupported extensions rather than bypassing their checks.
-- **Privy:** Email/social sign-in with embedded Solana wallet creation. Secrets server-side only.
-
----
-
-## Key Design Principles
-- **No Kite Vault**: Tokens go directly to the user's wallet. No counterparty risk.
-- **No Fabricated Data**: All market data, charts, sentiment, and news are sourced from verifiable external providers.
-- **Fail-Closed**: Missing prices, unresolved issuers, or halted assets block trading rather than allowing degraded execution.
-- **Self-Custody by Design**: Wallet-approved transactions only. Users can revoke delegations and reclaim rent at any time.
-
----
-
-## Reference Documentation
-- [Kite Guard Protocol](docs/kite-guard-protocol.md) — Smart contract architecture
-- [V2 Architecture & Roadmap](docs/v2-roadmap-and-architecture.md) — Composable brokerage milestones
-- [Mainnet Data](docs/mainnet-data.md) — Issuer endpoints and data pipeline
-- [Mainnet Trading](docs/mainnet-trading.md) — Trading setup, environment variables, limitations
-- [Deployment Readiness](docs/deployment-readiness.md) — Deployment and rollback verification
-- [Stock Research](docs/stock-research.md) — Research suite architecture
-- [Wallet Swaps](docs/wallet-swaps.md) — Swap execution details
-- [Protocol Security](docs/protocol-security.md) — Security model
+Historical protocol/roadmap documents describe earlier implementations. Prefer the current source, generated types and upgrade operations documents when they disagree, and call out remaining deployment uncertainty explicitly.
