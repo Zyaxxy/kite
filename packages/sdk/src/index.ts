@@ -5,3 +5,4 @@ export * from "./subscriptions/mainnet";
 export * from "./jupiter-instruction";
 
 export * from "./guard/devnet";
+export * from "./basket/bundle";

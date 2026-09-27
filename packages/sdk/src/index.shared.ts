@@ -25,6 +25,13 @@ export * from "./mobile-signer";
 export * from "./recurring-investing";
 export * from "./guard/client";
 export * from "./wallet-capabilities";
+export * from "./creator";
+export * from "./client/recurring-client";
+export type {
+  BasketBundleOrder,
+  BasketPurchaseOrder,
+  BasketBundleExecution,
+} from "./basket/bundle";
 
 export type {
   WalletTransactionOrder,

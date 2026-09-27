@@ -15,7 +15,7 @@ const {
   executePaperOrder,
 } = require("../dist");
 
-test("validates programmable basket invariants (2 to 4 assets, 10000 bps sum)", () => {
+test("validates programmable basket invariants (2 to 8 assets, 10000 bps sum)", () => {
   const valid = {
     id: "custom-test-1",
     name: "AI & Tech",
@@ -40,10 +40,10 @@ test("validates programmable basket invariants (2 to 4 assets, 10000 bps sum)", 
         ...valid,
         allocations: [{ mint: "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp", symbol: "AAPL", weightBps: 10000 }],
       }),
-    /between 2 and 4 assets/,
+    /between 2 and 8 assets/,
   );
 
-  // Rejects 5 assets (capped at 4 for atomic single-tx V1 execution within 64 accounts)
+  // Rejects 9 assets; live route capacity is checked separately before signing.
   assert.throws(
     () =>
       validateProgrammableBasket({
@@ -54,9 +54,13 @@ test("validates programmable basket invariants (2 to 4 assets, 10000 bps sum)", 
           { mint: "mint33333333333333333333333333333333", symbol: "C", weightBps: 2000 },
           { mint: "mint44444444444444444444444444444444", symbol: "D", weightBps: 2000 },
           { mint: "mint55555555555555555555555555555555", symbol: "E", weightBps: 2000 },
+          { mint: "mint66666666666666666666666666666666", symbol: "F", weightBps: 2000 },
+          { mint: "mint77777777777777777777777777777777", symbol: "G", weightBps: 2000 },
+          { mint: "mint88888888888888888888888888888888", symbol: "H", weightBps: 2000 },
+          { mint: "mint99999999999999999999999999999999", symbol: "I", weightBps: 2000 },
         ],
       }),
-    /between 2 and 4 assets/,
+    /between 2 and 8 assets/,
   );
 
   // Rejects sum not equal to 10000 bps
@@ -263,4 +267,3 @@ test("creator name and optional social link are preserved across validation, res
   assert.equal(resolved.creatorSocial, "https://x.com/alicewalker");
   assert.equal(resolved.isCustom, true);
 });
-

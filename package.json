@@ -14,15 +14,18 @@
     "typecheck": "pnpm build:sdk && pnpm --filter @kite/web exec next typegen && pnpm --filter @kite/web exec tsc --noEmit && pnpm --filter @kite/mobile exec tsc --noEmit",
     "test:sdk": "pnpm build:sdk && node --test packages/sdk/test/*.test.cjs",
     "test": "node --test tests/*.test.*",
+    "test:upgrade": "node --import tsx --test packages/sdk/test/*.test.ts apps/web/tests/*.test.ts apps/mobile/tests/*.test.ts",
+    "keeper:trigger": "node --import tsx scripts/bot.ts",
     "dev:api-tunnel": "node scripts/dev-api-tunnel.mjs",
     "test:anchor": "pnpm --filter @kite/anchor test",
     "build:anchor": "cd packages/anchor && anchor build",
     "devnet:create-xstocks": "node scripts/create-devnet-xstocks.cjs"
   },
   "devDependencies": {
+    "prettier": "^3.6.2",
+    "tsx": "4.20.6",
     "turbo": "^2.4.4",
-    "typescript": "^5.7.3",
-    "prettier": "^3.6.2"
+    "typescript": "^5.7.3"
   },
   "pnpm": {
     "overrides": {
