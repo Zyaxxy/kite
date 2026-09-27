@@ -35,7 +35,7 @@ function createRoute({
   backpackDiscoveryMint = null,
   backpackMappingConflict = false,
   simulationStatus = "passed",
-  supportsV1 = true,
+  supportsV0 = true,
   tradeSecret = "test-only-trade-secret-with-32-characters",
 } = {}) {
   const calls = {
@@ -130,9 +130,9 @@ function createRoute({
       },
     },
     "@/lib/server/composed-transactions": {
-      assertMainnetV1Ready: async (versions) => {
-        if (!versions.includes(1))
-          throw new Error("This wallet does not advertise V1 signing.");
+      assertMainnetV0Ready: async (versions) => {
+        if (!versions.includes(0))
+          throw new Error("This wallet does not advertise v0 signing.");
       },
     },
     "@/lib/server/request-policy": { readLimitedJson },
@@ -143,7 +143,7 @@ function createRoute({
         if (simulationStatus !== "passed")
           throw new Error("Simulation unavailable or failed.");
         return {
-          transactionVersion: 1,
+          transactionVersion: 0,
           requestId: "test-order",
           transaction: "test-unsigned-transaction",
           authorization: "test-authorization",
@@ -192,7 +192,7 @@ function createRoute({
             taker: wallet,
             side,
             amount,
-            supportedTransactionVersions: supportsV1 ? [1] : [0],
+            supportedTransactionVersions: supportsV0 ? [0] : [1],
           }),
         }),
       ),
@@ -206,7 +206,7 @@ function createRoute({
             outputMint,
             amount,
             taker: wallet,
-            supportedTransactionVersions: supportsV1 ? [1] : [0],
+            supportedTransactionVersions: supportsV0 ? [0] : [1],
           }),
         }),
       ),
@@ -381,13 +381,13 @@ test("a failed or unavailable preflight never produces a signable order", async 
   assert.equal((await response.json()).simulation.status, "passed");
 });
 
-test("new swaps use capped V1 composition and unsupported wallets fail before routing", async () => {
+test("new swaps use capped v0 composition and unsupported wallets fail before routing", async () => {
   const route = createRoute();
   const order = await (await route.swap(mint, secondMint)).json();
   assert.equal(route.calls.quotes[0].slippageBps, 100);
-  assert.equal(order.transactionVersion, 1);
+  assert.equal(order.transactionVersion, 0);
   assert.equal(order.otherAmountThreshold, "99000000");
-  const incompatible = createRoute({ supportsV1: false });
+  const incompatible = createRoute({ supportsV0: false });
   assert.equal((await incompatible.swap(mint, secondMint)).status, 400);
   assert.equal(incompatible.calls.quotes.length, 0);
   assert.equal(incompatible.calls.catalog, 0);

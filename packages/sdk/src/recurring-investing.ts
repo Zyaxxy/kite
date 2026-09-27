@@ -1,5 +1,37 @@
 import type { WalletTransactionOrder } from "./basket/mainnet";
 
+/** Devnet plans use valueless KUSD and test stock mints, never mainnet equities. */
+export interface DevnetRecurringPlanRequest {
+  schemaVersion: 1;
+  owner: string;
+  target: { type: "stock" | "basket"; id: string };
+  amount: string;
+  periodSeconds: number;
+  periods: number;
+  supportedTransactionVersions: number[];
+}
+
+export interface DevnetRecurringCloseRequest {
+  schemaVersion: 1;
+  plan: string;
+  owner: string;
+  supportedTransactionVersions: number[];
+}
+
+export interface DevnetRecurringPreparedTransaction {
+  schemaVersion: 1;
+  network: "devnet";
+  protocolVersion: 2;
+  transaction: string;
+  transactionVersion: 0 | 1;
+  authorization: string;
+  signer: string;
+  plan: string;
+  operation: "create" | "collect" | "close";
+  expiresAt: number;
+  lastValidBlockHeight: number;
+}
+
 /** Shared, client-safe recurring investment terms. All timestamps are Unix seconds in UTC. */
 export interface RecurringInvestmentSchedule {
   unit: "day" | "week" | "month";

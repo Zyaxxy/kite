@@ -132,7 +132,7 @@ test("trade responses must preserve the requested amount and contain usable quot
     "1250000",
   );
   for (const changes of [
-    { transactionVersion: 0 },
+    { transactionVersion: 2 },
     { transactionVersion: undefined },
     { inAmount: "12500000" },
     { inputDecimals: 19 },

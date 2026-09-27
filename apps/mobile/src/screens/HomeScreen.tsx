@@ -9,7 +9,12 @@ import {
 } from "react-native";
 import { getMarketPulse, type MarketAsset } from "@kite/sdk";
 import { AssetRow, MarketStatus } from "../components/Market";
-import { EmptyState, FilterRow, SectionTitle } from "../components/Primitives";
+import {
+  Button,
+  EmptyState,
+  FilterRow,
+  SectionTitle,
+} from "../components/Primitives";
 import { IconArrowUpRight } from "../components/Icons";
 import type { Screen } from "../components/Navigation";
 import { useKite } from "../state/KiteProvider";
@@ -71,8 +76,24 @@ export function HomeScreen({
       }
     >
       <View style={ui.stack}>
-        <Text style={ui.title}>Discover</Text>
+        <Text style={ui.title}>Explore</Text>
         <Text style={ui.body}>Companies you know. Ideas worth following.</Text>
+      </View>
+      <View style={[ui.card, { borderColor: colors.accent }]}>
+        <Text style={[ui.small, { color: colors.accent }]}>
+          BUILD AN INVESTING HABIT
+        </Text>
+        <Text style={ui.heading}>Pick an idea. Set your rhythm.</Text>
+        <Text style={ui.body}>
+          A stock or a whole theme. Explore baskets, then try a recurring plan
+          with devnet test tokens.
+        </Text>
+        <Button label="Explore baskets" onPress={() => onNavigate("baskets")} />
+        <Button
+          secondary
+          label="Manage subscriptions"
+          onPress={() => onNavigate("plans")}
+        />
       </View>
       <View style={styles.shortcuts}>
         {(
@@ -206,7 +227,9 @@ export function HomeScreen({
             ) : null}
           </View>
           <Text style={ui.small}>
-            Based on {pulse.breadth.coveredAssets} actively traded assets with 24h returns (out of {pulse.totalAssets} catalog assets; remaining had no trades).
+            Based on {pulse.breadth.coveredAssets} actively traded assets with
+            24h returns (out of {pulse.totalAssets} catalog assets; remaining
+            had no trades).
           </Text>
         </View>
       ) : null}

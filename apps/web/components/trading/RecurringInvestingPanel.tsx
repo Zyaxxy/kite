@@ -16,6 +16,11 @@ import { fromTokenAmount, walletTransactionSignature } from "@kite/sdk";
 import { useTradingAuth } from "./TradingAuth";
 import { NativeSelect } from "../ui/native-select";
 import recurringStyles from "./recurring-controls.module.css";
+import {
+  publishedRecurringOption,
+  recurringDeepLink,
+  RECURRING_CADENCES,
+} from "@/lib/recurring-links";
 
 interface RecurringConfig {
   network: "devnet";
@@ -38,7 +43,7 @@ interface RecurringConfig {
 }
 interface PreparedPlan {
   network: "devnet";
-  transactionVersion: 1;
+  transactionVersion: 0 | 1;
   transaction: string;
   authorization: string;
   signer: string;
@@ -73,44 +78,44 @@ function validPendingPlan(value: unknown, owner: string): value is PendingPlan {
   const terms = order?.terms;
   return Boolean(
     order &&
-      order.signer === owner &&
-      order.network === "devnet" &&
-      order.transactionVersion === 1 &&
-      typeof order.authorization === "string" &&
-      order.authorization.length <= 4096 &&
-      typeof order.transaction === "string" &&
-      typeof order.plan === "string" &&
-      Number.isSafeInteger(order.expiresAt) &&
-      typeof record.signedTransaction === "string" &&
-      record.signedTransaction.length <= 8192 &&
-      /^[A-Za-z0-9+/]+={0,2}$/.test(record.signedTransaction) &&
-      terms &&
-      typeof terms.amount === "string" &&
-      terms.amount.length <= 40 &&
-      typeof terms.fundingSymbol === "string" &&
-      terms.fundingSymbol.length <= 20 &&
-      Number.isSafeInteger(terms.periodSeconds) &&
-      Number.isSafeInteger(terms.periods) &&
-      Number.isSafeInteger(terms.startsAt) &&
-      terms.startsAt > 0 &&
-      Number.isSafeInteger(terms.expiresAt) &&
-      terms.expiresAt > terms.startsAt &&
-      typeof terms.minimumPolicy === "string" &&
-      Array.isArray(terms.outputs) &&
-      terms.outputs.length > 0 &&
-      terms.outputs.length <= 20 &&
-      terms.outputs.every(
-        (output) =>
-          output &&
-          typeof output.mint === "string" &&
-          typeof output.symbol === "string" &&
-          Number.isSafeInteger(output.weightBps) &&
-          Number.isSafeInteger(output.decimals) &&
-          output.decimals >= 0 &&
-          output.decimals <= 9 &&
-          typeof output.minimumAmountOut === "string" &&
-          /^\d{1,20}$/.test(output.minimumAmountOut),
-      ),
+    order.signer === owner &&
+    order.network === "devnet" &&
+    (order.transactionVersion === 0 || order.transactionVersion === 1) &&
+    typeof order.authorization === "string" &&
+    order.authorization.length <= 4096 &&
+    typeof order.transaction === "string" &&
+    typeof order.plan === "string" &&
+    Number.isSafeInteger(order.expiresAt) &&
+    typeof record.signedTransaction === "string" &&
+    record.signedTransaction.length <= 8192 &&
+    /^[A-Za-z0-9+/]+={0,2}$/.test(record.signedTransaction) &&
+    terms &&
+    typeof terms.amount === "string" &&
+    terms.amount.length <= 40 &&
+    typeof terms.fundingSymbol === "string" &&
+    terms.fundingSymbol.length <= 20 &&
+    Number.isSafeInteger(terms.periodSeconds) &&
+    Number.isSafeInteger(terms.periods) &&
+    Number.isSafeInteger(terms.startsAt) &&
+    terms.startsAt > 0 &&
+    Number.isSafeInteger(terms.expiresAt) &&
+    terms.expiresAt > terms.startsAt &&
+    typeof terms.minimumPolicy === "string" &&
+    Array.isArray(terms.outputs) &&
+    terms.outputs.length > 0 &&
+    terms.outputs.length <= 20 &&
+    terms.outputs.every(
+      (output) =>
+        output &&
+        typeof output.mint === "string" &&
+        typeof output.symbol === "string" &&
+        Number.isSafeInteger(output.weightBps) &&
+        Number.isSafeInteger(output.decimals) &&
+        output.decimals >= 0 &&
+        output.decimals <= 9 &&
+        typeof output.minimumAmountOut === "string" &&
+        /^\d{1,20}$/.test(output.minimumAmountOut),
+    ),
   );
 }
 async function recurringRequest<T>(path: string, body: unknown): Promise<T> {
@@ -135,6 +140,7 @@ export function RecurringInvestingPanel({
   activeWallet.current = auth.walletAddress;
   const [configRevision, setConfigRevision] = useState(0);
   const [configError, setConfigError] = useState("");
+  const [linkedBasketError, setLinkedBasketError] = useState("");
   const [config, setConfig] = useState<RecurringConfig | null>(null);
   const [selectedToken, setSelectedToken] = useState<string>("");
   const [fundingAmount, setFundingAmount] = useState<string>("10");
@@ -151,6 +157,11 @@ export function RecurringInvestingPanel({
   const [faucetMessage, setFaucetMessage] = useState("");
   const [faucetUrl, setFaucetUrl] = useState("");
   const [faucetAvailable, setFaucetAvailable] = useState(false);
+
+  useEffect(() => {
+    const { periodSeconds } = recurringDeepLink(window.location.search);
+    if (periodSeconds) setPeriod(String(periodSeconds));
+  }, []);
 
   useEffect(() => {
     fetch("/api/faucet")
@@ -177,7 +188,9 @@ export function RecurringInvestingPanel({
       if (!res.ok || data.error) {
         throw new Error(data.error || "Faucet claim failed.");
       }
-      setFaucetMessage(`Received 500 KUSD${data.solAirdropped ? " and 0.1 devnet SOL" : ""}!`);
+      setFaucetMessage(
+        `Received 500 KUSD${data.solAirdropped ? " and 0.1 devnet SOL" : ""}!`,
+      );
       setFaucetUrl(data.solscanUrl || "");
       if (error && error.includes("KUSD")) {
         setError("");
@@ -193,15 +206,40 @@ export function RecurringInvestingPanel({
 
   useEffect(() => {
     const controller = new AbortController();
+    const { basketId } = recurringDeepLink(window.location.search);
     setConfig(null);
     setConfigError("");
-    fetch("/api/recurring/config", { signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok)
-          throw new Error("The devnet recurring configuration is unavailable.");
-        return response.json() as Promise<RecurringConfig>;
-      })
-      .then((data) => {
+    setLinkedBasketError("");
+    const configRequest = fetch("/api/recurring/config", {
+      signal: controller.signal,
+    }).then(async (response) => {
+      if (!response.ok)
+        throw new Error("The devnet recurring configuration is unavailable.");
+      return response.json() as Promise<RecurringConfig>;
+    });
+    const creatorRequest = basketId?.startsWith("creator-")
+      ? fetch(`/api/creators/baskets/${encodeURIComponent(basketId)}`, {
+          signal: controller.signal,
+        })
+          .then(
+            async (response): Promise<{ basket?: unknown; error?: string }> => {
+              if (!response.ok)
+                throw new Error(
+                  "This published basket is unavailable. Choose another basket or retry.",
+                );
+              return response.json();
+            },
+          )
+          .catch((cause: unknown): { basket?: unknown; error?: string } => ({
+            error:
+              cause instanceof Error
+                ? cause.message
+                : "The published basket is unavailable.",
+          }))
+      : Promise.resolve(null);
+    Promise.all([configRequest, creatorRequest])
+      .then(([data, creator]) => {
+        if (controller.signal.aborted) return;
         if (
           data.network !== "devnet" ||
           data.testTokensOnly !== true ||
@@ -209,12 +247,53 @@ export function RecurringInvestingPanel({
           !Array.isArray(data.baskets)
         )
           throw new Error("The recurring backend must use devnet test tokens.");
+        if (creator && basketId) {
+          try {
+            if (creator.error) throw new Error(creator.error);
+            const option = publishedRecurringOption(
+              basketId,
+              creator.basket,
+              data.stocks,
+            );
+            data = {
+              ...data,
+              baskets: [
+                ...data.baskets.filter((item) => item.id !== option.id),
+                option,
+              ],
+            };
+            if (!option.available)
+              setLinkedBasketError(
+                "This basket contains assets without provisioned devnet test mints. Choose a supported basket to continue.",
+              );
+          } catch (cause) {
+            setLinkedBasketError(
+              cause instanceof Error
+                ? cause.message
+                : "The published basket could not be verified.",
+            );
+          }
+        }
         setConfig(data);
         const stock = data.stocks.find((item) => item.available);
         const basket = data.baskets.find((item) => item.available);
-        setSelectedToken(
-          stock ? `stock:${stock.id}` : basket ? `basket:${basket.id}` : "",
-        );
+        setSelectedToken((current) => {
+          const [kind, id] = current.split(":");
+          if (
+            (kind === "stock" && data.stocks.some((item) => item.id === id)) ||
+            (kind === "basket" && data.baskets.some((item) => item.id === id))
+          )
+            return current;
+          if (basketId)
+            return data.baskets.some((item) => item.id === basketId)
+              ? `basket:${basketId}`
+              : "";
+          return basket
+            ? `basket:${basket.id}`
+            : stock
+              ? `stock:${stock.id}`
+              : "";
+        });
       })
       .catch((cause: unknown) => {
         if (!controller.signal.aborted)
@@ -314,7 +393,7 @@ export function RecurringInvestingPanel({
           );
         const signedTransaction = await auth.signTransaction(
           order.transaction,
-          1,
+          order.transactionVersion,
           "solana:devnet",
         );
         if (activeWallet.current !== order.signer)
@@ -397,6 +476,11 @@ export function RecurringInvestingPanel({
     const basket = config.baskets.find((item) => item.id === id);
     return basket ? `${basket.name} (${basket.ticker})` : "Selected basket";
   })();
+  const [selectedKind, selectedId] = selectedToken.split(":");
+  const selectedAvailable =
+    selectedKind === "basket"
+      ? config?.baskets.some((item) => item.id === selectedId && item.available)
+      : config?.stocks.some((item) => item.id === selectedId && item.available);
 
   return (
     <section
@@ -440,6 +524,11 @@ export function RecurringInvestingPanel({
           this plan.
         </p>
       )}
+      {linkedBasketError && (
+        <p className="fineprint" role="status">
+          {linkedBasketError}
+        </p>
+      )}
 
       {faucetAvailable && (
         <div className={recurringStyles.faucetCard}>
@@ -450,11 +539,16 @@ export function RecurringInvestingPanel({
               </div>
               <div className={recurringStyles.faucetText}>
                 <div className={recurringStyles.faucetTitleRow}>
-                  <span className={recurringStyles.faucetTitle}>Devnet Test Faucet</span>
-                  <span className={recurringStyles.faucetBadge}>Devnet Funds</span>
+                  <span className={recurringStyles.faucetTitle}>
+                    Devnet Test Faucet
+                  </span>
+                  <span className={recurringStyles.faucetBadge}>
+                    Devnet Funds
+                  </span>
                 </div>
                 <p className={recurringStyles.faucetSubtitle}>
-                  Claim 500 test KUSD &amp; 0.1 devnet SOL to fund and test your plan.
+                  Claim 500 test KUSD &amp; 0.1 devnet SOL to fund and test your
+                  plan.
                 </p>
               </div>
             </div>
@@ -463,7 +557,11 @@ export function RecurringInvestingPanel({
               className={recurringStyles.faucetButton}
               disabled={faucetLoading || !auth.walletAddress}
               onClick={() => void handleClaimFaucet()}
-              title={!auth.walletAddress ? "Connect wallet first" : "Claim 500 test KUSD & 0.1 devnet SOL"}
+              title={
+                !auth.walletAddress
+                  ? "Connect wallet first"
+                  : "Claim 500 test KUSD & 0.1 devnet SOL"
+              }
             >
               {faucetLoading ? (
                 <>
@@ -623,8 +721,11 @@ export function RecurringInvestingPanel({
                   disabled={loading}
                 >
                   <option value="60">Every 60 seconds · Devnet test</option>
-                  <option value="86400">Every day</option>
-                  <option value="604800">Every week</option>
+                  {Object.entries(RECURRING_CADENCES).map(([name, cadence]) => (
+                    <option key={name} value={cadence.seconds}>
+                      {cadence.label}
+                    </option>
+                  ))}
                 </NativeSelect>
               </label>
 
@@ -646,9 +747,9 @@ export function RecurringInvestingPanel({
               <span>
                 {period === "60"
                   ? "Every 60 seconds"
-                  : period === "86400"
-                    ? "Every day"
-                    : "Every week"}{" "}
+                  : (Object.values(RECURRING_CADENCES).find(
+                      (cadence) => String(cadence.seconds) === period,
+                    )?.label ?? "Choose a frequency")}{" "}
                 · {periods || "—"} planned investments
               </span>
             </div>
@@ -743,9 +844,10 @@ export function RecurringInvestingPanel({
             Boolean(pending) ||
             pendingUnreadable ||
             !auth.walletAddress ||
-            !auth.canSignV1 ||
+            (!auth.canSignV0 && !auth.canSignV1) ||
             !config?.readyToPrepare ||
-            !selectedToken
+            !selectedToken ||
+            !selectedAvailable
           }
         >
           {loading
@@ -760,9 +862,9 @@ export function RecurringInvestingPanel({
             Connect your wallet to create a devnet plan.
           </p>
         )}
-        {auth.walletAddress && !auth.canSignV1 && (
+        {auth.walletAddress && !auth.canSignV0 && !auth.canSignV1 && (
           <p className="fineprint text-center">
-            Connect a wallet with V1 and devnet signing support to approve an
+            Connect a wallet with V0 or V1 devnet signing support to approve an
             atomic recurring plan.
           </p>
         )}

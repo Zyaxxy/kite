@@ -1,11 +1,14 @@
 import type {
-  BasketOrder,
   BasketOrderRequest,
   WalletTransactionOrder,
   RecurringPayment,
   RecurringPaymentRequest,
 } from "../basket/mainnet";
 import type { MarketSnapshot } from "../markets";
+import type {
+  BasketBundleExecution,
+  BasketPurchaseOrder,
+} from "../basket/bundle";
 import {
   assertRecurringInvestmentSchedule,
   deriveRecurringPermissionWindow,
@@ -87,7 +90,7 @@ function matchesOrder(
     typeof n === "string" && n.length > 0 && n.length <= max;
   if (
     value.taker !== input.taker ||
-    value.transactionVersion !== 1 ||
+    (value.transactionVersion !== 0 && value.transactionVersion !== 1) ||
     value.inputMint !== input.inputMint ||
     value.outputMint !== input.outputMint ||
     !precision(value.inputDecimals) ||
@@ -207,7 +210,9 @@ export class KiteClient {
         !(
           options.acceptExecutionResult &&
           record(data) &&
-          ["Success", "Failed", "Unknown"].includes(String(data.status))
+          ["Pending", "Success", "Failed", "Unknown"].includes(
+            String(data.status),
+          )
         )
       )
         throw new KiteApiError(
@@ -312,15 +317,17 @@ export class KiteClient {
   async requestBasketOrder(
     input: BasketOrderRequest,
     signal?: AbortSignal,
-  ): Promise<BasketOrder> {
+  ): Promise<BasketPurchaseOrder> {
     const { data } = await this.request("/api/buy-basket", {
       body: input,
       signal,
     });
-    return verified<BasketOrder>(
+    return verified<BasketPurchaseOrder>(
       data,
       (v) =>
-        validWalletOrder(v, input.taker) &&
+        (v.kind === "bundle"
+          ? validBundleOrder(v, input.taker)
+          : v.kind === undefined && validWalletOrder(v, input.taker)) &&
         v.basketId === input.basketId &&
         v.inputMint === input.inputMint &&
         Number.isInteger(v.inputDecimals) &&
@@ -448,6 +455,64 @@ export class KiteClient {
       return classifyTradeExecution(null);
     }
   }
+  /** Exactly one bundle submission. Never resends a chunk through a single-transaction path. */
+  async executeBundle(input: {
+    signedTransactions: string[];
+    authorization: string;
+  }): Promise<BasketBundleExecution> {
+    try {
+      const { data } = await this.request("/api/bundles/execute", {
+        body: input,
+        acceptExecutionResult: true,
+      });
+      return validBundleExecution(data);
+    } catch {
+      // The response may be lost after submission. Recovery only queries receipts; it never sends transactions.
+      return this.recoverBundle(input);
+    }
+  }
+  async getBundleStatus(
+    input: { bundleId?: string; authorization: string },
+    signal?: AbortSignal,
+  ): Promise<BasketBundleExecution> {
+    try {
+      const { data } = await this.request("/api/bundles/status", {
+        body: input,
+        signal,
+        acceptExecutionResult: true,
+      });
+      return validBundleExecution(data);
+    } catch {
+      return {
+        status: "Unknown",
+        bundleId: input.bundleId,
+        signatures: [],
+        statusAuthorization: input.authorization,
+        error:
+          "Bundle receipts are temporarily unavailable. Check every transaction before retrying.",
+      };
+    }
+  }
+  async recoverBundle(
+    input: { signedTransactions: string[]; authorization: string },
+    signal?: AbortSignal,
+  ): Promise<BasketBundleExecution> {
+    try {
+      const { data } = await this.request("/api/bundles/status", {
+        body: input,
+        signal,
+        acceptExecutionResult: true,
+      });
+      return validBundleExecution(data);
+    } catch {
+      return {
+        status: "Unknown",
+        signatures: [],
+        error:
+          "Bundle submission is unresolved. Recover receipts before making another purchase.",
+      };
+    }
+  }
   async executeTrade(
     input: ExecuteTradeRequest,
     signal?: AbortSignal,
@@ -466,6 +531,82 @@ export class KiteClient {
   }
 }
 
+function validBundleExecution(value: unknown): BasketBundleExecution {
+  return verified<BasketBundleExecution>(value, (v) => {
+    if (
+      !["Pending", "Success", "Failed", "Unknown"].includes(String(v.status)) ||
+      !Array.isArray(v.signatures) ||
+      v.signatures.length > 3 ||
+      v.signatures.some(
+        (signature) =>
+          typeof signature !== "string" ||
+          !/^[1-9A-HJ-NP-Za-km-z]{64,88}$/.test(signature),
+      ) ||
+      (v.bundleId !== undefined &&
+        (typeof v.bundleId !== "string" ||
+          !/^[a-f0-9]{64}$/i.test(v.bundleId))) ||
+      (v.statusAuthorization !== undefined &&
+        (typeof v.statusAuthorization !== "string" ||
+          v.statusAuthorization.length > 5000)) ||
+      (v.error !== undefined &&
+        (typeof v.error !== "string" || v.error.length > 2000))
+    )
+      return false;
+    return (
+      (v.status !== "Success" && v.status !== "Pending") ||
+      (v.signatures.length >= 2 &&
+        new Set(v.signatures).size === v.signatures.length &&
+        typeof v.statusAuthorization === "string")
+    );
+  });
+}
+
+function validBundleOrder(v: Record<string, unknown>, taker: string): boolean {
+  return (
+    v.taker === taker &&
+    v.transactionVersion === 0 &&
+    typeof v.requestId === "string" &&
+    v.requestId.length > 0 &&
+    v.requestId.length <= 256 &&
+    typeof v.authorization === "string" &&
+    v.authorization.length > 0 &&
+    v.authorization.length <= 5000 &&
+    typeof v.expiresAt === "number" &&
+    Number.isFinite(v.expiresAt) &&
+    v.expiresAt > 0 &&
+    Number.isSafeInteger(v.lastValidBlockHeight) &&
+    Number(v.lastValidBlockHeight) > 0 &&
+    Number.isSafeInteger(v.tipLamports) &&
+    Number(v.tipLamports) >= 1000 &&
+    Number(v.tipLamports) <= 100000 &&
+    typeof v.atomicityWarning === "string" &&
+    v.atomicityWarning.length > 0 &&
+    v.atomicityWarning.length <= 2000 &&
+    Array.isArray(v.transactions) &&
+    v.transactions.length >= 2 &&
+    v.transactions.length <= 3 &&
+    new Set(v.transactions).size === v.transactions.length &&
+    Array.isArray(v.serializedBytes) &&
+    v.serializedBytes.length === v.transactions.length &&
+    v.transactions.every((transaction, index) => {
+      if (
+        typeof transaction !== "string" ||
+        transaction.length > 1644 ||
+        !/^[A-Za-z0-9+/]+={0,2}$/.test(transaction)
+      )
+        return false;
+      const byteLength =
+        (transaction.length * 3) / 4 -
+        (transaction.endsWith("==") ? 2 : transaction.endsWith("=") ? 1 : 0);
+      return (
+        byteLength >= 100 &&
+        byteLength <= 1232 &&
+        (v.serializedBytes as unknown[])[index] === byteLength
+      );
+    })
+  );
+}
+
 function validWalletOrder(v: Record<string, unknown>, taker: string) {
   return (
     v.taker === taker &&
@@ -479,8 +620,6 @@ function validWalletOrder(v: Record<string, unknown>, taker: string) {
     (v.transactionVersion === 0 || v.transactionVersion === 1)
   );
 }
-
-
 
 function validBasketOutputs(outputs: unknown, input: string): boolean {
   const raw = (v: unknown): v is string =>

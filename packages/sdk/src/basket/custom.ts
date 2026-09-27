@@ -1,8 +1,6 @@
 import type { MarketAsset, MarketBasket } from "../markets";
-import { allocateBasketInput } from "./atomic-swap";
-import { getBasketLiquidityAudit, type BasketLiquidityAudit } from "./liquidity-audit";
 
-export const MAX_CUSTOM_BASKET_LEGS = 4;
+export const MAX_CUSTOM_BASKET_LEGS = 8;
 export const MIN_CUSTOM_BASKET_LEGS = 2;
 
 export interface BasketAllocation {
@@ -57,34 +55,60 @@ export function formatSocialUrl(input?: string): string | undefined {
   return `https://${trimmed}`;
 }
 
-/** Validate custom basket invariants: 2–4 assets for guaranteed V1 atomic single-tx execution,
+/** Validate allocation definitions. Route availability and transaction bounds are checked at quote time:
  * strictly positive integer basis points, exact 10,000 bps sum, unique mints. */
 export function validateProgrammableBasket(input: unknown): ProgrammableBasket {
   if (!isRecord(input)) throw new Error("Invalid custom basket object.");
   const id = String(input.id || "").trim();
   const name = String(input.name || "").trim();
-  const ticker = String(input.ticker || "").trim().toUpperCase();
+  const ticker = String(input.ticker || "")
+    .trim()
+    .toUpperCase();
   const description = String(input.description || "").trim();
-  const category = (typeof input.category === "string" ? input.category : "custom") as ProgrammableBasket["category"];
-  const createdAt = typeof input.createdAt === "string" ? input.createdAt : new Date().toISOString();
-  const updatedAt = typeof input.updatedAt === "string" ? input.updatedAt : createdAt;
+  const category = (
+    typeof input.category === "string" ? input.category : "custom"
+  ) as ProgrammableBasket["category"];
+  const createdAt =
+    typeof input.createdAt === "string"
+      ? input.createdAt
+      : new Date().toISOString();
+  const updatedAt =
+    typeof input.updatedAt === "string" ? input.updatedAt : createdAt;
 
-  const rawCreatorName = typeof input.creatorName === "string" ? input.creatorName.trim() : undefined;
-  const creatorName = rawCreatorName && rawCreatorName.length > 0 ? rawCreatorName.slice(0, 50) : undefined;
+  const rawCreatorName =
+    typeof input.creatorName === "string"
+      ? input.creatorName.trim()
+      : undefined;
+  const creatorName =
+    rawCreatorName && rawCreatorName.length > 0
+      ? rawCreatorName.slice(0, 50)
+      : undefined;
 
-  const rawCreatorSocial = typeof input.creatorSocial === "string" ? input.creatorSocial.trim() : undefined;
-  const creatorSocial = rawCreatorSocial ? formatSocialUrl(rawCreatorSocial)?.slice(0, 200) : undefined;
+  const rawCreatorSocial =
+    typeof input.creatorSocial === "string"
+      ? input.creatorSocial.trim()
+      : undefined;
+  const creatorSocial = rawCreatorSocial
+    ? formatSocialUrl(rawCreatorSocial)?.slice(0, 200)
+    : undefined;
 
-  if (!id || id.length > 100) throw new Error("Basket identifier is missing or too long.");
-  if (!name || name.length > 50) throw new Error("Basket name must be between 1 and 50 characters.");
+  if (!id || id.length > 100)
+    throw new Error("Basket identifier is missing or too long.");
+  if (!name || name.length > 50)
+    throw new Error("Basket name must be between 1 and 50 characters.");
   if (!ticker || ticker.length < 2 || ticker.length > 15)
     throw new Error("Basket ticker must be between 2 and 15 characters.");
-  if (description.length > 500) throw new Error("Basket description must not exceed 500 characters.");
+  if (description.length > 500)
+    throw new Error("Basket description must not exceed 500 characters.");
 
-  if (!Array.isArray(input.allocations)) throw new Error("Basket allocations must be an array.");
-  if (input.allocations.length < MIN_CUSTOM_BASKET_LEGS || input.allocations.length > MAX_CUSTOM_BASKET_LEGS) {
+  if (!Array.isArray(input.allocations))
+    throw new Error("Basket allocations must be an array.");
+  if (
+    input.allocations.length < MIN_CUSTOM_BASKET_LEGS ||
+    input.allocations.length > MAX_CUSTOM_BASKET_LEGS
+  ) {
     throw new Error(
-      `Custom baskets must contain between ${MIN_CUSTOM_BASKET_LEGS} and ${MAX_CUSTOM_BASKET_LEGS} assets to guarantee atomic mainnet execution under the 64-account limit.`,
+      `Custom baskets must contain between ${MIN_CUSTOM_BASKET_LEGS} and ${MAX_CUSTOM_BASKET_LEGS} assets. Execution depends on current routes and transaction limits.`,
     );
   }
 
@@ -95,16 +119,23 @@ export function validateProgrammableBasket(input: unknown): ProgrammableBasket {
   for (const item of input.allocations) {
     if (!isRecord(item)) throw new Error("Invalid allocation item.");
     const mint = String(item.mint || "").trim();
-    const symbol = String(item.symbol || "").trim().toUpperCase();
-    const nameStr = typeof item.name === "string" ? item.name.trim() : undefined;
+    const symbol = String(item.symbol || "")
+      .trim()
+      .toUpperCase();
+    const nameStr =
+      typeof item.name === "string" ? item.name.trim() : undefined;
     const weightBps = Number(item.weightBps);
 
-    if (!mint || mint.length < 32 || mint.length > 44) throw new Error(`Invalid mint address: ${mint}`);
-    if (seenMints.has(mint)) throw new Error(`Duplicate asset in basket: ${symbol || mint}`);
+    if (!mint || mint.length < 32 || mint.length > 44)
+      throw new Error(`Invalid mint address: ${mint}`);
+    if (seenMints.has(mint))
+      throw new Error(`Duplicate asset in basket: ${symbol || mint}`);
     seenMints.add(mint);
 
     if (!Number.isInteger(weightBps) || weightBps <= 0 || weightBps > 10_000) {
-      throw new Error(`Allocation for ${symbol || mint} must be a positive integer basis point amount.`);
+      throw new Error(
+        `Allocation for ${symbol || mint} must be a positive integer basis point amount.`,
+      );
     }
 
     totalBps += weightBps;
@@ -112,16 +143,24 @@ export function validateProgrammableBasket(input: unknown): ProgrammableBasket {
   }
 
   if (totalBps !== 10_000) {
-    throw new Error(`Total basket allocations must sum to exactly 10,000 basis points (100.00%). Current sum: ${totalBps}.`);
+    throw new Error(
+      `Total basket allocations must sum to exactly 10,000 basis points (100.00%). Current sum: ${totalBps}.`,
+    );
   }
 
-  const rebalanceRulesInput = isRecord(input.rebalanceRules) ? input.rebalanceRules : {};
+  const rebalanceRulesInput = isRecord(input.rebalanceRules)
+    ? input.rebalanceRules
+    : {};
   const driftThresholdBps = Number(rebalanceRulesInput.driftThresholdBps);
   const validDrift =
-    Number.isInteger(driftThresholdBps) && driftThresholdBps >= 100 && driftThresholdBps <= 5000
+    Number.isInteger(driftThresholdBps) &&
+    driftThresholdBps >= 100 &&
+    driftThresholdBps <= 5000
       ? driftThresholdBps
       : 500; // default 5%
-  const schedule = ["none", "weekly", "monthly"].includes(String(rebalanceRulesInput.schedule))
+  const schedule = ["none", "weekly", "monthly"].includes(
+    String(rebalanceRulesInput.schedule),
+  )
     ? (String(rebalanceRulesInput.schedule) as RebalanceRules["schedule"])
     : "none";
 
@@ -170,23 +209,36 @@ export function calculateMarketCapWeights(
   const byMint = new Map(catalog.map((a) => [a.mint, a]));
   const caps = selected.map((s) => {
     const asset = byMint.get(s.mint);
-    const cap = asset?.marketCapUsd ?? asset?.underlyingMarketCapUsd ?? 0;
-    return cap > 0 ? BigInt(Math.round(cap)) : 100_000_000n; // safe positive fallback
+    const cap = asset?.underlyingMarketCapUsd ?? asset?.marketCapUsd;
+    if (cap == null || !Number.isFinite(cap) || cap < 1) {
+      throw new Error(
+        `Market cap is unavailable for ${s.symbol}. Choose equal or manual weights.`,
+      );
+    }
+    return BigInt(Math.round(cap));
   });
   const totalCap = caps.reduce((sum, c) => sum + c, 0n);
-  const allocations = allocateBasketInput(
-    10_000n,
-    selected.map((s, i) => ({
-      mint: s.mint,
-      weightBps: totalCap > 0n ? Number((caps[i] * 10_000n) / totalCap) : Math.floor(10_000 / selected.length),
-    })),
-  );
-  const weightMap = new Map(allocations.map((a) => [a.mint, Number(a.amount)]));
-  return selected.map((s) => ({
+  const weights = caps.map((cap) => Number((cap * 10_000n) / totalCap));
+  const remainders = caps
+    .map((cap, index) => ({ index, remainder: (cap * 10_000n) % totalCap }))
+    .sort((a, b) =>
+      a.remainder === b.remainder
+        ? a.index - b.index
+        : a.remainder > b.remainder
+          ? -1
+          : 1,
+    );
+  const leftover = 10_000 - weights.reduce((sum, value) => sum + value, 0);
+  for (let i = 0; i < leftover; i++) weights[remainders[i].index]++;
+  if (weights.some((weight) => weight <= 0))
+    throw new Error(
+      "A market-cap weight is too small. Choose equal or manual weights.",
+    );
+  return selected.map((s, i) => ({
     mint: s.mint,
     symbol: s.symbol,
     name: s.name,
-    weightBps: weightMap.get(s.mint) ?? Math.floor(10_000 / selected.length),
+    weightBps: weights[i],
   }));
 }
 
@@ -205,7 +257,11 @@ export function resolveProgrammableBasket(
     if (!asset) {
       missingSymbols.push(alloc.symbol);
     } else {
-      if (asset.priceUsd === null || !Number.isFinite(asset.priceUsd) || asset.priceUsd <= 0) {
+      if (
+        asset.priceUsd === null ||
+        !Number.isFinite(asset.priceUsd) ||
+        asset.priceUsd <= 0
+      ) {
         unpricedSymbols.push(asset.symbol);
       }
       resolvedMembers.push({ asset, weight: alloc.weightBps });
@@ -216,17 +272,9 @@ export function resolveProgrammableBasket(
     missingSymbols.length === 0 &&
     unpricedSymbols.length === 0 &&
     resolvedMembers.length >= MIN_CUSTOM_BASKET_LEGS &&
-    resolvedMembers.every(({ asset }) => asset.verified && !asset.tradingHalted);
-
-  const customAudit: BasketLiquidityAudit = {
-    tier: "verified-high",
-    badgeLabel: "Custom · Verified Atomic",
-    description: `User-programmed basket with ${basket.allocations.length} mainnet constituents.`,
-    isAtomicExecutable: true,
-    testedRoundTripLossBps: 50,
-    maxAccounts: 30 + basket.allocations.length * 8,
-    liquidityVenueSummary: "Jupiter Mainnet Multi-Leg Routing",
-  };
+    resolvedMembers.every(
+      ({ asset }) => asset.verified && !asset.tradingHalted,
+    );
 
   return {
     id: basket.id,
@@ -238,7 +286,6 @@ export function resolveProgrammableBasket(
     missingSymbols,
     unpricedSymbols,
     available,
-    liquidityAudit: customAudit,
     isCustom: true,
     creatorName: basket.creatorName,
     creatorSocial: basket.creatorSocial,
@@ -279,7 +326,8 @@ export function decodeBasketShareCode(code: string): ProgrammableBasket | null {
     if (!isRecord(parsed) || !Array.isArray(parsed.a)) return null;
 
     const allocations: BasketAllocation[] = parsed.a.map((item: unknown) => {
-      if (!Array.isArray(item) || item.length < 3) throw new Error("Invalid allocation array");
+      if (!Array.isArray(item) || item.length < 3)
+        throw new Error("Invalid allocation array");
       return {
         mint: String(item[0]),
         symbol: String(item[1]),

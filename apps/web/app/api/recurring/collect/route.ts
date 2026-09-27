@@ -5,15 +5,20 @@ import {
   runDevnetCollectorPass,
 } from "@/lib/server/recurring-devnet";
 import { parseCollectDevnetPlan } from "@/lib/server/recurring-devnet-policy";
+import {
+  KeeperError,
+  requireCollectorAuthorization,
+} from "@/lib/server/recurring-keeper";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /** Trigger automated collection pass across all due recurring plans (used by cronjob.org). */
-export async function GET() {
+export async function GET(request: NextRequest) {
   const headers = { "Cache-Control": "no-store" };
   try {
+    requireCollectorAuthorization(request.headers.get("authorization"));
     const summary = await runDevnetCollectorPass();
     return NextResponse.json(
       {
@@ -31,7 +36,7 @@ export async function GET() {
             ? error.message
             : "Unable to run recurring collection pass.",
       },
-      { status: 500, headers },
+      { status: error instanceof KeeperError ? error.status : 503, headers },
     );
   }
 }
@@ -40,8 +45,17 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const headers = { "Cache-Control": "no-store" };
   try {
-    const raw = await readLimitedJson(request, 2048).catch(() => null);
-    if (!raw || Object.keys(raw).length === 0 || (raw as any).trigger === "cron") {
+    requireCollectorAuthorization(request.headers.get("authorization"));
+    const raw = await readLimitedJson(request, 2048);
+    if (
+      raw &&
+      typeof raw === "object" &&
+      !Array.isArray(raw) &&
+      (Object.keys(raw).length === 0 ||
+        (Object.keys(raw).length === 1 &&
+          "trigger" in raw &&
+          raw.trigger === "cron"))
+    ) {
       const summary = await runDevnetCollectorPass();
       return NextResponse.json({ status: "ok", ...summary }, { headers });
     }
@@ -57,8 +71,7 @@ export async function POST(request: NextRequest) {
             ? error.message
             : "Unable to prepare devnet collection.",
       },
-      { status: 422, headers },
+      { status: error instanceof KeeperError ? error.status : 422, headers },
     );
   }
 }
-

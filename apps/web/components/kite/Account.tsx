@@ -374,6 +374,14 @@ export function Plans() {
       stock = params.get("stock");
     if (basket) setTarget(`basket:${basket}`);
     else if (stock) setTarget(`asset:${stock}`);
+    const cadence = params.get("cadence");
+    if (
+      cadence === "daily" ||
+      cadence === "weekly" ||
+      cadence === "biweekly" ||
+      cadence === "monthly"
+    )
+      setFrequency(cadence);
     const requestedMode = params.get("mode");
     if (requestedMode === "paper" || requestedMode === "actual")
       setMode(requestedMode);
@@ -514,11 +522,13 @@ export function Plans() {
               <h3>Before you begin</h3>
               <p>
                 You’ll need devnet SOL for fees and test KUSD for installments.
-                Use the test faucet in the plan builder below to claim 500 test KUSD and gas SOL instantly.
+                Use the test faucet in the plan builder below to claim 500 test
+                KUSD and gas SOL instantly.
               </p>
               <p>
-                Setup is verified before wallet signing. Scheduled collection is not
-                yet running automatically.
+                Setup is verified before wallet signing. Automatic collection
+                requires the deployment operator to configure the authenticated
+                collector schedule.
               </p>
               <Link href="/settings" className="text-link">
                 Connect a wallet <ArrowUpRight size={14} />

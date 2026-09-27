@@ -4,7 +4,7 @@ import {
   BASE_SWAP_TOKENS,
   MAINNET_USDC_MINT,
   fromTokenAmount,
-  type BasketOrder,
+  type BasketPurchaseOrder,
   type MarketBasket,
 } from "@kite/sdk";
 import { SwapTokenSelector } from "./SwapTokenSelector";
@@ -24,14 +24,27 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
     ),
     [amount, setAmount] = useState(""),
     [slippage, setSlippage] = useState("100");
-  const [order, setOrder] = useState<BasketOrder | null>(null),
+  const [order, setOrder] = useState<BasketPurchaseOrder | null>(null),
     [quoting, setQuoting] = useState(false),
     [now, setNow] = useState(Date.now());
   const revision = useRef(0);
+  const allocationKey = basket.assets
+    .map(({ asset, weight }) => `${asset.mint}:${weight}`)
+    .join("|");
   useEffect(() => {
     revision.current++;
     setOrder(null);
-  }, [basket.id, token.mint, amount, slippage, auth.walletAddress]);
+  }, [
+    basket.id,
+    allocationKey,
+    token.mint,
+    amount,
+    slippage,
+    auth.walletAddress,
+  ]);
+  useEffect(() => {
+    if (flow.confirmedBundleRevision > 0) balances.refresh();
+  }, [flow.confirmedBundleRevision, balances.refresh]);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
@@ -51,12 +64,13 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
         taker: auth.walletAddress,
         slippageBps: Number(slippage),
         supportedTransactionVersions: auth.supportedTransactionVersions,
-        customAllocations: basket.isCustom
-          ? basket.assets.map((a) => ({
-              mint: a.asset.mint,
-              weightBps: Math.round(a.weight),
-            }))
-          : undefined,
+        customAllocations:
+          basket.isCustom && !basket.id.startsWith("creator-")
+            ? basket.assets.map((a) => ({
+                mint: a.asset.mint,
+                weightBps: Math.round(a.weight),
+              }))
+            : undefined,
       });
       if (requestRevision === revision.current) setOrder(value);
     } catch (e) {
@@ -74,13 +88,14 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
     <section
       className="stack"
       style={{ gap: 16 }}
-      aria-label="Buy basket with one approval"
+      aria-label="Review basket purchase"
     >
       <div>
-        <h3>One basket. One approval.</h3>
+        <h3>Your basket, in your wallet.</h3>
         <p className="fineprint">
-          All assets settle directly to your wallet in one transaction. If any
-          swap fails, the entire purchase reverts; network fees may still apply.
+          Review the complete allocation, fees and transaction count before
+          signing. Larger baskets use a Jito bundle; small baskets use one
+          transaction.
         </p>
       </div>
       <SwapTokenSelector
@@ -97,6 +112,8 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
         <span>Amount in {token.symbol}</span>
         <input
           inputMode="decimal"
+          name="basket-amount"
+          autoComplete="off"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           maxLength={40}
@@ -120,6 +137,25 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
       {order && (
         <div className="stack" style={{ gap: 10 }}>
           <p className="eyebrow">Minimum received</p>
+          {"kind" in order && order.kind === "bundle" ? (
+            <div className="notice" role="note">
+              <div>
+                <strong>
+                  {order.transactions.length} transactions · one bundle
+                </strong>
+                <p>{order.atomicityWarning}</p>
+                <p>
+                  Jito tip: {order.tipLamports / 1e9} SOL. Your wallet may
+                  request each approval separately.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <p className="fineprint">
+              One atomic transaction. If a swap fails, the purchase reverts;
+              network fees may still apply.
+            </p>
+          )}
           {order.outputs.map((output) => (
             <div className="flex-between" key={output.mint}>
               <span>
@@ -139,7 +175,7 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
           </p>
           <button
             className="btn full"
-            disabled={disabled || !auth.canSignV1 || order.expiresAt <= now}
+            disabled={disabled || !auth.canSignV0 || order.expiresAt <= now}
             onClick={async () => {
               if (await flow.execute(order)) balances.refresh();
               setOrder(null);
@@ -160,7 +196,7 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
       ) : (
         <button
           className={`btn ${order ? "secondary" : ""} full`}
-          disabled={disabled || !auth.canSignV1 || !amount}
+          disabled={disabled || !auth.canSignV0 || !amount}
           onClick={review}
         >
           {quoting
@@ -175,9 +211,9 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
           Sign in or connect a wallet in the header to buy with your tokens.
         </p>
       )}
-      {auth.walletAddress && !auth.canSignV1 && (
+      {auth.walletAddress && !auth.canSignV0 && (
         <p className="notice">
-          This wallet does not advertise V1 signing. Update it or connect a
+          This wallet does not advertise v0 signing. Update it or connect a
           compatible wallet to buy.
         </p>
       )}

@@ -176,6 +176,11 @@ export function AccountMenu() {
           <ArrowUpRight size={14} />
         </DropdownMenuLinkItem>
         <DropdownMenuSeparator />
+        <DropdownMenuLinkItem render={<Link href="/creators" />}>
+          <Layers3 size={17} />
+          Creator studio
+          <ArrowUpRight size={14} />
+        </DropdownMenuLinkItem>
         <DropdownMenuLinkItem render={<Link href="/settings" />}>
           <Settings2 size={17} />
           Account & settings
@@ -267,7 +272,9 @@ export function Shell({
           </div>
         </div>
       </header>
-      <main className="workspace-main">{children}</main>
+      <main id="main-content" className="workspace-main">
+        {children}
+      </main>
       <nav
         className="bottom-nav kite-bottom-nav"
         aria-label="Mobile navigation"

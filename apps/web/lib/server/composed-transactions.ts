@@ -7,12 +7,13 @@ import {
   verify,
 } from "node:crypto";
 import { PublicKey } from "@solana/web3.js";
+import { getMainnetRpcUrl, MAINNET_GENESIS } from "./mainnet-connection";
 import {
   inspectWalletTransaction,
   type WalletTransactionOrder,
 } from "@kite/sdk";
 
-export const MAINNET_GENESIS = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d";
+export { MAINNET_GENESIS } from "./mainnet-connection";
 export const TX_V1_FEATURE = "txv1aq4pp281K9um3tnPgkfX8UqtFT6wcVW3hNezGLL";
 export type RpcAccount = {
   data: [string, string];
@@ -33,8 +34,7 @@ export async function mainnetRpc<T>(
   method: string,
   params: unknown[] = [],
 ): Promise<T> {
-  const endpoint =
-    process.env.SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
+  const endpoint = getMainnetRpcUrl();
   try {
     const response = await fetch(endpoint, {
       method: "POST",
@@ -46,11 +46,14 @@ export async function mainnetRpc<T>(
     const data = await response.json();
     if (data.error) {
       throw new RpcError(
-        typeof data.error.message === "string" ? data.error.message : "RPC Error",
-        data.error
+        typeof data.error.message === "string"
+          ? data.error.message
+          : "RPC Error",
+        data.error,
       );
     }
-    if (!response.ok || !("result" in data)) throw new Error("Invalid RPC response");
+    if (!response.ok || !("result" in data))
+      throw new Error("Invalid RPC response");
     return data.result as T;
   } catch (err) {
     if (err instanceof RpcError) throw err;
@@ -60,6 +63,15 @@ export async function mainnetRpc<T>(
 export async function assertMainnet() {
   if ((await mainnetRpc<string>("getGenesisHash")) !== MAINNET_GENESIS)
     throw new Error("The server RPC must use Solana mainnet.");
+}
+export async function assertMainnetV0Ready(
+  supportedTransactionVersions?: readonly number[],
+): Promise<void> {
+  if (!supportedTransactionVersions?.includes(0))
+    throw new Error(
+      "Connect a wallet that supports Solana v0 transactions to trade.",
+    );
+  await assertMainnet();
 }
 export async function mainnetV1Active(): Promise<boolean> {
   try {
@@ -142,12 +154,16 @@ export async function authorizeComposed(
   input: Omit<WalletTransactionOrder, "requestId" | "authorization">,
   investmentRun?: { planId: string; runId: string },
   investmentSetupHash?: string,
+  basketReceipt?: { basketId: string; inputMint: string; inAmount: string },
 ): Promise<WalletTransactionOrder> {
   const { transaction: tx, message } = await inspectWalletTransaction(
     input.transaction,
   );
-  if (message.version !== 1 || input.transactionVersion !== 1)
-    throw new Error("New transaction authorizations require V1.");
+  if (
+    (message.version !== 0 && message.version !== 1) ||
+    message.version !== input.transactionVersion
+  )
+    throw new Error("Unsupported transaction authorization version.");
   const signers = Object.keys(tx.signatures);
   if (
     signers.length !== 1 ||
@@ -169,6 +185,7 @@ export async function authorizeComposed(
     lastValidBlockHeight: input.lastValidBlockHeight,
     ...(investmentRun ? { investmentRun } : {}),
     ...(investmentSetupHash ? { investmentSetupHash } : {}),
+    ...(basketReceipt ? { basketReceipt } : {}),
   };
   const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
   return {
@@ -230,6 +247,8 @@ export async function verifyComposed(
     investmentRun: p.investmentRun as
       { planId: string; runId: string } | undefined,
     investmentSetupHash: p.investmentSetupHash as string | undefined,
+    basketReceipt: p.basketReceipt as
+      { basketId: string; inputMint: string; inAmount: string } | undefined,
     version: message.version,
     taker: p.taker as string,
     messageHash: p.messageHash as string,

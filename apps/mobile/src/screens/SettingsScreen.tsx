@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import { Linking, ScrollView, Text, View } from "react-native";
-import { Button, Chip, FilterRow } from "../components/Primitives";
+import { Button, FilterRow } from "../components/Primitives";
 import { API_BASE_URL, WEB_URL, API_CONFIGURATION_ERROR } from "../lib/config";
 import { useMobileTrading } from "../state/MobileTradingProvider";
 import { useTheme } from "../theme";
 
 export function SettingsScreen({ onReset }: { onReset: () => void }) {
-  const { colors, ui, mode, setMode } = useTheme();
+  const { ui, mode, setMode } = useTheme();
   const wallet = useMobileTrading();
   const [showConnection, setShowConnection] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -111,18 +111,10 @@ export function SettingsScreen({ onReset }: { onReset: () => void }) {
         ) : (
           <Text style={ui.small}>
             Native wallet signing requires an Android development or release
-            build. Expo Go, iOS and web previews can continue with Privy on Kite
-            web.
+            build. Expo Go, iOS and web previews support browsing and paper
+            investing; native signing is unavailable on these platforms.
           </Text>
         )}
-        <Button
-          secondary
-          label="Continue with Privy on web"
-          onPress={() => {
-            void open("/settings");
-          }}
-          disabled={!WEB_URL || wallet.busy}
-        />
         {wallet.error || error ? (
           <Text accessibilityRole="alert" style={[ui.small, ui.negative]}>
             {error || wallet.error}

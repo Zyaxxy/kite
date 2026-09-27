@@ -81,6 +81,10 @@ function builder({
       }),
     },
     "./mint-precision": { getTradeMintDecimals: async () => 6 },
+    "./creator-store": { resolvePublishedCreatorBasket: async () => null },
+    "./bundle-authorization": {},
+    "./jito-bundles": {},
+    "./jupiter-lookup-tables": { loadVerifiedLookupTables: async () => { calls.lookupRequests++; return []; } },
     "./jupiter-build": {
       fetchJupiterBuild: async (params) => {
         calls.quotes++;
@@ -111,8 +115,8 @@ function builder({
       },
     },
     "./composed-transactions": {
-      assertMainnetV1Ready: async (versions) => {
-        if (!versions?.includes(1)) throw new Error("V1 wallet required");
+      assertMainnetV0Ready: async (versions) => {
+        if (!versions?.includes(0)) throw new Error("v0 wallet required");
       },
       latestBlockhash: async () => ({
         blockhash: key(),
@@ -144,6 +148,7 @@ function builder({
           value: [
             tokenAccount(outputMint, 0),
             tokenAccount(inputMint, 2_000_000),
+            { lamports: 1_000_000_000, owner: web3.SystemProgram.programId.toBase58(), data: ["", "base64"], executable: false },
           ],
         };
       },
@@ -151,13 +156,14 @@ function builder({
         calls.simulations++;
         assert.equal(
           (await sdk.inspectWalletTransaction(transaction)).message.version,
-          1,
+          0,
         );
         return {
           err: null,
           accounts: [
             tokenAccount(outputMint, outputAmount, destinationOwner),
             tokenAccount(inputMint, 2_000_000 - inputSpent),
+            { lamports: 999_985_000, owner: web3.SystemProgram.programId.toBase58(), data: ["", "base64"], executable: false },
           ],
         };
       },
@@ -177,7 +183,7 @@ function builder({
   });
   return {
     calls,
-    prepare: (versions = [1]) =>
+    prepare: (versions = [0]) =>
       exports.prepareTokenSwapOrder(
         {
           inputMint,
@@ -190,18 +196,18 @@ function builder({
       ),
   };
 }
-test("single-token build uses V1 and settles minimum output without ALT RPC reads", async () => {
+test("single-token build uses v0 and verifies provider lookup tables before settlement simulation", async () => {
   const run = builder();
   const order = await run.prepare();
-  assert.equal(order.transactionVersion, 1);
+  assert.equal(order.transactionVersion, 0);
   assert.equal(order.inAmount, "1000000");
   assert.equal(order.outputs[0].minimumAmount, "990000");
-  assert.equal(run.calls.lookupRequests, 0);
+  assert.equal(run.calls.lookupRequests, 1);
   assert.equal(run.calls.simulations, 1);
 });
 test("unsupported signing version fails before routing or simulation", async () => {
   const run = builder();
-  await assert.rejects(run.prepare([0]), /V1 wallet/);
+  await assert.rejects(run.prepare([1]), /v0 wallet/);
   assert.equal(run.calls.quotes, 0);
   assert.equal(run.calls.simulations, 0);
 });
@@ -252,7 +258,7 @@ test("router cannot substitute quotes, extra signers or token permissions", asyn
   ])
     await assert.rejects(builder({ routeChange }).prepare(), pattern);
 });
-test("new single-token routes also respect the V1 account and byte limits", async () => {
+test("new single-token routes respect v0 account and byte limits", async () => {
   await assert.rejects(
     builder({
       routeChange: (r) => {

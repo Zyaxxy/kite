@@ -12,6 +12,7 @@ import {
   walletTransactionSignature,
 } from "@kite/sdk";
 import type { RpcAccount } from "./composed-transactions";
+import { getDevnetRpcUrl, recurringRpcTimeout } from "./devnet-connection";
 
 const TX_V1_FEATURE = "txv1aq4pp281K9um3tnPgkfX8UqtFT6wcVW3hNezGLL";
 const FEATURE_PROGRAM = "Feature111111111111111111111111111111111111";
@@ -22,15 +23,14 @@ export async function recurringDevnetRpc<T>(
   method: string,
   params: unknown[] = [],
 ): Promise<T> {
-  const endpoint =
-    process.env.KITE_RECURRING_RPC_URL || "https://api.devnet.solana.com";
+  const endpoint = getDevnetRpcUrl();
   try {
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
       cache: "no-store",
-      signal: AbortSignal.timeout(12_000),
+      signal: AbortSignal.timeout(recurringRpcTimeout()),
     });
     const data = await response.json();
     if (!response.ok || data.error || !("result" in data)) throw new Error();
@@ -82,6 +82,18 @@ export async function assertRecurringV1(
     );
 }
 
+/** Negotiate only formats actually advertised by the signing wallet. */
+export async function recurringTransactionVersion(
+  versions: readonly number[],
+): Promise<0 | 1> {
+  await assertRecurringDevnet();
+  if (versions.includes(1) && (await recurringV1Active())) return 1;
+  if (versions.includes(0)) return 0;
+  throw new Error(
+    "The wallet and devnet RPC have no supported transaction format in common.",
+  );
+}
+
 export async function recurringLatestBlockhash() {
   return (
     await recurringDevnetRpc<{
@@ -110,7 +122,14 @@ export async function simulateRecurring(
     },
   ]);
   if (value.err !== null) {
-    console.error("Devnet simulation failed:", JSON.stringify({ err: value.err, logs: (value as { logs?: string[] }).logs }, null, 2));
+    console.error(
+      "Devnet simulation failed:",
+      JSON.stringify(
+        { err: value.err, logs: (value as { logs?: string[] }).logs },
+        null,
+        2,
+      ),
+    );
     throw new Error(
       "The devnet transaction failed simulation. Check test-token balances, pool liquidity, account rent, and the deployed recurring contract version.",
     );
@@ -155,7 +174,7 @@ export interface DevnetPreparedTransaction {
   network: "devnet";
   protocolVersion: 2;
   transaction: string;
-  transactionVersion: 1;
+  transactionVersion: 0 | 1;
   authorization: string;
   signer: string;
   plan: string;
@@ -179,7 +198,7 @@ export async function authorizeRecurringTransaction(
     input.transaction,
   );
   if (
-    message.version !== 1 ||
+    (message.version !== 1 && message.version !== 0) ||
     message.staticAccounts[0] !== input.signer ||
     Object.keys(transaction.signatures).length !== 1 ||
     !Object.hasOwn(transaction.signatures, input.signer)
@@ -199,6 +218,7 @@ export async function authorizeRecurringTransaction(
     messageHash: createHash("sha256")
       .update(Buffer.from(transaction.messageBytes))
       .digest("hex"),
+    transactionVersion: message.version,
   };
   const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
   return {
@@ -206,7 +226,7 @@ export async function authorizeRecurringTransaction(
     schemaVersion: 1,
     network: "devnet",
     protocolVersion: 2,
-    transactionVersion: 1,
+    transactionVersion: message.version,
     authorization: `${encoded}.${createHmac("sha256", recurringSecret()).update(encoded).digest("base64url")}`,
   };
 }
@@ -236,6 +256,7 @@ export async function verifyRecurringTransaction(
     payload.genesis !== DEVNET_GENESIS_HASH ||
     typeof payload.signer !== "string" ||
     typeof payload.plan !== "string" ||
+    !["create", "collect", "close"].includes(String(payload.operation)) ||
     !Number.isSafeInteger(payload.expiresAt) ||
     (Number(payload.expiresAt) <= Date.now() &&
       !recovery?.acceptExpiredForStatus) ||
@@ -247,7 +268,8 @@ export async function verifyRecurringTransaction(
   }
   const { transaction, message } = await inspectWalletTransaction(signed);
   if (
-    message.version !== 1 ||
+    message.version !== (payload.transactionVersion ?? 1) ||
+    (message.version !== 1 && message.version !== 0) ||
     message.staticAccounts[0] !== payload.signer ||
     Object.keys(transaction.signatures).length !== 1 ||
     createHash("sha256")
@@ -283,9 +305,10 @@ export async function verifyRecurringTransaction(
   return {
     signer: payload.signer,
     plan: payload.plan,
-    operation: payload.operation,
+    operation: payload.operation as "create" | "collect" | "close",
     expiresAt: Number(payload.expiresAt),
     lastValidBlockHeight: Number(payload.lastValidBlockHeight),
+    transactionVersion: message.version,
   };
 }
 
@@ -299,7 +322,7 @@ export async function executeRecurringTransaction(input: {
     { acceptExpiredForStatus: true },
   );
   await assertRecurringDevnet();
-  if (!(await recurringV1Active()))
+  if (authorization.transactionVersion === 1 && !(await recurringV1Active()))
     throw new Error("V1 is not active on this devnet RPC.");
   const signature = await walletTransactionSignature(input.signedTransaction);
   const reply = (
