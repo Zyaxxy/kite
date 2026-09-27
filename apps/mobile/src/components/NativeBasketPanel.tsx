@@ -5,11 +5,11 @@ import {
   maxSwapAmount,
   type MarketBasket,
   type MainnetHolding,
-  type WalletTransactionOrder,
+  type BasketPurchaseOrder,
 } from "@kite/sdk";
 import { Button } from "./Primitives";
 import { useMobileTrading } from "../state/MobileTradingProvider";
-import { kiteClient, WEB_URL } from "../lib/config";
+import { kiteClient } from "../lib/config";
 import { useTheme } from "../theme";
 
 export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
@@ -19,7 +19,7 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
   const [holdings, setHoldings] = useState<MainnetHolding[]>([]),
     [mint, setMint] = useState(""),
     [amount, setAmount] = useState("");
-  const [order, setOrder] = useState<WalletTransactionOrder | null>(null),
+  const [order, setOrder] = useState<BasketPurchaseOrder | null>(null),
     [summary, setSummary] = useState<string[]>([]),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
@@ -69,9 +69,9 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
     setOrder(null);
     setMessage("");
     try {
-      if (!wallet.canSignV1)
+      if (!wallet.canSignV0)
         throw new Error(
-          "Reconnect an updated wallet that supports V1 signing, or open Kite web.",
+          "Reconnect a wallet that supports V0 transaction signing.",
         );
       const b = await kiteClient.requestBasketOrder({
         basketId: basket.id,
@@ -89,7 +89,13 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
           (o) =>
             `${fromTokenAmount(o.minimumAmount, o.decimals)} ${o.symbol}${o.mint === b.inputMint ? " (retained)" : ""}`,
         ),
-        "Priority fee up to 0.00001 SOL, plus network fees and token-account rent.",
+        `Priority fee up to ${b.priorityFeeLamports / 1_000_000_000} SOL per transaction, plus network fees and token-account rent.`,
+        ...("kind" in b && b.kind === "bundle"
+          ? [
+              `${b.transactions.length} transactions approved together · Jito tip ${b.tipLamports / 1_000_000_000} SOL.`,
+              b.atomicityWarning,
+            ]
+          : ["All swaps settle in one atomic transaction."]),
       ];
       if (request === version.current) {
         setOrder(result);
@@ -109,26 +115,18 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
       <View style={ui.card}>
         <Text style={ui.heading}>Buy the whole basket</Text>
         <Text style={ui.body}>
-          Open Kite web with a wallet that supports V1 transaction signing.
+          Native basket signing requires an Android development or release build
+          with a compatible wallet. You can use paper baskets on this platform.
         </Text>
-        <Button
-          label="Continue in Kite web"
-          disabled={!WEB_URL}
-          onPress={() => {
-            void Linking.openURL(
-              `${WEB_URL}/basket/${basket.id}?mode=actual`,
-            ).catch(() => setMessage("Unable to open Kite web."));
-          }}
-        />
         {message ? <Text style={ui.small}>{message}</Text> : null}
       </View>
     );
   return (
     <View style={ui.card}>
-      <Text style={ui.heading}>One basket. One approval.</Text>
+      <Text style={ui.heading}>One basket. Your wallet.</Text>
       <Text style={ui.body}>
-        Every asset settles in one atomic transaction. If any swap fails, all
-        swaps revert; network fees may still apply.
+        Review every allocation before signing. Larger baskets use a bundle of
+        transactions; the review shows the tip, fees and execution limits.
       </Text>
       {!wallet.account ? (
         <Button
@@ -141,10 +139,10 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
         />
       ) : (
         <>
-          {!wallet.canSignV1 && (
+          {!wallet.canSignV0 && (
             <>
               <Text style={ui.small}>
-                Reconnect a wallet that supports V1 signing to continue.
+                Reconnect a wallet that supports V0 signing to continue.
               </Text>
               <Button
                 label="Check wallet compatibility"
@@ -195,7 +193,7 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
           <Button
             label="Review transaction"
             loading={busy}
-            disabled={disabled || !wallet.canSignV1 || !token || !amount}
+            disabled={disabled || !wallet.canSignV0 || !token || !amount}
             onPress={() => {
               void prepare();
             }}
@@ -217,7 +215,7 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
                 disabled={disabled || order.expiresAt <= now}
                 onPress={() => {
                   void wallet
-                    .execute(order)
+                    .executeBasket(order)
                     .then((result) => {
                       setMessage(
                         result.status === "Success"
@@ -259,6 +257,30 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
             Previous confirmation is unresolved. Check your wallet before
             repeating any transaction.
           </Text>
+          {wallet.pending.bundle ? (
+            <Button
+              label="Check bundle confirmation"
+              loading={wallet.busy}
+              onPress={() => {
+                void wallet
+                  .checkBundle()
+                  .then((result) =>
+                    setMessage(
+                      result.status === "Success"
+                        ? "Basket confirmed."
+                        : (result.error ?? `Bundle status: ${result.status}`),
+                    ),
+                  )
+                  .catch((error: unknown) =>
+                    setMessage(
+                      error instanceof Error
+                        ? error.message
+                        : "Confirmation unavailable.",
+                    ),
+                  );
+              }}
+            />
+          ) : null}
           <Button
             secondary
             label="Open wallet activity"

@@ -27,7 +27,7 @@ export function Button({
   loading?: boolean;
   style?: ViewStyle;
 }) {
-  const { colors, ui } = useTheme();
+  const { colors } = useTheme();
   const styles = useStyles();
   return (
     <Pressable
@@ -66,7 +66,7 @@ export function Chip({
   selected?: boolean;
   onPress?: () => void;
 }) {
-  const { colors, ui } = useTheme();
+  const { colors } = useTheme();
   const styles = useStyles();
   return (
     <Pressable
@@ -94,7 +94,7 @@ export function EmptyState({
   action?: string;
   onAction?: () => void;
 }) {
-  const { colors, ui } = useTheme();
+  const { ui } = useTheme();
   const styles = useStyles();
   return (
     <View style={[ui.card, { alignItems: "flex-start", paddingVertical: 26 }]}>
@@ -149,7 +149,6 @@ export function FilterRow({
   selected: string;
   onSelect: (option: string) => void;
 }) {
-  const { colors, ui } = useTheme();
   return (
     <ScrollView
       horizontal

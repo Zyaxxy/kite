@@ -9,6 +9,7 @@ export type Screen =
   | "explore"
   | "baskets"
   | "portfolio"
+  | "activity"
   | "plans"
   | "watchlist"
   | "settings";
@@ -17,10 +18,10 @@ const tabs: {
   label: string;
   shape: "diamond" | "search" | "stack" | "plan";
 }[] = [
-  { screen: "home", label: "Discover", shape: "search" },
-  { screen: "baskets", label: "Baskets", shape: "diamond" },
-  { screen: "plans", label: "Recurring", shape: "plan" },
+  { screen: "home", label: "Explore", shape: "search" },
+  { screen: "plans", label: "Subscriptions", shape: "plan" },
   { screen: "portfolio", label: "Portfolio", shape: "stack" },
+  { screen: "activity", label: "Activity", shape: "diamond" },
 ];
 
 function NavIcon({
@@ -30,7 +31,7 @@ function NavIcon({
   shape: (typeof tabs)[number]["shape"];
   active: boolean;
 }) {
-  const { colors, ui } = useTheme();
+  const { colors } = useTheme();
   const styles = useStyles();
   const color = active ? colors.accent : colors.muted;
   return (
@@ -67,10 +68,12 @@ export function BottomNav({
   current: Screen;
   onNavigate: (screen: Screen) => void;
 }) {
-  const { colors, ui } = useTheme();
+  const { colors } = useTheme();
   const styles = useStyles();
   const activeScreen =
-    current === "explore" || current === "watchlist" ? "home" : current;
+    current === "explore" || current === "watchlist" || current === "baskets"
+      ? "home"
+      : current;
   return (
     <View style={styles.nav}>
       {tabs.map((tab) => (
@@ -104,7 +107,7 @@ export function Header({
   onNavigate: (screen: Screen) => void;
   current: Screen;
 }) {
-  const { colors, ui } = useTheme();
+  const { colors } = useTheme();
   const styles = useStyles();
   const { mode, setMode } = useTheme();
   return (

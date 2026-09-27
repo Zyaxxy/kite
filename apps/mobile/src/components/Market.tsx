@@ -11,7 +11,6 @@ export function AssetLogo({
   asset: MarketAsset;
   large?: boolean;
 }) {
-  const { colors, ui } = useTheme();
   const styles = useStyles();
   const [failed, setFailed] = useState(false);
   const size = large ? 64 : 38;
@@ -48,7 +47,7 @@ export function AssetRow({
   onPress: () => void;
   detail?: string;
 }) {
-  const { colors, ui } = useTheme();
+  const { ui } = useTheme();
   const styles = useStyles();
   return (
     <Pressable

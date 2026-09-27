@@ -1,79 +1,78 @@
 # Kite mobile
 
-Expo / React Native clients share `KiteClient`, `createKiteCore`, market models, precision validation and paper execution with Kite web. The forest and lime interface works on Android, iOS and Expo web. All market and company data comes from the web API; missing values remain unavailable.
+Kite uses native React Native screens, a native stack with system back gestures, and platform bottom tabs: Explore, Subscriptions, Portfolio, Activity. The first screen introduces baskets and recurring investing without requiring a wallet. Expo web has a separate tab implementation and never imports native tab or wallet modules.
+
+The app shares market, paper, transaction and devnet recurring API contracts with `@kite/sdk`. Missing market values remain unavailable. Paper fills and paper recurring plans are explicitly simulations.
 
 ## Development
 
-1. Install the root lockfile with the pinned pnpm version, then `pnpm build:sdk`. Expo web needs the declared `react-dom`, `react-native-web` and `@expo/metro-runtime` dependencies; installing only the old native dependencies leaves web unable to bundle.
-2. Start Kite web with `pnpm dev:web`.
-3. Copy `apps/mobile/.env.example` to `apps/mobile/.env.local` and set `EXPO_PUBLIC_API_BASE_URL` to the web API **origin**, without `/api`, query strings or credentials.
-4. Run `pnpm dev:mobile` for the native development server, or `pnpm --filter @kite/mobile web` for the browser. Restart Expo with `--clear` after an environment change. Local HTTP origins are accepted only in development; release builds require HTTPS.
+1. Install the root lockfile using the pinned pnpm version and run `pnpm build:sdk`.
+2. Start the API with `pnpm dev:web`.
+3. Copy `.env.example` to `.env.local`. Set `EXPO_PUBLIC_API_BASE_URL` to the reachable API **origin** and `EXPO_PUBLIC_WEB_URL` to Kite’s HTTPS identity origin. Never put provider keys, keeper bearer tokens or wallet secrets in Expo public variables.
+4. Run `pnpm --filter @kite/mobile android` for a native development build. Expo Go does not contain Mobile Wallet Adapter or native tabs. Run `pnpm --filter @kite/mobile web` for the browser preview.
 
-A physical phone cannot reach a server through `localhost` on your computer. Use a reachable private LAN address for paper-only development, or the HTTPS API tunnel below. Android signing also requires an HTTPS `EXPO_PUBLIC_WEB_URL` identifying Kite.
+After native dependency changes, rebuild the native app. Restarting Metro alone cannot install native modules. The bottom-tab config plugin in `app.json` configures Android’s native theme. The Expo 52-compatible screens and safe-area versions are pinned; do not replace them with versions intended for newer Expo SDKs without an Expo upgrade.
 
-## Two separate tunnels
+## Public API connectivity
 
-`expo start --tunnel` exposes Metro’s app bundle. It does **not** expose Next.js or `/api/markets`.
-
-Install the official [Cloudflare CLI](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/downloads/) and run from the repository root:
+A phone cannot reach your computer using `localhost`. Use a reachable HTTPS API deployment or a development tunnel. Metro’s `expo start --tunnel` only exposes the app bundle; it does not expose Next.js or `/api`.
 
 ```sh
+# Terminal 1, repository root
 pnpm dev:web
-# In a separate terminal:
+# Terminal 2, repository root; requires cloudflared
 node scripts/dev-api-tunnel.mjs --write-env
-# In a third terminal, after the API tunnel URL is saved:
+# Terminal 3
 pnpm --filter @kite/mobile tunnel --clear
 ```
 
-The API tunnel proxy binds only to `127.0.0.1:3101`. It forwards GET requests for `/api/health`, `/api/markets`, `/api/research`, `/api/tokens`, `/api/portfolio`, and JSON POST requests for `/api/trade/order` and `/api/trade/execute`. Other paths, browser cookies and private/debug endpoints are excluded. Request bodies are bounded. `--write-env` updates only `EXPO_PUBLIC_API_BASE_URL` in the gitignored mobile environment; it never copies server secrets.
+Keep both tunnels alive and restart Expo after the API hostname changes. Configure `EXPO_PUBLIC_WEB_URL` separately as an HTTPS wallet identity. It is not a sign-in redirect: wallet connection and trading stay native.
 
-Keep both tunnel processes running. The API URL changes on restart, so restart Expo with `--clear` after updating it. Set `EXPO_PUBLIC_WEB_URL` separately to your public HTTPS Kite frontend for Privy and the wallet identity. An API-only tunnel does not serve the web sign-in pages. Use `--proxy-only` for a local proxy check without opening a public tunnel. The CLI’s `--help` lists port/upstream overrides.
+Expo web also needs its exact browser origin in `KITE_ALLOWED_ORIGINS`. Native requests do not send an Origin header. Do not use wildcard CORS or deployment-protection bypass secrets in a mobile bundle. The SDK rejects non-JSON tunnel/protection pages with a readable error.
 
-Expo web is a browser: its exact origin (for example `http://localhost:8081`) must be allowed by the web server’s CORS configuration. Native requests do not need CORS. Do not ship a deployment-protection bypass secret to solve HTML login responses; use a production API domain accessible to app clients. `KiteClient` explains HTML/interstitial responses rather than crashing JSON parsing.
+## Wallets and network isolation
 
-## Wallets and actual trades
+The official React Native MWA integration is `@solana-mobile/mobile-wallet-adapter-protocol`. Its `transact`/`signTransactions` APIs exchange serialized transactions with an on-device wallet; the unsuffixed `@solana-mobile/mobile-wallet-adapter` in the initial brief is not the integration package used by the official Expo template.
 
-- Paper mode remains the default. The starting virtual USD balance is explicitly a simulation, and persisted paper plans execute only while the app is active with live prices.
-- On supported Android builds, open an asset and switch **Paper → Actual**. Connect a compatible wallet, choose one of its funded tokens, enter an amount and review the fresh route. The app refreshes wallet balances before quoting. Max excludes frozen tokens and keeps a conservative 0.01 SOL reserve; this is not a fee estimate.
-- **Approve in wallet** invokes MWA `signTransactions` only. The signed payload then goes to Kite’s server authorization/execute route. Neither the mobile app nor the server holds a signing key. Orders cannot be approved with a different account or after expiry.
-- MWA authorization tokens are kept in Expo SecureStore, bound to the configured HTTPS identity origin. Later sessions reauthorize. Disconnect forgets the local session and attempts wallet-side deauthorization. MWA base64 account addresses are converted to base58 before API requests.
-- Before sending a signed transaction, Kite saves the attempt identity to AsyncStorage. It never saves a signed transaction. An execution/confirmation timeout produces **confirmation unknown** and blocks another swap until the user checks wallet activity. Restarting the app preserves this guard.
-- MWA is loaded only by the Android module and only when requested. Expo Go lacks the native wallet module. iOS and Expo web offer the existing Privy flow on Kite web; native Privy is not represented as configured.
-- No mainnet vault or custody deposit is involved. New swaps, basket buys and permission transactions are V1-only. Android reads the connected MWA wallet's actual supported transaction versions; unsupported wallets cannot approve. Privy web sign-in remains available, but approval also requires a V1-compatible signing method.
-- Recurring setup supports baskets and individual stocks, daily/weekly/monthly intervals, a UTC start and a finite installment count. The same API serves web and native clients. The configured executor composes collection and stock delivery atomically and records receipts; its underlying permission still trusts the buyer with withdrawals. Automatic execution requires an operating worker and private persistent server storage. See [recurring investing operations](../../docs/kite-guard-protocol.md).
-- Recurring setup supports baskets and individual stocks, daily/weekly/monthly intervals, a UTC start and a finite installment count. The same API serves web and native clients. The configured executor composes collection and stock delivery atomically and records receipts; its underlying permission still trusts the buyer with withdrawals. Automatic execution requires an operating worker and private persistent server storage. See [how Kite works](../../docs/how-it-works.md) and [trust, safety, and current scope](../../docs/trust-and-scope.md).
- - Recurring setup supports baskets and individual stocks, daily/weekly/monthly intervals, a UTC start and a finite installment count. The same API serves web and native clients. The configured executor composes collection and stock delivery atomically and records receipts; its underlying permission still trusts the buyer with withdrawals. Automatic execution requires an operating worker and private persistent server storage. See [how Kite works](../../docs/how-it-works.md) and [trust, safety, and current scope](../../docs/trust-and-scope.md).
+- Mainnet and devnet authorize with distinct MWA chains and distinct SecureStore keys. A mainnet authorization is never reused for a devnet subscription.
+- Authorization tokens are bound to the configured HTTPS identity. Stored capabilities are cleared on restore; reconnect obtains fresh wallet capabilities.
+- Android batch signing calls MWA once with all reviewed V0 bundle payloads in order. The app verifies the number of returned payloads, account, expiry and wallet version support. A wallet that cannot sign the complete batch is rejected.
+- Single stock trading uses the existing server-selected transaction format. Basket purchases use V0. Larger baskets can return a Jito bundle; the review includes all allocations, tip and partial-execution limitations. A bundle never falls back to individually sending its transactions.
+- iOS and Expo web do not expose unsupported native signing controls or redirect trading to a browser. They support market research and paper investing. Android wallet signing must be tested in a custom development/release build.
+
+The app signs only. The server verifies reviewed messages and broadcasts to the correct cluster. Funds never enter a Kite vault.
+
+## Native subscriptions
+
+Choose a provisioned devnet stock or basket, amount, cadence and installment count. Cadences are daily, weekly, every two weeks or every 30 days. The last is a fixed interval, not a calendar month. The server caps the whole plan at one year.
+
+The native review shows the amount, schedule, allocation and minimum-output policy returned by the devnet API. Approval signs on device with a separate devnet authorization. Plans can be listed and cancelled from the app; cancellation requires its own review and wallet approval. Test-token subscriptions never use mainnet stock tokens or real share prices.
+
+Before broadcast, the exact signed devnet setup/cancellation is saved locally. A timeout retains it and blocks new plans. **Check saved submission** reuses that same signed payload, preventing a second subscription when the first HTTP response was lost. Terminal confirmed/failed/expired outcomes release the guard.
+
+Mainnet bundle attempts similarly persist the reviewed authorization and signed bundle before submission; **Check bundle status** uses read-only recovery. Single swaps preserve the existing pending-attempt guard. Activity lists device-local paper fills and wallet receipts; it does not claim to be a complete on-chain account history.
 
 ## Android build profiles
 
-`eas.json` defines two standalone Android artifacts using the installed Expo SDK version: `preview` produces an internally distributed APK for direct device installation, and `production` produces an AAB for Google Play. Both use Node 24.12.0 and pnpm 10.31.0. These profiles do not depend on Metro or Expo Go at runtime.
-
-Before requesting a build, link this app to your own EAS project and configure `EXPO_PUBLIC_API_BASE_URL` and `EXPO_PUBLIC_WEB_URL` as **plaintext public values** in the matching EAS `preview` or `production` environment. Use a reachable HTTPS API origin and the HTTPS frontend origin serving Privy. Keep provider credentials only on the web server. No EAS project, signing credential or store account has been created by this change.
-
-Run these commands from `apps/mobile` with your installed EAS CLI after that setup:
+`eas.json` includes `preview` APK and `production` AAB profiles. Configure public HTTPS origins in the matching EAS environment and link the app to your own EAS project before requesting a build. Release configuration rejects missing origins, HTTP, private hosts, credentials and appended API paths. No signing credentials or store account are created by this source change.
 
 ```sh
 eas build --platform android --profile preview
 eas build --platform android --profile production
 ```
 
-Both profiles set `KITE_REQUIRE_RELEASE_CONFIG=true`. `app.config.js` validates the public origins during local EAS config resolution and on the builder; missing values, HTTP, private hosts, credentials and appended API paths fail with the affected variable name. `EAS_BUILD_PROFILE=preview` or `production` also activates the guard. Local `expo start`, config inspection and exports remain available without production configuration so the setup/research screens can still be tested. For a preflight without submitting a build, run `KITE_REQUIRE_RELEASE_CONFIG=true pnpm exec expo config --type public` from this app directory with both public variables supplied.
-
-Use `pnpm --filter @kite/mobile android` for the existing local custom development build. A standalone APK still requires physical-device verification of MWA signing and lifecycle behavior before distribution. If you choose to add an EAS development-client profile later, install and configure `expo-dev-client` first; it is intentionally not declared as already available here.
-
-Profile references: [Expo APK configuration](https://docs.expo.dev/build-reference/apk/), [EAS build profiles](https://docs.expo.dev/build/eas-json/), [EAS public environment variables](https://docs.expo.dev/eas/environment-variables/).
-
-## Release checks
+## Validation and known environment limits
 
 ```sh
 pnpm build:sdk
 pnpm --filter @kite/mobile test
-pnpm --filter @kite/mobile exec tsc --noEmit --noUnusedLocals --noUnusedParameters
-pnpm --filter @kite/mobile exec expo export --clear --platform web --platform ios --platform android
+pnpm --filter @kite/mobile exec tsc --noEmit
+pnpm --filter @kite/mobile exec expo export --platform web --platform android --platform ios
+npx solana-mobile@latest doctor
 ```
 
-Build a native Android development/release binary (`pnpm --filter @kite/mobile android`) to exercise MWA. Verify on a physical Android wallet: connect/reauthorize, account changes, rejection, expired quote, background/resume during wallet approval, execution timeout and restart recovery. Native signing has not been verified by a real-money transaction in automated browser tests. iOS MWA is intentionally unavailable; test the Privy web handoff separately.
+On 2026-09-27 the requested doctor ran successfully as a command and exited **1** because the host lacks JDK 17+, `JAVA_HOME`, Android SDK, `adb` 33+ and any emulator. macOS, disk space, Node and package managers passed. It reported project creation ready, Android builds unavailable, and emulator/physical-device workflows unavailable. Install a complete JDK and Android Studio SDK/Platform Tools, set `JAVA_HOME` and `ANDROID_HOME`, then rerun the doctor. No emulator or real-wallet transaction was tested on this host.
 
-The Expo entry initializes Buffer before the SDK and imports Metro’s browser runtime. Web styles constrain the root to a column with a scrollable content area and fixed navigation; this avoids offscreen roots and clipped phone layouts. A render error boundary offers recovery. Paper fills, plan success and reset confirmations render inline on both native and web, where `Alert.alert` would otherwise be a no-op.
+Before distribution, verify on Android: both network authorizations, wallet rejection, account changes, background/resume, one-transaction basket, complete batch signing, insufficient funds, expiration, lost-response recovery, subscription creation and cancellation. Rebuild after any MWA or navigation dependency change.
 
-Sources: [Expo monorepo guide](https://docs.expo.dev/guides/monorepos/), [Solana Mobile direct MWA sessions](https://docs.solanamobile.com/get-started/react-native/invoke-mwa-sessions-directly), [Expo SecureStore](https://docs.expo.dev/versions/latest/sdk/securestore/). Design review used the installed mobile/frontend skills and [coss UI](https://coss.com/ui) for clear fields, empty states and focused selection panels.
+Official references: [Solana Mobile setup](https://docs.solanamobile.com/get-started/development-setup), [direct MWA sessions](https://docs.solanamobile.com/get-started/react-native/invoke-mwa-sessions-directly), [Solana Expo template](https://github.com/solana-mobile/solana-mobile-expo-template), [native bottom tabs](https://oss.callstack.com/react-native-bottom-tabs/docs/getting-started/quick-start), [Expo monorepos](https://docs.expo.dev/guides/monorepos/).
