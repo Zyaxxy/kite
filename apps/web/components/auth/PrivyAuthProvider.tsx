@@ -5,6 +5,7 @@ import { PrivyProvider, usePrivy } from "@privy-io/react-auth";
 import {
   toSolanaWalletConnectors,
   useSignTransaction,
+  useSignMessage,
   useWallets,
 } from "@privy-io/react-auth/solana";
 import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
@@ -17,6 +18,7 @@ function SessionBridge({ children }: { children: ReactNode }) {
   const { ready, authenticated, login, logout } = usePrivy();
   const { wallets, ready: walletsReady } = useWallets();
   const { signTransaction } = useSignTransaction();
+  const { signMessage } = useSignMessage();
   const wallet =
     wallets.find((item) => item.standardWallet.name === "Privy") ?? wallets[0];
   const session = useMemo<PrivySession>(
@@ -33,15 +35,20 @@ function SessionBridge({ children }: { children: ReactNode }) {
       logout,
       signTransaction:
         ready && authenticated && walletsReady && wallet
-          ? async (transaction) => {
+          ? async (transaction, chain = "solana:mainnet") => {
               const result = await signTransaction({
                 transaction,
                 wallet,
-                chain: "solana:mainnet",
+                chain,
                 options: { uiOptions: { showWalletUIs: true } },
               });
               return result.signedTransaction;
             }
+          : null,
+      signMessage:
+        ready && authenticated && walletsReady && wallet
+          ? async (message) =>
+              (await signMessage({ message, wallet })).signature
           : null,
     }),
     [
@@ -52,6 +59,7 @@ function SessionBridge({ children }: { children: ReactNode }) {
       login,
       logout,
       signTransaction,
+      signMessage,
     ],
   );
 
@@ -73,6 +81,12 @@ export default function PrivyAuthProvider({
   const solana = useMemo(
     () => ({
       rpcs: {
+        "solana:devnet": {
+          rpc: createSolanaRpc("https://api.devnet.solana.com"),
+          rpcSubscriptions: createSolanaRpcSubscriptions(
+            "wss://api.devnet.solana.com",
+          ),
+        },
         "solana:mainnet": {
           rpc: createSolanaRpc(endpoint),
           rpcSubscriptions: createSolanaRpcSubscriptions(

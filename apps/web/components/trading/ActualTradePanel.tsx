@@ -367,9 +367,9 @@ export function ActualTradePanel({
           <WalletButton />
         </div>
       )}
-      {auth.walletAddress && !auth.canSignV1 && (
+      {auth.walletAddress && !auth.canSignV0 && (
         <p className="notice">
-          This wallet does not advertise V1 signing. Update it or connect a
+          This wallet does not advertise v0 signing. Update it or connect a
           compatible wallet to trade.
         </p>
       )}
@@ -544,7 +544,7 @@ export function ActualTradePanel({
         <button
           className="btn"
           disabled={
-            !auth.canSignV1 ||
+            !auth.canSignV0 ||
             !amount ||
             !portfolio ||
             Boolean(balancesError) ||

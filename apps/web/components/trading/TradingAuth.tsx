@@ -5,6 +5,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { VersionedTransaction } from "@solana/web3.js";
 import { advertisedSigningVersions } from "@kite/sdk";
 
+type Chain = "solana:mainnet" | "solana:devnet";
 export interface PrivySession {
   configured: boolean;
   ready: boolean;
@@ -12,9 +13,10 @@ export interface PrivySession {
   walletAddress: string | null;
   login: () => void;
   logout: () => Promise<void>;
-  signTransaction: ((transaction: Uint8Array) => Promise<Uint8Array>) | null;
+  signTransaction:
+    ((transaction: Uint8Array, chain?: Chain) => Promise<Uint8Array>) | null;
+  signMessage?: ((message: Uint8Array) => Promise<Uint8Array>) | null;
 }
-
 const unavailable: PrivySession = {
   configured: false,
   ready: true,
@@ -24,9 +26,7 @@ const unavailable: PrivySession = {
   logout: async () => undefined,
   signTransaction: null,
 };
-
-const PrivySessionContext = createContext<PrivySession>(unavailable);
-
+const Context = createContext<PrivySession>(unavailable);
 export function TradingAuthProvider({
   children,
   session,
@@ -34,24 +34,21 @@ export function TradingAuthProvider({
   children: ReactNode;
   session: PrivySession;
 }) {
-  return (
-    <PrivySessionContext.Provider value={session}>
-      {children}
-    </PrivySessionContext.Provider>
-  );
+  return <Context.Provider value={session}>{children}</Context.Provider>;
 }
+const decode = (encoded: string) =>
+  Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
+const encode = (bytes: Uint8Array) =>
+  btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(""));
 
 export function useTradingAuth() {
-  const privy = useContext(PrivySessionContext);
-  const adapter = useWallet();
-  // A user may keep their Privy session while explicitly selecting a V1-capable external wallet.
+  const privy = useContext(Context),
+    adapter = useWallet();
   const usePrivyWallet =
     !adapter.connected && privy.authenticated && Boolean(privy.walletAddress);
   const walletAddress = usePrivyWallet
     ? privy.walletAddress
     : (adapter.publicKey?.toBase58() ?? null);
-
-  // Read the wallet's advertised capabilities; never infer V1 from its brand.
   const standard = (
     adapter.wallet?.adapter as unknown as
       | {
@@ -66,124 +63,140 @@ export function useTradingAuth() {
         }
       | undefined
   )?.wallet;
-  const rawFeature = standard?.features["solana:signTransaction"] as
+  const feature = standard?.features["solana:signTransaction"] as
     | {
         supportedTransactionVersions?: readonly (number | string)[];
-        signTransaction?: (input: {
-          account: unknown;
-          chain: string;
-          transaction: Uint8Array;
-        }) => Promise<readonly { signedTransaction: Uint8Array }[]>;
+        signTransaction?: (
+          ...inputs: {
+            account: unknown;
+            chain: string;
+            transaction: Uint8Array;
+          }[]
+        ) => Promise<readonly { signedTransaction: Uint8Array }[]>;
       }
     | undefined;
-  const signingAccount = standard?.accounts.find(
-    (a) => a.address === walletAddress,
+  const account = standard?.accounts.find(
+    (item) => item.address === walletAddress,
   );
-  // Privy embedded wallets support signing serialized Solana transactions via their signTransaction method.
-  // Standard wallets like Phantom support versioned transactions (including V1 via SIMD-0385) even if
-  // their Wallet Standard registration manifest currently advertises [0, 'legacy'].
-  const walletName = adapter.wallet?.adapter.name;
-  const isPhantomOrKnownV1 =
-    walletName === "Phantom" ||
-    (Array.isArray(rawFeature?.supportedTransactionVersions) &&
-      rawFeature.supportedTransactionVersions.some(
-        (v) => v === 0 || v === "0" || v === 1 || v === "1",
-      ));
-
   const standardVersions = advertisedSigningVersions(
-    rawFeature?.supportedTransactionVersions,
-    !usePrivyWallet &&
-      Boolean(
-        signingAccount?.features?.includes("solana:signTransaction") &&
-        rawFeature?.signTransaction &&
-        adapter.connected,
-      ),
+    feature?.supportedTransactionVersions,
+    Boolean(
+      !usePrivyWallet &&
+      adapter.connected &&
+      account?.features?.includes("solana:signTransaction") &&
+      feature?.signTransaction,
+    ),
   );
-
+  const adapterVersions = adapter.wallet?.adapter.supportedTransactionVersions;
+  // V1 is enabled only when explicitly advertised by Wallet Standard.
   const supportedTransactionVersions = usePrivyWallet
-    ? Boolean(privy.signTransaction)
-      ? [0, 1]
+    ? privy.signTransaction
+      ? [0]
       : []
-    : isPhantomOrKnownV1 &&
-        adapter.connected &&
-        (Boolean(rawFeature?.signTransaction) ||
-          Boolean(adapter.signTransaction))
-      ? Array.from(new Set([...standardVersions, 1]))
-      : standardVersions;
-
-  const supportsV1 = supportedTransactionVersions.includes(1);
-
-  const signTransaction = useCallback(
+    : Array.from(
+        new Set([
+          ...standardVersions,
+          ...(adapter.connected &&
+          adapter.signTransaction &&
+          adapterVersions?.has(0)
+            ? [0]
+            : []),
+        ]),
+      );
+  const canSignV0 = supportedTransactionVersions.includes(0),
+    canSignV1 = supportedTransactionVersions.includes(1);
+  const signTransactions = useCallback(
     async (
-      encodedTransaction: string,
+      encoded: string[],
       version: 0 | 1 = 0,
-      chain: "solana:mainnet" | "solana:devnet" = "solana:mainnet",
+      chain: Chain = "solana:mainnet",
     ) => {
-      const bytes = Uint8Array.from(atob(encodedTransaction), (character) =>
-        character.charCodeAt(0),
-      );
-      let signed: Uint8Array;
-      if (usePrivyWallet && privy.signTransaction) {
-        signed = await privy.signTransaction(bytes);
-      } else if (version === 1) {
-        const account = standard?.accounts.find(
-          (a) => a.address === walletAddress,
-        );
-        if (
-          chain === "solana:devnet" &&
-          account?.chains &&
-          !account.chains.includes(chain)
-        )
-          throw new Error(
-            "Enable devnet in your wallet before approving a recurring plan.",
-          );
-        if (rawFeature?.signTransaction && account) {
-          const result = await rawFeature.signTransaction({
-            account,
-            chain,
-            transaction: bytes,
-          });
-          if (result.length !== 1)
-            throw new Error("The wallet did not return one signed transaction.");
-          signed = result[0].signedTransaction;
-        } else if (adapter.signTransaction) {
-          const transaction = VersionedTransaction.deserialize(bytes);
-          signed = (await adapter.signTransaction(transaction)).serialize();
-        } else {
-          throw new Error("This wallet has not advertised V1 signing support.");
-        }
-      } else if (chain !== "solana:mainnet") {
+      if (!encoded.length || encoded.length > 3)
+        throw new Error("Review between one and three transactions.");
+      if (version === 0 ? !canSignV0 : !canSignV1)
         throw new Error(
-          "Devnet recurring requires a wallet with explicit V1 and devnet signing support.",
+          `This wallet has not advertised v${version} transaction signing.`,
         );
-      } else {
-        if (!adapter.signTransaction)
-          throw new Error(
-            "Connect a wallet that supports transaction signing.",
-          );
-        const transaction = VersionedTransaction.deserialize(bytes);
-        signed = (await adapter.signTransaction(transaction)).serialize();
+      const bytes = encoded.map(decode);
+      if (usePrivyWallet && privy.signTransaction) {
+        const signed: string[] = [];
+        for (const transaction of bytes)
+          signed.push(encode(await privy.signTransaction(transaction, chain)));
+        return signed;
       }
-      return btoa(
-        Array.from(signed, (byte) => String.fromCharCode(byte)).join(""),
+      if (
+        feature?.signTransaction &&
+        account?.features?.includes("solana:signTransaction")
+      ) {
+        if (account.chains && !account.chains.includes(chain))
+          throw new Error(
+            "Select the requested network in your wallet before signing.",
+          );
+        const signed = await feature.signTransaction(
+          ...bytes.map((transaction) => ({ account, chain, transaction })),
+        );
+        if (signed.length !== bytes.length)
+          throw new Error(
+            "The wallet did not sign every reviewed transaction.",
+          );
+        return signed.map((item) => encode(item.signedTransaction));
+      }
+      if (chain !== "solana:mainnet")
+        throw new Error(
+          "This wallet does not expose explicit devnet signing. Use a Wallet Standard wallet.",
+        );
+      const transactions = bytes.map((transaction) =>
+        VersionedTransaction.deserialize(transaction),
       );
+      if (adapter.signAllTransactions && transactions.length > 1)
+        return (await adapter.signAllTransactions(transactions)).map(
+          (transaction) => encode(transaction.serialize()),
+        );
+      if (!adapter.signTransaction)
+        throw new Error("Connect a wallet that supports transaction signing.");
+      const signed: string[] = [];
+      for (const transaction of transactions)
+        signed.push(
+          encode((await adapter.signTransaction(transaction)).serialize()),
+        );
+      return signed;
     },
     [
+      account,
+      adapter.signAllTransactions,
       adapter.signTransaction,
+      canSignV0,
+      canSignV1,
+      feature,
       privy.signTransaction,
       usePrivyWallet,
-      standard,
-      walletAddress,
-      supportsV1,
-      rawFeature,
     ],
   );
-
+  const signTransaction = useCallback(
+    async (
+      encoded: string,
+      version: 0 | 1 = 0,
+      chain: Chain = "solana:mainnet",
+    ) => (await signTransactions([encoded], version, chain))[0],
+    [signTransactions],
+  );
+  const signMessage = useCallback(
+    async (message: string) => {
+      const bytes = new TextEncoder().encode(message);
+      if (usePrivyWallet && privy.signMessage)
+        return encode(await privy.signMessage(bytes));
+      if (!adapter.connected || !adapter.signMessage)
+        throw new Error(
+          "Connect a wallet with message signing to publish a basket.",
+        );
+      return encode(await adapter.signMessage(bytes));
+    },
+    [adapter.connected, adapter.signMessage, privy.signMessage, usePrivyWallet],
+  );
   const logout = useCallback(async () => {
     await privy.logout();
     if (adapter.connected) await adapter.disconnect();
   }, [privy.logout, adapter.connected, adapter.disconnect]);
-
   return {
     configured: privy.configured,
     privyConfigured: privy.configured,
@@ -200,11 +213,15 @@ export function useTradingAuth() {
     logout,
     logOut: logout,
     signTransaction,
+    signTransactions,
+    signMessage,
+    canSignMessage: usePrivyWallet
+      ? Boolean(privy.signMessage)
+      : Boolean(adapter.connected && adapter.signMessage),
     supportedTransactionVersions,
-    supportsV1,
-    canSignV1: supportsV1,
-    canSign: usePrivyWallet
-      ? Boolean(privy.signTransaction)
-      : Boolean(adapter.signTransaction && adapter.connected),
+    supportsV1: canSignV1,
+    canSignV1,
+    canSignV0,
+    canSign: canSignV0 || canSignV1,
   };
 }
