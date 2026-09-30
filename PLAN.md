@@ -1,298 +1,91 @@
-# Implementation Plan: Pure V1 Dual-Route Architecture (No ALTs Needed)
-## VERY IMPORTANT REASON WITH YOURSELF IF THIS PLAN CAN BE IMPROVED. IMPROVE IT AND THEN PROCEED DONT CREATE UNNECCESARY MD FILE
-## Goal Description
-Implement a **pure V1 Dual-Route Architecture** that completely eliminates Address Lookup Tables (ALTs) and their operational overhead (no RPC table fetching, no active deactivation checks, no ALT metadata mismatches):
-1. **Zero Asset Counting (Account-Driven):** The router inspects total unique runtime accounts across all swap legs. If total accounts $\le 64$, it selects **Route 1**; if total accounts $> 64$, it selects **Route 2**.
-2. **Route 1 — Single Atomic V1 Swap (Accounts $\le 64$):** Compiles as a single Solana Transaction V1 via `@solana/kit-v1`. Zero Jito tip, 1 user signature, direct RPC broadcast, 100% on-chain atomicity. **No ALTs required.**
-3. **Route 2 — V1 + Jito Bundles (Accounts $> 64$):** Partitions swap legs across 2 to 5 ordered **V1 transactions** (up to 4,096 bytes per transaction). Attaches the dynamic Jito tip floor to the final V1 chunk, approves all chunks in one modal via `signAllTransactions` (and single MWA session on mobile), and submits to the Jito Block Engine (`https://mainnet.block-engine.jito.wtf/api/v1/bundles`). **No ALTs required.**
-4. **Use Old Landing page but design just change the CTA Text which makes more sense and Showcases the All the Factors Not just Recurring and not just baskets**
-5. **Create More Baskets and Other than the V1 Tag showcase which basket uses JITO**
+# Implementation plan: capability-aware dual-route execution
 
-6. **Redesign the Porfolio Page use Browser caching and More Beatiful porfolio page check 21stdev for reference**
----
+Source: `origin/Dev` at `fae6813`. Work branch: `codex/plan-dual-route-upgrade`.
 
-## Architectural Breakthrough: Why Pure V1 Eliminates ALTs
+## Corrections before implementation
 
-> [!TIP]
-> ### How V1 Completely Bypasses Address Lookup Tables
-> - In **V0**, transactions were capped at **1,232 bytes**. Because a single 32-byte public key consumes substantial space, V0 forced developers to create, fund, and fetch on-chain Address Lookup Tables (ALTs) to compress addresses into 1-byte indices.
-> - In **V1 (SIMD-0296)**, the transaction packet ceiling is raised to **4,096 bytes**.
-> - Even with 64 accounts (the SVM runtime lock maximum), inlining all 64 public keys directly takes:
->   $$64 \times 32 \text{ bytes} = 2,048 \text{ bytes}$$
-> - 2,048 bytes comfortably fits inside the 4,096-byte V1 envelope!
-> - **Result:** We can build both single transactions and multi-transaction bundles using **direct, static account inlining in V1**.
-> - We can deprecate `jupiter-lookup-tables.ts` from the hot execution path, eliminating table-fetch RPC overhead, deactivation race conditions, and lookup validation failures!
+The goal is to use a single inline-account V1 transaction wherever it actually fits, and use Jito only when the complete order requires multiple transactions. The V1 path has no ALT dependency. V0 remains a compatibility path for wallets that do not support V1.
 
-```
-               ┌─── Receive Basket Order Request (2–12 assets) ───┐
-               │                                                  │
-               ▼                                                  │
-   Inspect Total Unique Runtime Accounts Across All Swap Legs     │
-               │                                                  │
-               ├───────────────────┬───────────────────┐          │
-               │                   │                   │          │
-    [Total Accounts ≤ 64]          │          [Total Accounts > 64]
-    (Fits single V1 4096B)         │                   │          │
-               │                   │                   │          │
-               ▼                   │                   ▼          │
-    ┌──────────────────────┐       │        ┌──────────────────────┐
-    │       ROUTE 1        │       │        │       ROUTE 2        │
-    │ Single Atomic V1     │       │        │ V1 + Jito Bundle     │
-    │                      │       │        │                      │
-    │ • Version: 1         │       │        │ • Version: 1         │
-    │ • NO ALTs Needed     │       │        │ • NO ALTs Needed     │
-    │ • Zero Jito Tip      │       │        │ • 2 to 5 V1 Chunks   │
-    │ • 1 User Approval    │       │        │ • signAll / MWA      │
-    │ • Direct RPC Send    │       │        │ • Dynamic Jito Tip   │
-    │ • 100% Atomic        │       │        │ • Jito Block Engine  │
-    └──────────────────────┘       │        │ • Same-slot check    │
-                                   │        └──────────────────────┘
-                                   ▼
-                   [Wallet only supports V0?]
-                                   │
-                                   ▼
-                       Single Atomic V0 (0 tip)
-```
+1. **Accounts and bytes both matter.** At most 64 accounts does not guarantee a transaction fits: instruction data, signatures, and configuration also consume bytes. Count all runtime accounts and compile the complete transaction. V1 is bounded to 4,096 serialized bytes; V0 to 1,232. Include fees, setup instructions, and any final tip in capacity checks.
+2. **Select from actual routes, never asset counts.** Try one complete transaction without a Jito tip. Partition only a capacity failure into the smallest viable ordered bundle of two to five transactions. Do not turn validation, provider, slippage, or simulation failures into a different route. Ten assets do not inherently require four or five chunks.
+3. **Capability is observed, not assigned.** Read `solana:signTransaction` or MWA signing capabilities for the selected wallet. The installed Privy React SDK 3.42.0 advertises legacy/V0; blindly changing it to `[0,1]` would be incorrect. Reflect the wallet's actual capability, including V1 if a compatible implementation advertises it later. Preserve V0 support.
+4. **Cluster activation and infrastructure support are different.** A read-only check on 30 September 2026 confirmed mainnet genesis and the V1 feature activation at slot 447120000 (observed slot 451972127). Continue verifying activation per operation; this observation is not a deployment guarantee. Jito's documented API accepts base64 bundles of up to five transactions, but funded V1 submission has not been verified here.
+5. **Use sufficient transport/storage limits.** Five 4,096-byte transactions require 27,320 base64 characters before authorization and JSON overhead. The proposed 25 KB request cap is too small. Apply an appropriately bounded bundle-specific cap to routes, middleware, tunnel, SDK and pending storage; do not raise unrelated API limits.
+6. **Retain honest execution guarantees.** One transaction is atomic for its instructions, while fees may remain on failure. Jito skipped-block rebroadcast may produce partial bundle execution. Retain exact-message authorization, persisted signed-payload recovery and same-slot receipt checks. Do not claim one wallet modal for every provider.
+7. **Show execution method only when known.** A basket's route depends on its current swap instructions, funding token, and wallet capabilities. Cards may explain that a single transaction or Jito bundle is selected during review; the reviewed order displays the actual route and tip.
+8. **Preserve real data and network boundaries.** Mainnet spot trading stays separate from devnet recurring test tokens. New baskets are allocation definitions with live constituent availability checks. Portfolio caching is wallet/network scoped, short-lived, and visibly stale while refreshing; it never authorizes spending or invents prices/cost basis.
 
----
+## Implementation
 
-## User Review Required
+### Shared SDK
 
-> [!IMPORTANT]
-> ### 1. Complete Removal of ALTs in V1 Flows
-> In Route 1 and Route 2, transactions will inline static accounts directly via `@solana/kit-v1`. The server will no longer execute `loadVerifiedLookupTables` RPC calls for V1 builds.
->
-> ### 2. Pure Account-Driven Routing
-> Decisions are made strictly by whether total unique accounts exceed the 64-account runtime limit. No asset-counting heuristics (`assets <= 4`).
->
-> ### 3. Up to 5 Transactions in Jito Bundles
-> `BASKET_MAX_TRANSACTIONS = 5` supports baskets of up to 12 assets. Users approve all chunks simultaneously via `signAllTransactions`.
->
-> ### 4. Privy V1 Signing Activation
-> Update `TradingAuth.tsx` so Privy embedded wallets advertise `[0, 1]`.
+- [x] Add typed capacity errors and account counting, and remove asset-count routing heuristics.
+- [x] Add V1 inline-account chunk composition with explicit compute/data/priority-fee configuration and no ALT reads.
+- [x] Support single-first V0 compatibility composition with verified tables, and two-to-five transaction bundles for either version.
+- [x] Expand private/creator basket bounds to 2–12 while preserving exact allocation and auto-balance behavior.
+- [x] Validate bundle versions, serialized byte counts, account constraints, exact amount conservation, and complete ordered outputs.
 
----
+### Server and transport
 
-## Proposed Changes
+- [x] Negotiate observed wallet versions and verify mainnet genesis/V1 feature activation before preparing and broadcasting V1.
+- [x] Attempt a single transaction first; use the smallest fitting partition on capacity failure only.
+- [x] Skip ALT retrieval entirely on V1, preserve verified Jupiter-referenced tables for V0.
+- [x] Bind version, ordered message hashes, signer, expiry, complete allocations and receipt attribution in bundle authorization.
+- [x] Validate two-to-five signatures using the version-aware decoder. Check V0 runtime accounts including lookup indexes.
+- [x] Preserve settlement simulations, total debit/fee/tip bounds, recovery status, and no individual fallback broadcasts.
+- [x] Increase bundle-only body/recovery limits consistently; keep privileged collector routes outside development tunnels.
 
-### Component 1: SDK Basket Engine (`packages/sdk`)
+### Wallets and mobile
 
-#### [MODIFY] [`packages/sdk/src/basket/mainnet.ts`](file:///home/utkarsh/Projects/kite/packages/sdk/src/basket/mainnet.ts)
-- Add `composeBasketV1Chunks`:
-  Partitions swap legs into 2 to 5 V1 chunks where each chunk has $\le 64$ unique accounts and $\le 4,096$ serialized bytes.
-  Appends the Jito tip instruction exclusively to the final V1 chunk.
-  No lookup tables required!
-```typescript
-export async function composeBasketV1Chunks(params: {
-  payer: string;
-  blockhash: string;
-  lastValidBlockHeight: number;
-  legs: BasketSwapLeg[];
-  finalTipInstruction?: TransactionInstruction;
-  priorityFeeLamports?: number;
-}): Promise<ComposedV1Chunk[]> {
-  // Backtracking partitioner: chunks legs into at most 5 V1 transactions
-  // Each chunk validates accounts.size <= 64 and bytes <= 4096
-}
-```
+- [x] Derive Privy signing capability from its actual Wallet Standard feature instead of hard-coded support.
+- [x] Sign all reviewed bundle transactions in one batch when the provider supports it; never use web3.js v1.x deserialization for a V1 transaction.
+- [x] Preserve network/account/expiry guards around prompts and persist exact signed payloads before submission.
+- [x] Pass the returned transaction version through Android MWA and support up to five mainnet bundle transactions.
+- [x] Render actual reviewed route/version, zero single-route Jito tip, selected bundle tip and execution caveat on both clients.
 
-#### [MODIFY] [`packages/sdk/src/basket/bundle.ts`](file:///home/utkarsh/Projects/kite/packages/sdk/src/basket/bundle.ts)
-- Update `BASKET_MAX_TRANSACTIONS = 5`.
-- Remove asset-count heuristics.
-- Update `BasketBundleOrder` interface:
-```typescript
-export interface BasketBundleOrder extends Omit<BasketOrder, "transaction" | "serializedBytes" | "transactionVersion"> {
-  kind: "bundle";
-  transactions: string[];
-  transactionVersion: 0 | 1;
-  serializedBytes: number[];
-  tipLamports: number;
-  atomicityWarning: string;
-}
-```
+### Product and design
 
-#### [MODIFY] [`packages/sdk/src/basket/custom.ts`](file:///home/utkarsh/Projects/kite/packages/sdk/src/basket/custom.ts)
-- Update `MAX_CUSTOM_BASKET_LEGS = 12`.
+- [x] Restore the previous landing-page layout with broader copy covering baskets, spot investing, research, portfolio and paper practice; distinguish devnet recurring accurately.
+- [x] Retain the compact moving basket showcase, no pause button, no mainnet ticker and no emoji.
+- [x] Add useful thematic baskets from real canonical issuer listings, with missing/unsupported/unpriced assets unavailable.
+- [x] Improve the portfolio layout using relevant 21st.dev design references and Kite's forest/cream/lime system.
+- [x] Add short-lived wallet-specific browser caching with immediate cached render, background refresh, clear timestamps/errors and reset on wallet change.
+- [x] Preserve unknown imported cost basis; do not fabricate returns or performance charts.
 
-#### [MODIFY] [`packages/sdk/src/client/kite-client.ts`](file:///home/utkarsh/Projects/kite/packages/sdk/src/client/kite-client.ts)
-- Accept `transactionVersion: 0 | 1` and 2 to 5 transactions in `validBundleOrder`.
+## Verification
 
----
+Use Node.js 24.12.0 and pnpm 10.31.0. Keep new tests in TypeScript/node:test; do not add `.mjs` tests or unrelated dependencies.
 
-### Component 2: Server Routing & Preflight API (`apps/web`)
+- [x] SDK build; web/mobile type checks.
+- [x] Regression suites plus new tests for V1/V0 single/bundle routing, byte/account limits, final-tip capacity, rejected extra signers, and no-ALT V1 behavior.
+- [x] Capability negotiation, signed-message/version/order tampering, two-to-five transaction payload limits, unknown-result recovery and caller wallet changes.
+- [x] Portfolio cache isolation, expiry, corrupt storage, unavailable prices and post-trade refresh.
+- [x] Production web build, Expo exports and desktop/phone-width browser flows.
+- [x] Scan exported clients and staged changes for configured secrets.
+- [x] Commit coherent changes on the feature branch and open a PR targeting Dev. Do not merge main/Dev, deploy contracts, fund wallets, or submit real trades as incidental tests.
 
-#### [MODIFY] [`apps/web/lib/server/basket-order.ts`](file:///home/utkarsh/Projects/kite/apps/web/lib/server/basket-order.ts)
-- Bypass `loadVerifiedLookupTables` when building V1 routes.
-- Calculate total unique runtime accounts across all legs.
-- Implement account-driven routing:
-```typescript
-// Count unique accounts across all swap legs
-const allInstructions = legs.flatMap((leg) => leg.instructions);
-const uniqueAccounts = new Set<string>([taker]);
-for (const ix of allInstructions) {
-  uniqueAccounts.add(ix.programId.toBase58());
-  for (const key of ix.keys) {
-    uniqueAccounts.add(key.pubkey.toBase58());
-  }
-}
+## Evidence and rollout boundaries
 
-const supportsV1 = Boolean(
-  input.supportedTransactionVersions?.includes(1) && (await mainnetV1Active()),
-);
+- [Solana V1 activation, limits, wallet support and configuration](https://solana.com/upgrades/larger-transaction-sizes)
+- [Jito bundles, tips, receipts and skipped-block limitations](https://docs.jito.wtf/lowlatencytxnsend/)
+- [Privy transaction signing](https://docs.privy.io/wallets/using-wallets/solana/sign-a-transaction)
+- Installed Privy `solana.mjs` and `useWallets-*.mjs` advertise `supportedTransactionVersions: ["legacy", 0]`.
 
-// If total accounts fit within the 64-account runtime ceiling:
-if (uniqueAccounts.size <= 64) {
-  // ROUTE 1: Single Atomic V1 (Zero Jito Tip, NO ALTs)
-  if (supportsV1) {
-    try {
-      const v1Tx = await composeV1Transaction({
-        payer: taker,
-        blockhash: lifetime.blockhash,
-        lastValidBlockHeight: lifetime.lastValidBlockHeight,
-        instructions: allInstructions,
-        allowV1: true,
-        priorityFeeLamports: 10_000,
-      });
-      await simulateComposed(v1Tx.transaction, addresses);
-      return await authorizeComposed({ ...baseOrder, ...v1Tx, transactionVersion: 1 });
-    } catch {
-      // Fall through to V0 single attempt if V1 hit size limits
-    }
-  }
+Funded Jito V1 execution and physical Android signing remain unverified. Existing deployment and dependency-audit limitations remain tracked in the current documentation.
 
-  // Attempt Single V0 (with ALTs as fallback for V0-only wallets, Zero Jito Tip)
-  try {
-    const lookupTables = await loadVerifiedLookupTables(routeAlts);
-    const singleV0 = composeV0Transaction({
-      payer: taker,
-      blockhash: lifetime.blockhash,
-      instructions: allInstructions,
-      lookupTables,
-      priorityFeeLamports: 10_000,
-    });
-    await simulateComposed(singleV0.transaction, addresses);
-    return await authorizeComposed({ ...baseOrder, ...singleV0, transactionVersion: 0 });
-  } catch {
-    // Falls through to Route 2
-  }
-}
+## Completed verification — 30 September 2026
 
-// ROUTE 2: Scaled Jito Bundle (V1 + Jito, NO ALTs)
-const tip = await prepareJitoTip(taker);
+- Source fetched from `origin/Dev` (`fae6813`); `origin/main` did not contain this plan. Work is on `codex/plan-dual-route-upgrade`, with [PR #11 targeting Dev](https://github.com/Zyaxxy/kite/pull/11). Nothing was merged or deployed.
+- **364 tests passed under Node.js 24.12.0:** 164 legacy SDK, 69 legacy web, 115 TypeScript upgrade, 8 mobile configuration and 8 root/tunnel tests. Transaction, provider and wallet tests use deterministic fixtures; these totals do not establish funded execution.
+- SDK compilation, web/mobile type checks, the Next.js production build, and Expo web/Android/iOS exports passed with the pinned dependencies. Next.js retains an upstream Privy/viem dynamic-import warning. The host default Node 26 was not used for the final verification; the exact Node 24.12.0 runtime and pnpm 10.31.0 were checked separately. A root `.nvmrc` now records the required runtime. No unrelated project dependencies were upgraded.
+- **267 exported client artifacts** and the full branch diff were checked against **11 configured server-only values**, with no literal secret values found. This check is not a comprehensive dependency or infrastructure audit.
+- Desktop and 390px browser checks covered the landing, moving basket showcase, baskets, builder validation, and paper/disconnected-wallet portfolios with no horizontal overflow. Existing browser data was preserved; no wallet was connected or funded.
+- Expo web rendered Explore, Subscriptions, Portfolio and Activity without a white screen. The export had no `EXPO_PUBLIC_API_BASE_URL`, so it displayed the configuration limitation. A real device/API connection and native signing were not verified. The local tunnel test checked payload capacity and privileged-route exclusion using loopback fixtures only.
+- A read-only request to the rebuilt market API returned current basket definitions with observed data and `partial` status; unavailable upstream data remains explicit.
+- Browser verification caught cached allocation drift. Redis, disk and shared client hydration now resolve current SDK definitions while retaining price observations, timestamps and warnings. This also keeps paper targets and server order allocations consistent after release updates.
+- Existing devnet instruments and mint provisioning were preserved. Themes missing test constituents remain unavailable; a new oversized legacy Guard fixture rejects at the 64-account boundary. No Guard deployment or incidental faucet request was performed.
+- Wallet portfolio cache is display-only, scoped to wallet/mainnet/schema, expires after five minutes, and shows age/staleness during refresh. Explicit post-trade refresh starts a new request; cached holdings cannot authorize spending. Imported cost basis remains unknown.
 
-let chunks: Array<{ transaction: string; serializedBytes: number; transactionVersion: 0 | 1 }>;
+Implementation commits separate the SDK, server/transport, web/Android signing, product design, final alignment polish, and documentation. Reverts must respect their SDK dependencies. The key plan corrections are observed wallet capabilities rather than forced Privy V1, byte and account checks rather than asset-count rules, and 32 KiB bundle transport rather than the insufficient proposed 25 KB cap.
 
-if (supportsV1) {
-  // Build V1 chunks: static accounts, up to 4096 bytes per chunk, NO ALTs!
-  chunks = await composeBasketV1Chunks({
-    payer: taker,
-    blockhash: lifetime.blockhash,
-    lastValidBlockHeight: lifetime.lastValidBlockHeight,
-    legs,
-    finalTipInstruction: tip.instruction,
-    priorityFeeLamports: 10_000,
-  });
-} else {
-  // V0 fallback with ALTs for legacy wallets
-  const lookupTables = await loadVerifiedLookupTables(routeAlts);
-  chunks = composeBasketV0Chunks({
-    ...composition,
-    lookupTables,
-    finalTipInstruction: tip.instruction,
-  });
-}
-
-for (const chunk of chunks) {
-  await simulateComposed(chunk.transaction, addresses);
-}
-
-return await authorizeBundle({
-  ...baseBundleOrder,
-  transactions: chunks.map((c) => c.transaction),
-  transactionVersion: supportsV1 ? 1 : 0,
-  tipLamports: tip.lamports,
-  atomicityWarning: BUNDLE_ATOMICITY_WARNING,
-});
-```
-
-#### [MODIFY] [`apps/web/lib/server/bundle-authorization.ts`](file:///home/utkarsh/Projects/kite/apps/web/lib/server/bundle-authorization.ts)
-- Update `transaction()` to deserialize both V1 and V0 transactions using `inspectWalletTransaction`:
-```typescript
-async function transaction(encoded: string, taker: string) {
-  if (typeof encoded !== "string" || encoded.length > 5500)
-    throw new Error("Invalid bundle transaction.");
-  const { transaction: tx, message, bytes } = await inspectWalletTransaction(encoded);
-  if (message.version !== 0 && message.version !== 1)
-    throw new Error("Unsupported bundle transaction version.");
-  if (bytes.length > (message.version === 1 ? 4096 : 1232))
-    throw new Error("Bundle transaction exceeds size limit.");
-  if (message.staticAccounts[0] !== taker)
-    throw new Error("The reviewed wallet must be the fee payer.");
-  if (message.staticAccounts.length > 64)
-    throw new Error("Bundle transaction exceeds 64 accounts.");
-  return { tx, message, bytes };
-}
-```
-- Allow 2 to 5 bundle transactions.
-
-#### [MODIFY] [`apps/web/lib/pending-mainnet.ts`](file:///home/utkarsh/Projects/kite/apps/web/lib/pending-mainnet.ts)
-- Allow up to 5 transactions and base64 strings up to 5,500 characters.
-
-#### [MODIFY] [`apps/web/app/api/bundles/execute/route.ts`](file:///home/utkarsh/Projects/kite/apps/web/app/api/bundles/execute/route.ts)
-- Support 2 to 5 transactions, payload size up to 25KB.
-
-#### [MODIFY] [`apps/web/app/api/bundles/status/route.ts`](file:///home/utkarsh/Projects/kite/apps/web/app/api/bundles/status/route.ts)
-- Support 2 to 5 transactions, payload size up to 25KB.
-
----
-
-### Component 3: Client & Wallet Signing (`apps/web`)
-
-#### [MODIFY] [`apps/web/components/trading/TradingAuth.tsx`](file:///home/utkarsh/Projects/kite/apps/web/components/trading/TradingAuth.tsx)
-- Enable V1 for Privy embedded wallets: `[0, 1]`.
-- Allow up to 5 transactions in `signTransactions`.
-- Retain `adapter.signAllTransactions` for batch approval.
-
-#### [MODIFY] [`apps/web/components/kite/BasketBuilder.tsx`](file:///home/utkarsh/Projects/kite/apps/web/components/kite/BasketBuilder.tsx)
-- Allow selecting up to 12 assets.
-
-#### [MODIFY] [`apps/web/components/trading/ActualBasketPanel.tsx`](file:///home/utkarsh/Projects/kite/apps/web/components/trading/ActualBasketPanel.tsx)
-- Display order details dynamically:
-  - Route 1: *"Single atomic V1 swap · 0 tip"*
-  - Route 2: *"{N} V1 transactions · Jito bundle"*, dynamic tip floor, atomicity notice.
-
----
-
-## Verification Plan
-
-### Automated Tests
-```sh
-# 1. Build SDK
-pnpm build:sdk
-
-# 2. Run SDK tests
-pnpm --filter @kite/sdk test
-
-# 3. Run Web server tests
-pnpm --filter @kite/web test
-
-# 4. Check types
-pnpm typecheck
-```
-
-### Specific Automated Test Scenarios
-1. **Route 1 Verification ($\le 64$ accounts):**
-   - Assert single V1 transaction generated.
-   - Assert zero lookup tables requested or passed.
-   - Assert zero Jito tip attached.
-2. **Route 2 Verification ($> 64$ accounts):**
-   - 10-asset basket -> assert partitioned into 4–5 V1 chunks.
-   - Assert zero lookup tables requested or passed.
-   - Assert Jito tip attached to final chunk.
-   - Assert bundle authorization and signature verification succeed.
-3. **No-ALT Verification:**
-   - Spy on `loadVerifiedLookupTables` and verify it is **not called** when V1 routing is active.
-
-### Manual Verification
-1. **Single V1 Swap:** Select 3 assets, verify quote returns 1 V1 transaction, 0 tip, 1 approval.
-2. **V1 + Jito Bundle:** Build a 10-asset basket, verify quote returns 4–5 V1 chunks with tip, `signAllTransactions` signs all in 1 modal.
+Design hierarchy references: [21st.dev Financial Bento Grid](https://21st.dev/@uiable/components/block-bento-5) and [Wallet Card 2](https://21st.dev/@beratberkayg/components/wallet-card-2). Components were implemented locally in Kite's existing theme with no copied sample balances or extra packages.
