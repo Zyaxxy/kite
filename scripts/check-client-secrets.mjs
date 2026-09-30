@@ -13,7 +13,9 @@ const serverSecretName = (name) =>
     name,
   );
 
-/** Read configuration privately; callers must never print this map or its values. */
+/** Read configuration privately; callers must never print this map or its values.
+ * @param {{ environment?: NodeJS.ProcessEnv; envFiles?: string[] }} [options]
+ */
 export async function configuredServerSecrets({
   environment = process.env,
   envFiles,

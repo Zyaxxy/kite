@@ -238,12 +238,37 @@
 .total {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 12px;
   font-size: 13px;
   padding: 16px 0;
 }
 .weightHeading {
   color: var(--muted);
+}
+.weightActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.autoBalanceActionBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 9999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.autoBalanceActionBtn:hover {
+  background: var(--surface);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .weightRow {
   display: flex;
@@ -252,8 +277,66 @@
   padding: 18px 0;
   border-bottom: 1px solid var(--line);
 }
-.weightRow > div {
+.assetMeta {
+  flex: 1 1 120px;
+  min-width: 90px;
+}
+.weightControls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 2 1 260px;
+  min-width: 0;
+}
+.rangeSlider {
+  -webkit-appearance: none;
+  appearance: none;
   flex: 1;
+  min-width: 80px;
+  height: 6px;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--line) 80%, transparent);
+  outline: none;
+  cursor: pointer;
+}
+.rangeSlider:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.rangeSlider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  cursor: grab;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.rangeSlider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.rangeSlider::-webkit-slider-thumb:active {
+  cursor: grabbing;
+}
+.rangeSlider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  cursor: grab;
+}
+.rangeSlider::-moz-range-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.rangeSlider::-moz-range-thumb:active {
+  cursor: grabbing;
 }
 .weightInput {
   display: flex;
@@ -263,24 +346,67 @@
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 6px 10px;
+  flex-shrink: 0;
 }
 .weightInput input {
   background: transparent;
   border: 0;
-  width: 72px;
+  width: 68px;
   min-height: 32px;
   text-align: right;
   font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--ink);
+}
+.weightInput input:focus {
+  outline: none;
 }
 .weightInput span {
   font-size: 12px;
   color: var(--muted);
+}
+.bpsBadge {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  min-width: 52px;
+  text-align: right;
+  flex-shrink: 0;
 }
 .total strong {
   font-variant-numeric: tabular-nums;
 }
 .total[data-valid="true"] strong {
   color: var(--accent);
+}
+.totalDiff {
+  display: block;
+  font-size: 11px;
+  color: var(--down);
+  margin-top: 2px;
+}
+.totalActionGroup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.autoBalanceBtn {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.autoBalanceBtn:hover {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.autoBalanceBtn:active {
+  transform: scale(0.97);
 }
 .form {
   display: grid;
@@ -463,10 +589,17 @@
     flex-direction: column;
   }
   .weightRow {
-    gap: 8px;
+    flex-wrap: wrap;
+    gap: 10px;
   }
   .weightRow small {
-    max-width: 130px;
+    max-width: 160px;
+  }
+  .weightControls {
+    width: 100%;
+    order: 3;
+    flex: 1 1 100%;
+    margin-top: 4px;
   }
   .weightInput input {
     width: 60px;

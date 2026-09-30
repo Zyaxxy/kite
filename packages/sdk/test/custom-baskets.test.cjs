@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const {
   validateProgrammableBasket,
   calculateEqualWeights,
+  autoBalanceWeights,
   calculateMarketCapWeights,
   resolveProgrammableBasket,
   encodeBasketShareCode,
@@ -101,6 +102,50 @@ test("equal-weight distribution conserves every basis point (Hare-Niemeyer)", ()
   assert.equal(three[0].weightBps, 3334);
   assert.equal(three[1].weightBps, 3333);
   assert.equal(three[2].weightBps, 3333);
+});
+
+test("auto-balance distribution conserves every basis point via Hare-Niemeyer", () => {
+  // Case 1: Proportional scaling when sum < 10,000 without zero legs
+  const under = autoBalanceWeights([
+    { mint: "mint1", symbol: "A", weightBps: 5000 },
+    { mint: "mint2", symbol: "B", weightBps: 3000 },
+  ]);
+  assert.equal(under.reduce((sum, a) => sum + a.weightBps, 0), 10000);
+  assert.equal(under[0].weightBps, 6250);
+  assert.equal(under[1].weightBps, 3750);
+
+  // Case 2: Proportional scaling when sum > 10,000 (e.g. 45%, 35%, 25% = 105%)
+  const over = autoBalanceWeights([
+    { mint: "mint1", symbol: "A", weightBps: 4500 },
+    { mint: "mint2", symbol: "B", weightBps: 3500 },
+    { mint: "mint3", symbol: "C", weightBps: 2500 },
+  ]);
+  assert.equal(over.reduce((sum, a) => sum + a.weightBps, 0), 10000);
+  assert.equal(over[0].weightBps, 4286);
+  assert.equal(over[1].weightBps, 3333);
+  assert.equal(over[2].weightBps, 2381);
+
+  // Case 3: Distribute unallocated remainder to zero-weight legs
+  const withZero = autoBalanceWeights([
+    { mint: "mint1", symbol: "A", weightBps: 6000 },
+    { mint: "mint2", symbol: "B", weightBps: 2000 },
+    { mint: "mint3", symbol: "C", weightBps: 0 },
+  ]);
+  assert.equal(withZero.reduce((sum, a) => sum + a.weightBps, 0), 10000);
+  assert.equal(withZero[0].weightBps, 6000);
+  assert.equal(withZero[1].weightBps, 2000);
+  assert.equal(withZero[2].weightBps, 2000);
+
+  // Case 4: All zero weights fallback to equal weights via Hare-Niemeyer
+  const allZero = autoBalanceWeights([
+    { mint: "mint1", symbol: "A", weightBps: 0 },
+    { mint: "mint2", symbol: "B", weightBps: 0 },
+    { mint: "mint3", symbol: "C", weightBps: 0 },
+  ]);
+  assert.equal(allZero.reduce((sum, a) => sum + a.weightBps, 0), 10000);
+  assert.equal(allZero[0].weightBps, 3334);
+  assert.equal(allZero[1].weightBps, 3333);
+  assert.equal(allZero[2].weightBps, 3333);
 });
 
 test("share code encodes and decodes custom baskets reliably", () => {

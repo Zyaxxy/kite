@@ -198,6 +198,107 @@ export function calculateEqualWeights(
   }));
 }
 
+/** Auto-balances basket allocations to sum to exactly 10,000 basis points (100.00%) using the Hare-Niemeyer (Largest Remainder) algorithm in BigInt arithmetic. */
+export function autoBalanceWeights(
+  allocations: BasketAllocation[],
+): BasketAllocation[] {
+  if (!allocations.length) return [];
+  if (allocations.length > MAX_CUSTOM_BASKET_LEGS) {
+    throw new Error(`Select between 1 and ${MAX_CUSTOM_BASKET_LEGS} assets.`);
+  }
+
+  const rawWeights = allocations.map((a) => {
+    const bps = Number.isFinite(a.weightBps) ? Math.max(0, Math.round(a.weightBps)) : 0;
+    return BigInt(bps);
+  });
+
+  const totalRaw = rawWeights.reduce((sum, w) => sum + w, 0n);
+
+  // If all weights are 0, distribute equally via Hare-Niemeyer
+  if (totalRaw === 0n) {
+    return calculateEqualWeights(allocations);
+  }
+
+  // If total is under 10,000 and some assets are 0 bps, distribute remainder among those zero-weight assets
+  const zeroIndices = rawWeights
+    .map((w, i) => (w === 0n ? i : -1))
+    .filter((i) => i !== -1);
+
+  if (totalRaw < 10_000n && zeroIndices.length > 0) {
+    const remainderToDistribute = 10_000n - totalRaw;
+    const count = BigInt(zeroIndices.length);
+    const baseShare = remainderToDistribute / count;
+    const rem = Number(remainderToDistribute % count);
+
+    const result = allocations.map((a, i) => ({
+      ...a,
+      weightBps: Number(rawWeights[i]),
+    }));
+
+    zeroIndices.forEach((idx, i) => {
+      result[idx].weightBps = Number(baseShare + (i < rem ? 1n : 0n));
+    });
+
+    return result;
+  }
+
+  // Proportional scaling via Largest Remainder (Hare-Niemeyer)
+  // Ensure every asset has at least 1 unit effective weight so no leg receives 0
+  const effectiveWeights = rawWeights.map((w) => (w <= 0n ? 1n : w));
+  const effectiveTotal = effectiveWeights.reduce((sum, w) => sum + w, 0n);
+
+  const baseWeights = effectiveWeights.map((w) =>
+    Number((w * 10_000n) / effectiveTotal),
+  );
+  const remainders = effectiveWeights
+    .map((w, index) => ({
+      index,
+      remainder: (w * 10_000n) % effectiveTotal,
+    }))
+    .sort((a, b) =>
+      a.remainder === b.remainder
+        ? a.index - b.index
+        : a.remainder > b.remainder
+          ? -1
+          : 1,
+    );
+
+  const leftover = 10_000 - baseWeights.reduce((sum, val) => sum + val, 0);
+  for (let i = 0; i < leftover; i++) {
+    baseWeights[remainders[i].index]++;
+  }
+
+  const result = allocations.map((a, i) => ({
+    ...a,
+    weightBps: Math.max(1, baseWeights[i]),
+  }));
+
+  // Re-verify exact 10,000 sum conservation
+  let sumBps = result.reduce((sum, a) => sum + a.weightBps, 0);
+  let diff = 10_000 - sumBps;
+  while (diff !== 0) {
+    if (diff > 0) {
+      result[0].weightBps++;
+      diff--;
+    } else {
+      let maxIdx = 0;
+      for (let i = 1; i < result.length; i++) {
+        if (result[i].weightBps > result[maxIdx].weightBps) {
+          maxIdx = i;
+        }
+      }
+      if (result[maxIdx].weightBps > 1) {
+        result[maxIdx].weightBps--;
+        diff++;
+      } else {
+        break;
+      }
+    }
+  }
+
+  return result;
+}
+
 /** Calculate market-cap weighted basis points using live catalog metrics and largest remainder. */
 export function calculateMarketCapWeights(
   selected: Array<{ mint: string; symbol: string; name?: string }>,

@@ -6,6 +6,7 @@ test("artifact scan includes creator invitations, collector keypairs and rotatin
   const secrets = await configuredServerSecrets({
     envFiles: [],
     environment: {
+      NODE_ENV: "test",
       CREATOR_INVITE_CODES: "test-invitation-only",
       BOT_KEYPAIR: "test-collector-key-only",
       JUPITER_API_KEYS: "test-rotation-only",

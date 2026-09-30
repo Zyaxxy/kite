@@ -16,10 +16,12 @@ import {
   Check,
   Layers3,
   Plus,
+  Scale,
   Search,
   Trash2,
 } from "lucide-react";
 import {
+  autoBalanceWeights,
   calculateEqualWeights,
   decodeBasketShareCode,
   forkCuratedBasket,
@@ -386,19 +388,34 @@ function BasketStudio() {
             <>
               <div className={styles.weightHeading}>
                 <span>{allocations.length} selected assets</span>
-                <button
-                  type="button"
-                  className="text-link"
-                  onClick={() => {
-                    setAllocations(calculateEqualWeights(allocations));
-                    setDirty(true);
-                  }}
-                >
-                  Equal weights
-                </button>
+                <div className={styles.weightActions}>
+                  <button
+                    type="button"
+                    className={styles.autoBalanceActionBtn}
+                    onClick={() => {
+                      setAllocations(autoBalanceWeights(allocations));
+                      setDirty(true);
+                    }}
+                    title="Auto balance allocations to exactly 100% using Hare-Niemeyer largest remainder algorithm"
+                  >
+                    <Scale size={13} aria-hidden="true" />
+                    Auto balance
+                  </button>
+                  <button
+                    type="button"
+                    className="text-link"
+                    onClick={() => {
+                      setAllocations(calculateEqualWeights(allocations));
+                      setDirty(true);
+                    }}
+                  >
+                    Equal weights
+                  </button>
+                </div>
               </div>
               {allocations.map((allocation) => {
                 const asset = byMint.get(allocation.mint);
+                const weightPct = allocation.weightBps / 100;
                 return (
                   <div className={styles.weightRow} key={allocation.mint}>
                     {asset ? (
@@ -406,41 +423,78 @@ function BasketStudio() {
                     ) : (
                       <Layers3 aria-hidden="true" />
                     )}
-                    <div>
+                    <div className={styles.assetMeta}>
                       <strong>{allocation.symbol}</strong>
                       <small>{allocation.name}</small>
                     </div>
-                    <label className={styles.weightInput}>
+
+                    <div className={styles.weightControls}>
                       <input
-                        name={`weight-${allocation.mint}`}
-                        aria-label={`${allocation.symbol} allocation percent`}
-                        type="number"
-                        min="0.01"
-                        max="100"
-                        step="0.01"
-                        inputMode="decimal"
-                        value={allocation.weightBps / 100}
+                        type="range"
+                        min="1"
+                        max="99"
+                        step="1"
+                        value={Math.min(99, Math.max(1, Math.round(weightPct)))}
                         onChange={(e) => {
-                          const weight = Math.round(
-                            Number(e.target.value) * 100,
+                          const val = Math.max(
+                            1,
+                            Math.min(9900, Math.round(Number(e.target.value) * 100)),
                           );
                           setAllocations((items) =>
                             items.map((item) =>
                               item.mint === allocation.mint
-                                ? { ...item, weightBps: weight }
+                                ? { ...item, weightBps: val }
                                 : item,
                             ),
                           );
                           setDirty(true);
                         }}
+                        className={styles.rangeSlider}
+                        aria-label={`${allocation.symbol} weight percentage slider`}
                       />
-                      <span>%</span>
-                    </label>
+
+                      <label className={styles.weightInput}>
+                        <input
+                          name={`weight-${allocation.mint}`}
+                          aria-label={`${allocation.symbol} allocation percent`}
+                          type="number"
+                          min="0.01"
+                          max="99.99"
+                          step="0.01"
+                          inputMode="decimal"
+                          value={allocation.weightBps / 100}
+                          onChange={(e) => {
+                            const raw = parseFloat(e.target.value);
+                            const weight = Number.isNaN(raw)
+                              ? 0
+                              : Math.max(0, Math.min(10000, Math.round(raw * 100)));
+                            setAllocations((items) =>
+                              items.map((item) =>
+                                item.mint === allocation.mint
+                                  ? { ...item, weightBps: weight }
+                                  : item,
+                              ),
+                            );
+                            setDirty(true);
+                          }}
+                        />
+                        <span>%</span>
+                      </label>
+
+                      <span
+                        className={styles.bpsBadge}
+                        title={`${allocation.weightBps} basis points`}
+                      >
+                        {allocation.weightBps} bps
+                      </span>
+                    </div>
+
                     <button
                       type="button"
                       className="icon-btn"
                       aria-label={`Remove ${allocation.symbol}`}
                       onClick={() => choose(allocation.mint)}
+                      title={`Remove ${allocation.symbol}`}
                     >
                       <Trash2 size={16} />
                     </button>
@@ -448,8 +502,32 @@ function BasketStudio() {
                 );
               })}
               <div className={styles.total} data-valid={total === 10000}>
-                <span>Total allocation</span>
-                <strong>{(total / 100).toFixed(2)}%</strong>
+                <div>
+                  <span>Total allocation</span>
+                  {total !== 10000 && (
+                    <small className={styles.totalDiff}>
+                      {total < 10000
+                        ? `${((10000 - total) / 100).toFixed(2)}% unallocated`
+                        : `+${((total - 10000) / 100).toFixed(2)}% overallocated`}
+                    </small>
+                  )}
+                </div>
+                <div className={styles.totalActionGroup}>
+                  <strong>{(total / 100).toFixed(2)}%</strong>
+                  {total !== 10000 && (
+                    <button
+                      type="button"
+                      className={styles.autoBalanceBtn}
+                      onClick={() => {
+                        setAllocations(autoBalanceWeights(allocations));
+                        setDirty(true);
+                      }}
+                      title="Auto balance allocations to exactly 100% using Hare-Niemeyer algorithm"
+                    >
+                      Auto balance
+                    </button>
+                  )}
+                </div>
               </div>
             </>
           ) : null}
