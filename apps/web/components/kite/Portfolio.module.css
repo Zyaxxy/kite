@@ -469,3 +469,6 @@
   width: 100%;
   justify-content: center;
 }
+.connectActions :global(.wallet-adapter-dropdown) {
+  width: 100%;
+}
