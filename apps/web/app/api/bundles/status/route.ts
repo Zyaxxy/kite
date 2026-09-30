@@ -5,7 +5,11 @@ import {
   verifyBundle,
   verifyBundleStatus,
 } from "@/lib/server/bundle-authorization";
-import { walletTransactionSignature } from "@kite/sdk";
+import {
+  BASKET_MAX_TRANSACTIONS,
+  MAX_BASKET_TRANSACTION_BASE64_LENGTH,
+  walletTransactionSignature,
+} from "@kite/sdk";
 import { getJitoBundleStatus } from "@/lib/server/jito-bundles";
 import { recordConfirmedBasketReceipt } from "@/lib/server/basket-receipts";
 
@@ -15,7 +19,7 @@ export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await readLimitedJson(request, 12_000)) as {
+    const body = (await readLimitedJson(request, 32_768)) as {
       authorization?: unknown;
       bundleId?: unknown;
       signedTransactions?: unknown;
@@ -34,15 +38,17 @@ export async function POST(request: NextRequest) {
         body.bundleId !== undefined ||
         !Array.isArray(body.signedTransactions) ||
         body.signedTransactions.length < 2 ||
-        body.signedTransactions.length > 3 ||
+        body.signedTransactions.length > BASKET_MAX_TRANSACTIONS ||
         body.signedTransactions.some(
-          (value) => typeof value !== "string" || value.length > 1644,
+          (value) =>
+            typeof value !== "string" ||
+            value.length > MAX_BASKET_TRANSACTION_BASE64_LENGTH,
         )
       )
         throw new Error(
           "Use the complete signed bundle to recover its receipts.",
         );
-      const original = verifyBundle(
+      const original = await verifyBundle(
         body.authorization,
         body.signedTransactions,
         { readOnly: true },

@@ -1,8 +1,13 @@
 import test from "node:test";
+import { createPrivateKey, sign } from "node:crypto";
+import { composeV1Transaction, inspectWalletTransaction } from "@kite/sdk";
+import * as kit from "../../../packages/sdk/node_modules/@solana/kit-v1";
 import assert from "node:assert/strict";
 import {
   Keypair,
+  PublicKey,
   SystemProgram,
+  TransactionInstruction,
   TransactionMessage,
   VersionedTransaction,
 } from "@solana/web3.js";
@@ -35,6 +40,52 @@ function build(amount: number, signed: boolean): string {
   if (signed) tx.sign([signer]);
   return Buffer.from(tx.serialize()).toString("base64");
 }
+async function buildV1(amount: number, signed = false, memoBytes = 0) {
+  const result = await composeV1Transaction({
+    payer: signer.publicKey.toBase58(),
+    blockhash,
+    lastValidBlockHeight: 100,
+    allowV1: true,
+    instructions: [
+      SystemProgram.transfer({
+        fromPubkey: signer.publicKey,
+        toPubkey: recipient,
+        lamports: amount,
+      }),
+      ...(memoBytes
+        ? [
+            new TransactionInstruction({
+              programId: new PublicKey(
+                "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr",
+              ),
+              keys: [],
+              data: Buffer.alloc(memoBytes, 65),
+            }),
+          ]
+        : []),
+    ],
+  });
+  if (!signed) return result.transaction;
+  const { transaction } = await inspectWalletTransaction(result.transaction);
+  const key = createPrivateKey({
+    key: Buffer.concat([
+      Buffer.from("302e020100300506032b657004220420", "hex"),
+      signer.secretKey.subarray(0, 32),
+    ]),
+    type: "pkcs8",
+    format: "der",
+  });
+  const signature = sign(null, Buffer.from(transaction.messageBytes), key);
+  return Buffer.from(
+    kit.getTransactionEncoder().encode({
+      ...transaction,
+      signatures: {
+        [kit.address(signer.publicKey.toBase58())]:
+          signature as unknown as kit.SignatureBytes,
+      },
+    }),
+  ).toString("base64");
+}
 const metadata = {
   taker: signer.publicKey.toBase58(),
   expiresAt: Date.now() + 60000,
@@ -44,33 +95,33 @@ const metadata = {
   inAmount: "12345678901234567",
 };
 
-test("bundle authorization binds count, ordering, wallet, amount and every signed message", () => {
+test("bundle authorization binds count, ordering, wallet, amount and every signed message", async () => {
   const previous = process.env.KITE_TRADE_SECRET;
   process.env.KITE_TRADE_SECRET =
     "bundle-unit-test-secret-not-a-production-key";
   try {
-    const { authorization } = authorizeBundle({
+    const { authorization } = await authorizeBundle({
       ...metadata,
       transactions: [build(1, false), build(2, false)],
     });
-    const payload = verifyBundle(authorization, [
+    const payload = await verifyBundle(authorization, [
       build(1, true),
       build(2, true),
     ]);
     assert.equal(payload.inAmount, metadata.inAmount);
-    assert.throws(
+    await assert.rejects(
       () => verifyBundle(authorization, [build(2, true), build(1, true)]),
       /differs/,
     );
-    assert.throws(
+    await assert.rejects(
       () => verifyBundle(authorization, [build(1, true)]),
       /Every reviewed/,
     );
-    assert.throws(
+    await assert.rejects(
       () => verifyBundle(authorization, [build(1, true), build(3, true)]),
       /differs/,
     );
-    assert.throws(
+    await assert.rejects(
       () => verifyBundle(authorization, [build(1, false), build(2, false)]),
       /valid wallet signature/,
     );
@@ -79,7 +130,7 @@ test("bundle authorization binds count, ordering, wallet, amount and every signe
       ...JSON.parse(Buffer.from(encoded, "base64url").toString()),
       inAmount: "9999",
     };
-    assert.throws(
+    await assert.rejects(
       () =>
         verifyBundle(
           Buffer.from(JSON.stringify(changed)).toString("base64url") +
@@ -95,12 +146,12 @@ test("bundle authorization binds count, ordering, wallet, amount and every signe
   }
 });
 
-test("expired quotes, duplicate messages and substitution of status capabilities fail closed", () => {
+test("expired quotes, duplicate messages and substitution of status capabilities fail closed", async () => {
   const previous = process.env.KITE_TRADE_SECRET;
   process.env.KITE_TRADE_SECRET =
     "bundle-unit-test-secret-not-a-production-key";
   try {
-    assert.throws(
+    await assert.rejects(
       () =>
         authorizeBundle({
           ...metadata,
@@ -108,12 +159,12 @@ test("expired quotes, duplicate messages and substitution of status capabilities
         }),
       /Duplicate/,
     );
-    const { authorization } = authorizeBundle({
+    const { authorization } = await authorizeBundle({
       ...metadata,
       expiresAt: 1,
       transactions: [build(1, false), build(2, false)],
     });
-    assert.throws(
+    await assert.rejects(
       () => verifyBundle(authorization, [build(1, true), build(2, true)]),
       /expired/,
     );
@@ -128,12 +179,60 @@ test("expired quotes, duplicate messages and substitution of status capabilities
       () => verifyBundleStatus(status, "b".repeat(64)),
       /Invalid bundle receipt/,
     );
-    assert.throws(
+    await assert.rejects(
       () => verifyBundle(status, [build(1, true), build(2, true)]),
       /Every reviewed/,
     );
   } finally {
     if (previous === undefined) delete process.env.KITE_TRADE_SECRET;
     else process.env.KITE_TRADE_SECRET = previous;
+  }
+});
+
+test("five V1 messages remain ordered, signed and version-bound; mixed and six-message bundles reject", async () => {
+  const prior = process.env.KITE_TRADE_SECRET;
+  process.env.KITE_TRADE_SECRET =
+    "bundle-unit-test-secret-not-a-production-key";
+  try {
+    const transactions = await Promise.all(
+      [1, 2, 3, 4, 5].map((amount) => buildV1(amount, false, 1300)),
+    );
+    const signed = await Promise.all(
+      [1, 2, 3, 4, 5].map((amount) => buildV1(amount, true, 1300)),
+    );
+    assert.ok(Buffer.from(transactions[0], "base64").length > 1232);
+    const { authorization } = await authorizeBundle({
+      ...metadata,
+      transactions,
+    });
+    assert.equal(
+      (await verifyBundle(authorization, signed)).transactionVersion,
+      1,
+    );
+    await assert.rejects(
+      verifyBundle(authorization, [...signed].reverse()),
+      /differs/,
+    );
+    await assert.rejects(
+      verifyBundle(authorization, [build(1, true), ...signed.slice(1)]),
+      /version/,
+    );
+    await assert.rejects(
+      authorizeBundle({
+        ...metadata,
+        transactions: [build(1, false), transactions[0]],
+      }),
+      /same reviewed version/,
+    );
+    await assert.rejects(
+      authorizeBundle({
+        ...metadata,
+        transactions: [...transactions, await buildV1(6)],
+      }),
+      /two to five/,
+    );
+  } finally {
+    if (prior === undefined) delete process.env.KITE_TRADE_SECRET;
+    else process.env.KITE_TRADE_SECRET = prior;
   }
 });

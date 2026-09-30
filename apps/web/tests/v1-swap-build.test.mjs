@@ -84,7 +84,12 @@ function builder({
     "./creator-store": { resolvePublishedCreatorBasket: async () => null },
     "./bundle-authorization": {},
     "./jito-bundles": {},
-    "./jupiter-lookup-tables": { loadVerifiedLookupTables: async () => { calls.lookupRequests++; return []; } },
+    "./jupiter-lookup-tables": {
+      loadVerifiedLookupTables: async () => {
+        calls.lookupRequests++;
+        return [];
+      },
+    },
     "./jupiter-build": {
       fetchJupiterBuild: async (params) => {
         calls.quotes++;
@@ -115,8 +120,9 @@ function builder({
       },
     },
     "./composed-transactions": {
-      assertMainnetV0Ready: async (versions) => {
+      selectMainnetTransactionVersion: async (versions) => {
         if (!versions?.includes(0)) throw new Error("v0 wallet required");
+        return 0;
       },
       latestBlockhash: async () => ({
         blockhash: key(),
@@ -148,7 +154,12 @@ function builder({
           value: [
             tokenAccount(outputMint, 0),
             tokenAccount(inputMint, 2_000_000),
-            { lamports: 1_000_000_000, owner: web3.SystemProgram.programId.toBase58(), data: ["", "base64"], executable: false },
+            {
+              lamports: 1_000_000_000,
+              owner: web3.SystemProgram.programId.toBase58(),
+              data: ["", "base64"],
+              executable: false,
+            },
           ],
         };
       },
@@ -163,7 +174,12 @@ function builder({
           accounts: [
             tokenAccount(outputMint, outputAmount, destinationOwner),
             tokenAccount(inputMint, 2_000_000 - inputSpent),
-            { lamports: 999_985_000, owner: web3.SystemProgram.programId.toBase58(), data: ["", "base64"], executable: false },
+            {
+              lamports: 999_985_000,
+              owner: web3.SystemProgram.programId.toBase58(),
+              data: ["", "base64"],
+              executable: false,
+            },
           ],
         };
       },

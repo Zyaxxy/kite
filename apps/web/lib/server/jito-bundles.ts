@@ -1,6 +1,6 @@
 import { randomInt } from "node:crypto";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
-import type { BasketBundleExecution } from "@kite/sdk";
+import { BASKET_MAX_TRANSACTIONS, type BasketBundleExecution } from "@kite/sdk";
 import { assertMainnet, mainnetRpc } from "./composed-transactions";
 import type { BundleStatusAuthorization } from "./bundle-authorization";
 
@@ -114,6 +114,13 @@ export async function prepareJitoTip(taker: string) {
   };
 }
 export async function sendJitoBundle(transactions: string[]): Promise<string> {
+  if (transactions.length < 2 || transactions.length > BASKET_MAX_TRANSACTIONS)
+    throw new Error(
+      "A basket bundle must contain two to five reviewed transactions.",
+    );
+  // The official API transports signed base64 bytes. Mainnet feature activation does
+  // not establish the Block Engine's V1 rollout; rejection/uncertain delivery stays
+  // fail-closed and is never retried through individual sendTransaction calls.
   const bundleId = await jitoRpc<string>("sendBundle", [
     transactions,
     { encoding: "base64" },

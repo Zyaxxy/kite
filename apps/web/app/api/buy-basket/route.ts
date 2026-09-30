@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { BasketOrderRequest } from "@kite/sdk";
+import {
+  MAX_CUSTOM_BASKET_LEGS,
+  MIN_CUSTOM_BASKET_LEGS,
+  type BasketOrderRequest,
+} from "@kite/sdk";
 import { readLimitedJson } from "@/lib/server/request-policy";
 import { prepareBasketOrder } from "@/lib/server/basket-order";
 export const runtime = "nodejs";
@@ -19,8 +23,8 @@ export async function POST(request: NextRequest) {
           body.supportedTransactionVersions.some((v) => v !== 0 && v !== 1))) ||
       (body.customAllocations !== undefined &&
         (!Array.isArray(body.customAllocations) ||
-          body.customAllocations.length < 2 ||
-          body.customAllocations.length > 8 ||
+          body.customAllocations.length < MIN_CUSTOM_BASKET_LEGS ||
+          body.customAllocations.length > MAX_CUSTOM_BASKET_LEGS ||
           !body.customAllocations.every(
             (a) =>
               a &&

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   walletTransactionSignature,
+  BASKET_MAX_TRANSACTIONS,
+  MAX_BASKET_TRANSACTION_BASE64_LENGTH,
   type BasketBundleExecution,
 } from "@kite/sdk";
 import { readLimitedJson } from "@/lib/server/request-policy";
@@ -8,7 +10,11 @@ import {
   authorizeBundleStatus,
   verifyBundle,
 } from "@/lib/server/bundle-authorization";
-import { assertMainnet, mainnetRpc } from "@/lib/server/composed-transactions";
+import {
+  assertMainnet,
+  mainnetRpc,
+  mainnetV1Active,
+} from "@/lib/server/composed-transactions";
 import { sendJitoBundle } from "@/lib/server/jito-bundles";
 
 export const runtime = "nodejs";
@@ -25,7 +31,7 @@ export async function POST(request: NextRequest) {
       headers: { "Cache-Control": "no-store" },
     });
   try {
-    const body = (await readLimitedJson(request, 12_000)) as {
+    const body = (await readLimitedJson(request, 32_768)) as {
       signedTransactions?: unknown;
       authorization?: unknown;
     };
@@ -34,15 +40,21 @@ export async function POST(request: NextRequest) {
       typeof body.authorization !== "string" ||
       !Array.isArray(body.signedTransactions) ||
       body.signedTransactions.length < 2 ||
-      body.signedTransactions.length > 3 ||
+      body.signedTransactions.length > BASKET_MAX_TRANSACTIONS ||
       body.signedTransactions.some(
-        (value) => typeof value !== "string" || value.length > 1644,
+        (value) =>
+          typeof value !== "string" ||
+          value.length > MAX_BASKET_TRANSACTION_BASE64_LENGTH,
       )
     )
       throw new Error("Sign every reviewed bundle transaction in order.");
     const signed = body.signedTransactions as string[];
-    const authorization = verifyBundle(body.authorization, signed);
+    const authorization = await verifyBundle(body.authorization, signed);
     await assertMainnet();
+    if (authorization.transactionVersion === 1 && !(await mainnetV1Active()))
+      throw new Error(
+        "V1 transactions are not active on the configured mainnet RPC.",
+      );
     if (
       (await mainnetRpc<number>("getBlockHeight", [
         { commitment: "confirmed" },

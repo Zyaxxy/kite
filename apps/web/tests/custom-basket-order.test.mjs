@@ -19,7 +19,10 @@ const mintB = key();
 test("customAllocations validation in prepareAllocationOrder", async () => {
   const code = readFileSync("apps/web/lib/server/basket-order.ts", "utf8");
   const transpiled = ts.transpileModule(code, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+    },
   }).outputText;
 
   const mockMarket = {
@@ -40,16 +43,32 @@ test("customAllocations validation in prepareAllocationOrder", async () => {
       if (mod === "@solana/web3.js") return web3;
       if (mod === "@solana/spl-token") return spl;
       if (mod === "@kite/sdk") return sdk;
-      if (mod === "./jupiter-build") return { fetchJupiterBuild: async () => ({ ok: true, json: async () => ({}) }) };
-      if (mod === "./markets") return { getServerMarketCatalog: async () => mockMarket };
-      if (mod === "./mint-precision") return { getTradeMintDecimals: async () => 6 };
-      if (mod === "./creator-store") return { resolvePublishedCreatorBasket: async () => null };
-      if (["./bundle-authorization", "./jito-bundles", "./jupiter-lookup-tables"].includes(mod)) return {};
+      if (mod === "./jupiter-build")
+        return {
+          fetchJupiterBuild: async () => ({ ok: true, json: async () => ({}) }),
+        };
+      if (mod === "./markets")
+        return { getServerMarketCatalog: async () => mockMarket };
+      if (mod === "./mint-precision")
+        return { getTradeMintDecimals: async () => 6 };
+      if (mod === "./creator-store")
+        return { resolvePublishedCreatorBasket: async () => null };
+      if (
+        [
+          "./bundle-authorization",
+          "./jito-bundles",
+          "./jupiter-lookup-tables",
+        ].includes(mod)
+      )
+        return {};
       if (mod === "./composed-transactions") {
         return {
-          assertMainnetV0Ready: async () => {},
+          selectMainnetTransactionVersion: async () => 0,
           authorizeComposed: async (o) => o,
-          latestBlockhash: async () => ({ blockhash: "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJziofM", lastValidBlockHeight: 100 }),
+          latestBlockhash: async () => ({
+            blockhash: "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJziofM",
+            lastValidBlockHeight: 100,
+          }),
           mainnetRpc: async () => ({ value: [] }),
           simulateComposed: async () => ({ accounts: [] }),
         };
@@ -74,10 +93,10 @@ test("customAllocations validation in prepareAllocationOrder", async () => {
         slippageBps: 100,
         customAllocations: [{ mint: mintA, weightBps: 10000 }],
       }),
-    /between 2 and 8 assets/,
+    /between 2 and 12 assets/,
   );
 
-  // Rejects 9 allocations
+  // Rejects 13 allocations
   await assert.rejects(
     () =>
       prepareBasketOrder({
@@ -86,19 +105,12 @@ test("customAllocations validation in prepareAllocationOrder", async () => {
         amount: "100",
         taker: wallet,
         slippageBps: 100,
-        customAllocations: [
-          { mint: key(), weightBps: 2000 },
-          { mint: key(), weightBps: 2000 },
-          { mint: key(), weightBps: 2000 },
-          { mint: key(), weightBps: 2000 },
-          { mint: key(), weightBps: 2000 },
-          { mint: key(), weightBps: 2000 },
-          { mint: key(), weightBps: 2000 },
-          { mint: key(), weightBps: 2000 },
-          { mint: key(), weightBps: 2000 },
-        ],
+        customAllocations: Array.from({ length: 13 }, () => ({
+          mint: key(),
+          weightBps: 1000,
+        })),
       }),
-    /between 2 and 8 assets/,
+    /between 2 and 12 assets/,
   );
 
   // Rejects weight sum not 10000
