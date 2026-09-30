@@ -45,13 +45,18 @@ const encode = (bytes: Uint8Array) =>
 export function useTradingAuth() {
   const privy = useContext(Context),
     adapter = useWallet();
+  const hasWalletProvider =
+    !Object.getOwnPropertyDescriptor(adapter, "publicKey")?.get;
+  const adapterPublicKey = hasWalletProvider ? adapter.publicKey : null;
+  const adapterWallet = hasWalletProvider ? adapter.wallet : null;
+  const isAdapterConnected = hasWalletProvider && adapter.connected;
   const usePrivyWallet =
-    !adapter.connected && privy.authenticated && Boolean(privy.walletAddress);
+    !isAdapterConnected && privy.authenticated && Boolean(privy.walletAddress);
   const walletAddress = usePrivyWallet
     ? privy.walletAddress
-    : (adapter.publicKey?.toBase58() ?? null);
+    : (adapterPublicKey?.toBase58() ?? null);
   const standard = (
-    adapter.wallet?.adapter as unknown as
+    adapterWallet?.adapter as unknown as
       | {
           wallet?: {
             accounts: readonly {
@@ -83,12 +88,12 @@ export function useTradingAuth() {
     feature?.supportedTransactionVersions,
     Boolean(
       !usePrivyWallet &&
-      adapter.connected &&
+      isAdapterConnected &&
       account?.features?.includes("solana:signTransaction") &&
       feature?.signTransaction,
     ),
   );
-  const adapterVersions = adapter.wallet?.adapter.supportedTransactionVersions;
+  const adapterVersions = adapterWallet?.adapter.supportedTransactionVersions;
   // V1 is enabled only when explicitly advertised by Wallet Standard.
   const supportedTransactionVersions = usePrivyWallet
     ? advertisedSigningVersions(
@@ -98,7 +103,7 @@ export function useTradingAuth() {
     : Array.from(
         new Set([
           ...standardVersions,
-          ...(adapter.connected &&
+          ...(isAdapterConnected &&
           adapter.signTransaction &&
           adapterVersions?.has(0)
             ? [0]
@@ -193,28 +198,28 @@ export function useTradingAuth() {
       const bytes = new TextEncoder().encode(message);
       if (usePrivyWallet && privy.signMessage)
         return encode(await privy.signMessage(bytes));
-      if (!adapter.connected || !adapter.signMessage)
+      if (!isAdapterConnected || !adapter.signMessage)
         throw new Error(
           "Connect a wallet with message signing to publish a basket.",
         );
       return encode(await adapter.signMessage(bytes));
     },
-    [adapter.connected, adapter.signMessage, privy.signMessage, usePrivyWallet],
+    [isAdapterConnected, adapter.signMessage, privy.signMessage, usePrivyWallet],
   );
   const logout = useCallback(async () => {
     await privy.logout();
-    if (adapter.connected) await adapter.disconnect();
-  }, [privy.logout, adapter.connected, adapter.disconnect]);
+    if (isAdapterConnected) await adapter.disconnect();
+  }, [privy.logout, isAdapterConnected, adapter.disconnect]);
   return {
     configured: privy.configured,
     privyConfigured: privy.configured,
     privyAuthenticated: privy.authenticated,
     ready: privy.ready,
-    authenticated: privy.authenticated || adapter.connected,
+    authenticated: privy.authenticated || isAdapterConnected,
     walletAddress,
     provider: usePrivyWallet
       ? ("privy" as const)
-      : adapter.connected
+      : isAdapterConnected
         ? ("wallet" as const)
         : null,
     login: privy.login,
@@ -225,7 +230,7 @@ export function useTradingAuth() {
     signMessage,
     canSignMessage: usePrivyWallet
       ? Boolean(privy.signMessage)
-      : Boolean(adapter.connected && adapter.signMessage),
+      : Boolean(isAdapterConnected && adapter.signMessage),
     supportedTransactionVersions,
     supportsV1: canSignV1,
     canSignV1,

@@ -3,6 +3,9 @@ const config = {
   transpilePackages: ["@kite/sdk"],
   poweredByHeader: false,
   compress: true,
+  experimental: {
+    webpackMemoryOptimizations: true,
+  },
   images: {
     formats: ["image/avif", "image/webp"],
     remotePatterns: [

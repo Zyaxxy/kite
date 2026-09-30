@@ -18,6 +18,7 @@ const knownPaths = new Set([
   "/watchlist",
   "/orders",
   "/settings",
+  "/creators",
   "/privacy",
   "/terms",
 ]);
@@ -28,7 +29,9 @@ function category(path: string) {
       ? "/stock/detail"
       : path.startsWith("/basket/")
         ? "/basket/detail"
-        : "/not-found";
+        : path.startsWith("/creators/")
+          ? "/creators"
+          : "/not-found";
 }
 function privacySignal() {
   return (
