@@ -13,7 +13,7 @@ const saved: PendingMainnetExecution = {
   signature: "1".repeat(88),
   signatures: ["1".repeat(88), "2".repeat(88)],
   bundle: {
-    signedTransactions: ["signed-first", "signed-second"],
+    signedTransactions: ["AQIDBA==", "BQYHCA=="],
     authorization: "reviewed-quote-authorization",
     recoveryExpiresAt: 12345,
   },
@@ -53,7 +53,7 @@ test("a failed receipt poll preserves all signed recovery material and existing 
 test("corrupt or oversized stored receipts are rejected instead of silently clearing duplicate protection", () => {
   assert.throws(() => parsePendingMainnetExecution("invalid-json"));
   assert.throws(
-    () => parsePendingMainnetExecution(" ".repeat(20001)),
+    () => parsePendingMainnetExecution(" ".repeat(40001)),
     /invalid/,
   );
   assert.throws(
@@ -69,6 +69,52 @@ test("corrupt or oversized stored receipts are rejected instead of silently clea
         JSON.stringify({
           ...saved,
           bundle: { ...saved.bundle, signedTransactions: ["one"] },
+        }),
+      ),
+    /invalid/,
+  );
+});
+
+test("five full-size V1 payloads and their authorization survive a browser restart", () => {
+  const bundle = {
+    ...saved,
+    signatures: Array.from({ length: 5 }, (_, i) => String(i + 1).repeat(88)),
+    bundle: {
+      ...saved.bundle!,
+      signedTransactions: Array(5).fill(
+        Buffer.alloc(4096, 1).toString("base64"),
+      ),
+      authorization: "a".repeat(4500),
+    },
+  };
+  assert.deepEqual(
+    parsePendingMainnetExecution(JSON.stringify(bundle)),
+    bundle,
+  );
+  assert.throws(
+    () =>
+      parsePendingMainnetExecution(
+        JSON.stringify({
+          ...bundle,
+          bundle: {
+            ...bundle.bundle,
+            signedTransactions: Array(6).fill("AQIDBA=="),
+          },
+        }),
+      ),
+    /invalid/,
+  );
+  assert.throws(
+    () =>
+      parsePendingMainnetExecution(
+        JSON.stringify({
+          ...bundle,
+          bundle: {
+            ...bundle.bundle,
+            signedTransactions: Array(2).fill(
+              Buffer.alloc(4097).toString("base64"),
+            ),
+          },
         }),
       ),
     /invalid/,

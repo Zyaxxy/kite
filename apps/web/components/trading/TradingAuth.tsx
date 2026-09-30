@@ -16,6 +16,7 @@ export interface PrivySession {
   signTransaction:
     ((transaction: Uint8Array, chain?: Chain) => Promise<Uint8Array>) | null;
   signMessage?: ((message: Uint8Array) => Promise<Uint8Array>) | null;
+  supportedTransactionVersions?: readonly number[];
 }
 const unavailable: PrivySession = {
   configured: false,
@@ -90,9 +91,10 @@ export function useTradingAuth() {
   const adapterVersions = adapter.wallet?.adapter.supportedTransactionVersions;
   // V1 is enabled only when explicitly advertised by Wallet Standard.
   const supportedTransactionVersions = usePrivyWallet
-    ? privy.signTransaction
-      ? [0]
-      : []
+    ? advertisedSigningVersions(
+        privy.supportedTransactionVersions,
+        Boolean(privy.signTransaction),
+      )
     : Array.from(
         new Set([
           ...standardVersions,
@@ -111,8 +113,8 @@ export function useTradingAuth() {
       version: 0 | 1 = 0,
       chain: Chain = "solana:mainnet",
     ) => {
-      if (!encoded.length || encoded.length > 3)
-        throw new Error("Review between one and three transactions.");
+      if (!encoded.length || encoded.length > 5)
+        throw new Error("Review between one and five transactions.");
       if (version === 0 ? !canSignV0 : !canSignV1)
         throw new Error(
           `This wallet has not advertised v${version} transaction signing.`,
@@ -125,6 +127,7 @@ export function useTradingAuth() {
         return signed;
       }
       if (
+        standardVersions.includes(version) &&
         feature?.signTransaction &&
         account?.features?.includes("solana:signTransaction")
       ) {
@@ -141,6 +144,10 @@ export function useTradingAuth() {
           );
         return signed.map((item) => encode(item.signedTransaction));
       }
+      if (version !== 0)
+        throw new Error(
+          "V1 signing requires an explicitly compatible Wallet Standard wallet.",
+        );
       if (chain !== "solana:mainnet")
         throw new Error(
           "This wallet does not expose explicit devnet signing. Use a Wallet Standard wallet.",
@@ -168,6 +175,7 @@ export function useTradingAuth() {
       canSignV0,
       canSignV1,
       feature,
+      standardVersions.join(","),
       privy.signTransaction,
       usePrivyWallet,
     ],

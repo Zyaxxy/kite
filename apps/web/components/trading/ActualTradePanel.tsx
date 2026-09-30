@@ -176,13 +176,20 @@ export function ActualTradePanel({
       window.removeEventListener(PENDING_EXECUTION_KEY, readPending);
     };
   }, []);
+  const signingVersionsKey = auth.supportedTransactionVersions.join(",");
   useEffect(() => {
     requestVersion.current += 1;
     setOrder(null);
     setError(null);
     setResult(null);
     setSubmittedOrder(null);
-  }, [inputToken.mint, outputToken.mint, amount, auth.walletAddress]);
+  }, [
+    inputToken.mint,
+    outputToken.mint,
+    amount,
+    auth.walletAddress,
+    signingVersionsKey,
+  ]);
   useEffect(() => {
     if (!order) return;
     const timer = window.setInterval(() => setNow(Date.now()), 1_000);
@@ -367,10 +374,10 @@ export function ActualTradePanel({
           <WalletButton />
         </div>
       )}
-      {auth.walletAddress && !auth.canSignV0 && (
+      {auth.walletAddress && !auth.canSign && (
         <p className="notice">
-          This wallet does not advertise v0 signing. Update it or connect a
-          compatible wallet to trade.
+          This wallet does not advertise compatible transaction signing. Update
+          it or connect a compatible wallet to trade.
         </p>
       )}
       {auth.walletAddress && (
@@ -544,7 +551,7 @@ export function ActualTradePanel({
         <button
           className="btn"
           disabled={
-            !auth.canSignV0 ||
+            !auth.canSign ||
             !amount ||
             !portfolio ||
             Boolean(balancesError) ||

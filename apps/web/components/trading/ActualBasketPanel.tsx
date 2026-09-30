@@ -31,6 +31,7 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
   const allocationKey = basket.assets
     .map(({ asset, weight }) => `${asset.mint}:${weight}`)
     .join("|");
+  const signingVersionsKey = auth.supportedTransactionVersions.join(",");
   useEffect(() => {
     revision.current++;
     setOrder(null);
@@ -41,6 +42,7 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
     amount,
     slippage,
     auth.walletAddress,
+    signingVersionsKey,
   ]);
   useEffect(() => {
     if (flow.confirmedBundleRevision > 0) balances.refresh();
@@ -94,8 +96,8 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
         <h3>Your basket, in your wallet.</h3>
         <p className="fineprint">
           Review the complete allocation, fees and transaction count before
-          signing. Larger baskets use a Jito bundle; small baskets use one
-          transaction.
+          signing. The review selects a single transaction when it fits, or a
+          Jito bundle when more capacity is needed.
         </p>
       </div>
       <SwapTokenSelector
@@ -141,7 +143,8 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
             <div className="notice" role="note">
               <div>
                 <strong>
-                  {order.transactions.length} transactions · one bundle
+                  {order.transactions.length} V{order.transactionVersion}{" "}
+                  transactions · Jito bundle
                 </strong>
                 <p>{order.atomicityWarning}</p>
                 <p>
@@ -152,8 +155,9 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
             </div>
           ) : (
             <p className="fineprint">
-              One atomic transaction. If a swap fails, the purchase reverts;
-              network fees may still apply.
+              One atomic V{order.transactionVersion} transaction · no Jito tip.
+              If a swap fails, the purchase reverts; network fees may still
+              apply.
             </p>
           )}
           {order.outputs.map((output) => (
@@ -175,7 +179,13 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
           </p>
           <button
             className="btn full"
-            disabled={disabled || !auth.canSignV0 || order.expiresAt <= now}
+            disabled={
+              disabled ||
+              !auth.supportedTransactionVersions.includes(
+                order.transactionVersion,
+              ) ||
+              order.expiresAt <= now
+            }
             onClick={async () => {
               if (await flow.execute(order)) balances.refresh();
               setOrder(null);
@@ -196,7 +206,7 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
       ) : (
         <button
           className={`btn ${order ? "secondary" : ""} full`}
-          disabled={disabled || !auth.canSignV0 || !amount}
+          disabled={disabled || !auth.canSign || !amount}
           onClick={review}
         >
           {quoting
@@ -211,10 +221,10 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
           Sign in or connect a wallet in the header to buy with your tokens.
         </p>
       )}
-      {auth.walletAddress && !auth.canSignV0 && (
+      {auth.walletAddress && !auth.canSign && (
         <p className="notice">
-          This wallet does not advertise v0 signing. Update it or connect a
-          compatible wallet to buy.
+          This wallet does not advertise compatible transaction signing. Update
+          it or connect a compatible wallet to buy.
         </p>
       )}
       {balances.error && <p className="fineprint">{balances.error}</p>}

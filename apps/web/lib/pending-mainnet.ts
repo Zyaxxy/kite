@@ -18,13 +18,20 @@ const text = (value: unknown, limit: number): value is string =>
   typeof value === "string" && value.length > 0 && value.length <= limit;
 const isSignature = (value: unknown): value is string =>
   typeof value === "string" && /^[1-9A-HJ-NP-Za-km-z]{64,88}$/.test(value);
+const isTransaction = (value: unknown): value is string =>
+  text(value, 5464) &&
+  value.length % 4 === 0 &&
+  /^[A-Za-z0-9+/]+={0,2}$/.test(value) &&
+  (value.length / 4) * 3 -
+    (value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0) <=
+    4096;
 
 /** Read existing single-transaction records as well as versioned bundle records; corruption blocks new submits. */
 export function parsePendingMainnetExecution(
   raw: string | null,
 ): PendingMainnetExecution | null {
   if (raw === null) return null;
-  if (raw.length > 20_000)
+  if (raw.length > 40_000)
     throw new Error(
       "The saved transaction receipt is invalid. Check wallet activity before continuing.",
     );
@@ -36,7 +43,7 @@ export function parsePendingMainnetExecution(
     (value.signature !== undefined && !isSignature(value.signature)) ||
     (value.signatures !== undefined &&
       (!Array.isArray(value.signatures) ||
-        value.signatures.length > 3 ||
+        value.signatures.length > 5 ||
         value.signatures.some((signature) => !isSignature(signature)))) ||
     (value.bundleId !== undefined && !/^[a-f0-9]{64}$/i.test(value.bundleId)) ||
     (value.statusAuthorization !== undefined &&
@@ -49,8 +56,8 @@ export function parsePendingMainnetExecution(
     value.bundle &&
     (!Array.isArray(value.bundle.signedTransactions) ||
       value.bundle.signedTransactions.length < 2 ||
-      value.bundle.signedTransactions.length > 3 ||
-      !value.bundle.signedTransactions.every((tx) => text(tx, 1644)) ||
+      value.bundle.signedTransactions.length > 5 ||
+      !value.bundle.signedTransactions.every(isTransaction) ||
       !text(value.bundle.authorization, 5000) ||
       !Number.isSafeInteger(value.bundle.recoveryExpiresAt))
   )
