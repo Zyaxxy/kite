@@ -14,6 +14,8 @@ import {
 import {
   allocateBasketInput,
   validateJupiterExactInInstruction,
+  getJupiterIntermediateMints,
+  validateJupiterIntermediateMint,
   composeBasketV0Chunks,
   composeBasketV1Chunks,
   isTransactionCapacityError,
@@ -58,6 +60,7 @@ type Route = {
   otherAmountThreshold: string;
   swapMode: string;
   slippageBps: number;
+  routePlan?: unknown;
   setupInstructions: ApiInstruction[];
   swapInstruction: ApiInstruction;
   cleanupInstruction: ApiInstruction | null;
@@ -491,6 +494,10 @@ async function prepareAllocationOrder(
     }),
   );
   const legs: BasketSwapLeg[] = [];
+  const intermediateAccounts = new Map<
+    string,
+    { mint: string; tokenProgram: string; allocationIndexes: Set<number> }
+  >();
   for (let i = 0; i < routes.length; i++) {
     const r = routes[i];
     if (!r) continue;
@@ -509,6 +516,14 @@ async function prepareAllocationOrder(
         ),
       );
     setupKeys.add(destinations[i]);
+    if (!Array.isArray(r.setupInstructions) || r.setupInstructions.length > 64)
+      throw new Error("The route token-account setup exceeds its limits.");
+    let intermediateMints: ReadonlySet<string> | undefined;
+    const writableSwapAccounts = new Set(
+      r.swapInstruction.accounts
+        .filter((account) => account.isWritable && !account.isSigner)
+        .map((account) => account.pubkey),
+    );
     let funded = BigInt(0);
     for (const setup of r.setupInstructions ?? []) {
       const instruction = setupInstruction(
@@ -523,14 +538,42 @@ async function prepareAllocationOrder(
       }
       if (instruction.programId.equals(ASSOCIATED_TOKEN_PROGRAM_ID)) {
         const key = instruction.keys[1].pubkey.toBase58();
-        if (
-          ![inputMint, allocations[i].mint, MAINNET_SOL_MINT].includes(
-            instruction.keys[3].pubkey.toBase58(),
-          )
-        )
-          throw new Error(
-            "A route tried to create an unrelated token account.",
+        const mint = instruction.keys[3].pubkey.toBase58();
+        const tokenProgram = instruction.keys[5].pubkey.toBase58();
+        const endpointProgram =
+          mint === inputMint
+            ? programs[0].toBase58()
+            : mint === allocations[i].mint
+              ? programs[i + 1].toBase58()
+              : undefined;
+        if (endpointProgram) {
+          if (tokenProgram !== endpointProgram)
+            throw new Error(
+              "A route token account uses the wrong token program.",
+            );
+        } else {
+          intermediateMints ??= getJupiterIntermediateMints(
+            r.routePlan,
+            inputMint,
+            allocations[i].mint,
           );
+          if (!intermediateMints.has(mint) || !writableSwapAccounts.has(key))
+            throw new Error(
+              "A route requested a token account outside its verified swap path.",
+            );
+          const account = intermediateAccounts.get(key);
+          if (account) account.allocationIndexes.add(i);
+          else
+            intermediateAccounts.set(key, {
+              mint,
+              tokenProgram,
+              allocationIndexes: new Set([i]),
+            });
+          if (intermediateAccounts.size > 64)
+            throw new Error(
+              "The route requires too many intermediate token accounts.",
+            );
+        }
         if (setupKeys.has(key)) continue;
         setupKeys.add(key);
       }
@@ -546,6 +589,42 @@ async function prepareAllocationOrder(
     legs.push({ allocationIndex: i, instructions });
   }
   if (!legs.length) throw new Error("This allocation does not require a swap.");
+  // Route metadata is untrusted. Confirm every additional mint and its token
+  // program on the independently mainnet-verified RPC before composition.
+  const intermediateMints = [
+    ...new Set(
+      [...intermediateAccounts.values()].map((account) => account.mint),
+    ),
+  ];
+  if (intermediateMints.length) {
+    const result = await mainnetRpc<{ value: RpcAccount[] }>(
+      "getMultipleAccounts",
+      [intermediateMints, { encoding: "base64", commitment: "confirmed" }],
+    );
+    if (result.value.length !== intermediateMints.length)
+      throw new Error("Intermediate token mints could not be verified.");
+    const mintPrograms = new Map(
+      intermediateMints.map((mint, index) => {
+        const account = result.value[index];
+        return [
+          mint,
+          validateJupiterIntermediateMint(
+            mint,
+            account && {
+              owner: account.owner,
+              data: Buffer.from(account.data[0], "base64"),
+              executable: account.executable,
+            },
+          ),
+        ] as const;
+      }),
+    );
+    for (const account of intermediateAccounts.values())
+      if (mintPrograms.get(account.mint) !== account.tokenProgram)
+        throw new Error(
+          "An intermediate token account uses the wrong token program.",
+        );
+  }
   const lifetime = await latestBlockhash();
   const { chunks, tipLamports } = await composeBasketExecution({
     transactionVersion,
@@ -561,11 +640,16 @@ async function prepareAllocationOrder(
     ...(inputMint !== MAINNET_SOL_MINT ? [inputAta] : []),
     taker,
   ];
+  const walletIndex = addresses.length - 1;
+  for (const address of intermediateAccounts.keys())
+    if (!addresses.includes(address)) addresses.push(address);
   const before = await mainnetRpc<{ value: RpcAccount[] }>(
     "getMultipleAccounts",
     [addresses, { encoding: "base64", commitment: "confirmed" }],
   );
-  const walletBefore = before.value[addresses.length - 1];
+  if (before.value.length !== addresses.length)
+    throw new Error("Basket starting balances could not be verified.");
+  const walletBefore = before.value[walletIndex];
   if (!walletBefore || !Number.isSafeInteger(walletBefore.lamports))
     throw new Error("The fee payer balance is unavailable.");
   let totalLamports = BigInt(0);
@@ -599,7 +683,29 @@ async function prepareAllocationOrder(
           "The simulated input debit does not match the reviewed allocation.",
         );
     }
-    const walletAfter = simulation.accounts[addresses.length - 1];
+    // A multihop swap may use an existing owner ATA, but it must never spend
+    // that account's preexisting balance beyond the reviewed funding debit.
+    for (const [address, account] of intermediateAccounts) {
+      if (
+        !chunk.allocationIndexes.some((index) =>
+          account.allocationIndexes.has(index),
+        )
+      )
+        continue;
+      const index = addresses.indexOf(address);
+      const starting = before.value[index];
+      const ending = simulation.accounts[index];
+      if (
+        (starting && starting.owner !== account.tokenProgram) ||
+        (ending && ending.owner !== account.tokenProgram) ||
+        balance(ending, account.mint, taker) <
+          balance(starting, account.mint, taker)
+      )
+        throw new Error(
+          "A route would spend an existing intermediate token balance.",
+        );
+    }
+    const walletAfter = simulation.accounts[walletIndex];
     if (!walletAfter || !Number.isSafeInteger(walletAfter.lamports))
       throw new Error("The simulated SOL budget is unavailable.");
     const debit = BigInt(walletBefore.lamports) - BigInt(walletAfter.lamports);
