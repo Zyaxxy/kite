@@ -432,7 +432,6 @@ export function BasketCard({
   presentation?: "app" | "marketing";
   onInspectPerformance?: (basket: BasketDisplay) => void;
 }) {
-  const audit = basket.source.liquidityAudit;
   const totalVolume24h = basket.assets.reduce(
     (sum, a) => sum + (a.volume24hUsd ?? 0),
     0,
@@ -468,7 +467,9 @@ export function BasketCard({
 
   const creatorName = basket.creatorName || basket.source.creatorName;
   const creatorSocial = basket.creatorSocial || basket.source.creatorSocial;
-  const formattedSocial = creatorSocial ? formatSocialUrl(creatorSocial) : undefined;
+  const formattedSocial = creatorSocial
+    ? formatSocialUrl(creatorSocial)
+    : undefined;
 
   return (
     <Link
@@ -481,57 +482,28 @@ export function BasketCard({
         <OrbitArt variant={index % 3} />
       </div>
       <div className="basket-card-body">
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+            marginBottom: 4,
+          }}
+        >
           {basket.source.category ? (
             <span className="eyebrow" style={{ margin: 0 }}>
               {basket.isCustom ? "User Created" : basket.source.category}
             </span>
-          ) : <span />}
-          {basket.isCustom ? (
-            <span
-              style={{
-                fontSize: 10,
-                fontWeight: 600,
-                padding: "2px 7px",
-                borderRadius: 999,
-                background: "rgba(99, 102, 241, 0.12)",
-                color: "#818cf8",
-                border: "1px solid rgba(99, 102, 241, 0.25)",
-              }}
-            >
-              User Created
-            </span>
-          ) : audit ? (
-            <span
-              style={{
-                fontSize: 10,
-                fontWeight: 600,
-                padding: "2px 7px",
-                borderRadius: 999,
-                background:
-                  audit.tier === "verified-high"
-                    ? "rgba(16, 185, 129, 0.12)"
-                    : audit.tier === "moderate"
-                      ? "rgba(245, 158, 11, 0.12)"
-                      : "rgba(239, 68, 68, 0.12)",
-                color:
-                  audit.tier === "verified-high"
-                    ? "#10b981"
-                    : audit.tier === "moderate"
-                      ? "#f59e0b"
-                      : "#ef4444",
-                border: `1px solid ${
-                  audit.tier === "verified-high"
-                    ? "rgba(16, 185, 129, 0.25)"
-                    : audit.tier === "moderate"
-                      ? "rgba(245, 158, 11, 0.25)"
-                      : "rgba(239, 68, 68, 0.25)"
-                }`,
-              }}
-            >
-              {audit.badgeLabel}
-            </span>
-          ) : null}
+          ) : (
+            <span />
+          )}
+          <span
+            className="badge"
+            title="The live quote determines the route from its account count and transaction size."
+          >
+            {basket.isCustom ? "Creator allocation" : "Route at review"}
+          </span>
         </div>
         <h3>{basket.name}</h3>
         {creatorName && (
@@ -561,7 +533,11 @@ export function BasketCard({
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
                     e.stopPropagation();
-                    window.open(formattedSocial, "_blank", "noopener,noreferrer");
+                    window.open(
+                      formattedSocial,
+                      "_blank",
+                      "noopener,noreferrer",
+                    );
                   }
                 }}
                 style={{
@@ -579,7 +555,9 @@ export function BasketCard({
                 <ExternalLink size={10} style={{ opacity: 0.8 }} />
               </span>
             ) : (
-              <span style={{ fontWeight: 600, color: "var(--ink)" }}>{creatorName}</span>
+              <span style={{ fontWeight: 600, color: "var(--ink)" }}>
+                {creatorName}
+              </span>
             )}
           </div>
         )}
@@ -592,9 +570,16 @@ export function BasketCard({
               "—"
             ) : (
               <>
-                {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                {isPositive ? "+" : ""}{changePct.toFixed(2)}%
-                <small style={{ marginLeft: 3, opacity: 0.85, fontWeight: 500 }}>
+                {isPositive ? (
+                  <TrendingUp size={12} />
+                ) : (
+                  <TrendingDown size={12} />
+                )}
+                {isPositive ? "+" : ""}
+                {changePct.toFixed(2)}%
+                <small
+                  style={{ marginLeft: 3, opacity: 0.85, fontWeight: 500 }}
+                >
                   {is1mLoaded ? "1M" : "24h"}
                 </small>
               </>
@@ -640,14 +625,21 @@ export function BasketCard({
             </span>
           )}
         </div>
+        {presentation === "app" && (
+          <p className="fineprint" style={{ margin: "0 0 12px", fontSize: 10 }}>
+            Single transaction or Jito bundle · confirmed in your order review
+          </p>
+        )}
         <div className="basket-meta">
           <span>
             {basket.assets.length ? `${basket.assets.length} assets · ` : ""}
-            {totalVolume24h > 0 ? `${compactMoney(totalVolume24h)} 24h vol · ` : ""}
+            {totalVolume24h > 0
+              ? `${compactMoney(totalVolume24h)} 24h vol · `
+              : ""}
             {presentation === "marketing"
               ? "Explore theme"
               : basket.available
-                ? "Available on mainnet"
+                ? "Priced · quote required"
                 : basket.source.missingSymbols.length
                   ? "Some components unavailable"
                   : "Some token prices unavailable"}

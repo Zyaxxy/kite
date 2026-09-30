@@ -28,7 +28,7 @@ import {
 import { useBaskets } from "./useBaskets";
 import { MarketPulse, MarketHeadlines, MarketBreadth } from "./MarketPulse";
 import { NativeSelect, NativeSelectOption } from "../ui/native-select";
-import { calculateBasket24hGrowth } from "@kite/sdk";
+import { calculateBasket24hGrowth, MAX_CUSTOM_BASKET_LEGS } from "@kite/sdk";
 import { BasketPerformancePanel } from "./BasketPerformancePanel";
 import { basketPerformanceClient } from "./basket-performance-client";
 
@@ -514,7 +514,7 @@ export function Baskets() {
             </h3>
             <p className="muted" style={{ fontSize: 13, marginBottom: 20 }}>
               {filter === "custom"
-                ? "Design your own custom thematic portfolio with 2–4 verified Solana tokenized stocks. Add your name, optional socials, and trade atomically with zero dust."
+                ? `Build an allocation with 2–${MAX_CUSTOM_BASKET_LEGS} verified assets. Keep it private or publish with an invite. The live order review confirms a single transaction or Jito bundle.`
                 : "No baskets match the selected filter category."}
             </p>
             {filter === "custom" && (

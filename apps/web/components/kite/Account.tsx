@@ -22,7 +22,8 @@ import planStyles from "./Plans.module.css";
 import { PageIntro } from "./Shell";
 import { MarketStatus } from "./Discover";
 import { AssetName, Change, Empty, money } from "./MarketUI";
-import { OrbitArt } from "./Brand";
+import portfolioStyles from "./Portfolio.module.css";
+import { PortfolioAllocation } from "./PortfolioAllocation";
 import { NativeSelect, NativeSelectOption } from "../ui/native-select";
 import { useTradingAuth } from "../trading/TradingAuth";
 import { RecurringInvestingPanel } from "../trading/RecurringInvestingPanel";
@@ -54,7 +55,7 @@ export function Portfolio() {
     <>
       <PageIntro
         eyebrow="Your collection"
-        title="Ideas, taking shape."
+        title="Everything you hold. In view."
         description={
           mode === "paper"
             ? "Your paper holdings, valued against live market prices. Your first investment starts your story."
@@ -66,33 +67,44 @@ export function Portfolio() {
         <ActualPortfolio />
       ) : (
         <>
-          <div className="portfolio-overview">
-            <section className="panel portfolio-balance">
-              <OrbitArt />
-              <p className="eyebrow">Total paper value</p>
-              <div className="detail-price">
+          <div className={portfolioStyles.overview}>
+            <section className={portfolioStyles.balance}>
+              <div className={portfolioStyles.balanceLabel}>
+                <span>Total paper value</span>
+                <Wallet2 size={18} aria-hidden="true" />
+              </div>
+              <div className={portfolioStyles.value}>
                 {hydrated ? money(portfolio.totalUsd) : "—"}
               </div>
-              <div className="flex-start">
-                <span className="badge lime">PAPER ACCOUNT</span>
-                <span className="muted" style={{ fontSize: 11 }}>
-                  Virtual funds, real prices
-                </span>
+              <p>
+                Virtual funds. Real reference prices. A space to explore your
+                ideas before placing a wallet-approved order.
+              </p>
+              <div className={portfolioStyles.balanceActions}>
+                <Link href="/baskets" className="btn small">
+                  Explore baskets <ArrowUpRight size={14} aria-hidden="true" />
+                </Link>
+                <Link href="/sip">
+                  Set a paper routine{" "}
+                  <ArrowUpRight size={14} aria-hidden="true" />
+                </Link>
               </div>
             </section>
-            <dl className="panel portfolio-metrics">
+            <dl className={portfolioStyles.stats}>
               <div>
                 <dt>Available to invest</dt>
-                <dd>{money(paper.cashUsd)}</dd>
+                <dd>{hydrated ? money(paper.cashUsd) : "—"}</dd>
+                <small>Virtual cash</small>
               </div>
               <div>
                 <dt>Holdings value</dt>
-                <dd>{money(portfolio.holdingsUsd)}</dd>
+                <dd>{hydrated ? money(portfolio.holdingsUsd) : "—"}</dd>
+                <small>At live reference prices</small>
               </div>
               <div>
                 <dt>Total paper return</dt>
                 <dd>
-                  <Change value={portfolio.profitLossPct} />
+                  <Change value={hydrated ? portfolio.profitLossPct : null} />
                 </dd>
               </div>
               <div>
@@ -105,11 +117,34 @@ export function Portfolio() {
                       : "up"
                   }
                 >
-                  {money(portfolio.profitLossUsd)}
+                  {hydrated ? money(portfolio.profitLossUsd) : "—"}
                 </dd>
               </div>
             </dl>
           </div>
+          {hydrated && (
+            <div style={{ marginTop: 24 }}>
+              <PortfolioAllocation
+                partial={portfolio.unpricedMints.length > 0}
+                entries={[
+                  { label: "Virtual cash", value: paper.cashUsd },
+                  ...paper.positions.flatMap((position) => {
+                    const price = snapshot?.assets.find(
+                      (asset) => asset.mint === position.mint,
+                    )?.priceUsd;
+                    return price != null
+                      ? [
+                          {
+                            label: position.symbol,
+                            value: price * position.quantity,
+                          },
+                        ]
+                      : [];
+                  }),
+                ]}
+              />
+            </div>
+          )}
           <div className="section-head">
             <div>
               <h2>Your holdings</h2>
@@ -128,56 +163,60 @@ export function Portfolio() {
             </div>
           )}
           {paper.positions.length ? (
-            <table className="assets-table">
-              <thead>
-                <tr>
-                  <th>Asset</th>
-                  <th className="num">Paper units</th>
-                  <th className="num hide-mobile">Cost basis</th>
-                  <th className="num">Value</th>
-                  <th className="num hide-mobile">Return</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paper.positions.map((p) => {
-                  const asset = snapshot?.assets.find((a) => a.mint === p.mint);
-                  const value =
-                    asset?.priceUsd != null
-                      ? p.quantity * asset.priceUsd
-                      : null;
-                  return (
-                    <tr key={p.mint}>
-                      <td>
-                        {asset ? (
-                          <AssetName asset={asset} />
-                        ) : (
-                          <Link href={`/stock/${p.mint}`}>{p.symbol}</Link>
-                        )}
-                      </td>
-                      <td className="num">
-                        {p.quantity.toLocaleString("en-US", {
-                          maximumFractionDigits: 6,
-                        })}
-                      </td>
-                      <td className="num hide-mobile">
-                        {money(p.costBasisUsd)}
-                      </td>
-                      <td className="num">{money(value)}</td>
-                      <td className="num hide-mobile">
-                        <Change
-                          value={
-                            value != null && p.costBasisUsd > 0
-                              ? ((value - p.costBasisUsd) / p.costBasisUsd) *
-                                100
-                              : null
-                          }
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div className={portfolioStyles.section}>
+              <table className={portfolioStyles.holdings}>
+                <thead>
+                  <tr>
+                    <th>Asset</th>
+                    <th className="num">Paper units</th>
+                    <th className="num hide-mobile">Cost basis</th>
+                    <th className="num">Value</th>
+                    <th className="num hide-mobile">Return</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paper.positions.map((p) => {
+                    const asset = snapshot?.assets.find(
+                      (a) => a.mint === p.mint,
+                    );
+                    const value =
+                      asset?.priceUsd != null
+                        ? p.quantity * asset.priceUsd
+                        : null;
+                    return (
+                      <tr key={p.mint}>
+                        <td>
+                          {asset ? (
+                            <AssetName asset={asset} />
+                          ) : (
+                            <Link href={`/stock/${p.mint}`}>{p.symbol}</Link>
+                          )}
+                        </td>
+                        <td className="num">
+                          {p.quantity.toLocaleString("en-US", {
+                            maximumFractionDigits: 6,
+                          })}
+                        </td>
+                        <td className="num hide-mobile">
+                          {money(p.costBasisUsd)}
+                        </td>
+                        <td className="num">{money(value)}</td>
+                        <td className="num hide-mobile">
+                          <Change
+                            value={
+                              value != null && p.costBasisUsd > 0
+                                ? ((value - p.costBasisUsd) / p.costBasisUsd) *
+                                  100
+                                : null
+                            }
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <div className="panel">
               <Empty
