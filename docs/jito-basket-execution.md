@@ -40,6 +40,12 @@ Jito processes a bundle together within its produced block. However, Jito docume
 
 ## Verification
 
+### Intermediate token accounts
+
+Single swaps and basket legs accept owner token accounts for connected intermediate steps in a Jupiter route. Additional ATA setup must be canonical, paid for and owned by the signing wallet, and referenced as writable by the reviewed swap instruction. The bounded route plan must connect the requested input to output without unrelated or dead-end branches. Route metadata alone does not authorize an account: mainnet mint reads also verify initialization and the exact SPL or Token-2022 program. Unsupported Token-2022 extensions fail closed; only inert metadata extensions are accepted for additional intermediate mints.
+
+Each transaction keeps its required ATA setup so bundle chunks do not depend on setup in earlier chunks. Mint reads are deduplicated across basket legs. Settlement simulation checks the starting and ending balances of additional intermediate accounts as well as the reviewed funding debit and minimum outputs. A route that consumes a preexisting intermediate balance is rejected. These checks do not establish funded execution or guarantee cross-transaction atomicity.
+
 TypeScript `node:test` tests cover single-first selection and up to five chunks, both account and byte limits, V1 without ALTs, V0 ALT verification, tip placement/caps, message/amount/order/signature/version binding, read-only recovery, cluster rejection and incomplete/mixed receipt handling. Existing single-swap settlement tests cover source debit and minimum output checks. These tests use deterministic fixtures and do not spend funds. Funded Jito V1 execution and physical Android wallet signing remain separate, unverified deployment checks. Mainnet spot tests do not establish devnet recurring readiness.
 
 References: [Jito low-latency transaction API, tips and skipped-block guidance](https://docs.jito.wtf/lowlatencytxnsend/), [Jupiter Swap V2 build instructions and lookup tables](https://developers.jup.ag/docs/swap/build).
