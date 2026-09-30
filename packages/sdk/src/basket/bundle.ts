@@ -7,11 +7,20 @@ import {
   TransactionMessage,
   VersionedTransaction,
 } from "@solana/web3.js";
-import type { BasketOrder } from "./mainnet";
+import {
+  countTransactionAccounts,
+  validateBasketSwapLegs,
+  type BasketOrder,
+} from "./mainnet";
+import {
+  V0_MAX_BYTES,
+  BASKET_MAX_ACCOUNTS,
+  BASKET_MAX_TRANSACTIONS,
+  TransactionCapacityError,
+  isTransactionCapacityError,
+} from "./transaction-limits";
 
-export const V0_MAX_BYTES = 1232;
-export const BASKET_MAX_ACCOUNTS = 64;
-export const BASKET_MAX_TRANSACTIONS = 3;
+export * from "./transaction-limits";
 export const BUNDLE_ATOMICITY_WARNING =
   "Jito executes the bundle together in its block, but skipped blocks can expose individual transactions to rebroadcast. Partial execution is possible. Check every receipt before retrying.";
 
@@ -21,7 +30,7 @@ export interface BasketBundleOrder extends Omit<
 > {
   kind: "bundle";
   transactions: string[];
-  transactionVersion: 0;
+  transactionVersion: 0 | 1;
   serializedBytes: number[];
   tipLamports: number;
   atomicityWarning: string;
@@ -82,16 +91,24 @@ export function composeV0Transaction(params: {
     )
   )
     throw new Error("Unsupported additional signer.");
+  const instructions = [
+    ComputeBudgetProgram.setComputeUnitLimit({ units }),
+    ComputeBudgetProgram.setComputeUnitPrice({
+      microLamports: Math.floor((fee * 1_000_000) / units),
+    }),
+    ...params.instructions,
+  ];
+  if (
+    countTransactionAccounts(params.payer, instructions) > BASKET_MAX_ACCOUNTS
+  )
+    throw new TransactionCapacityError(
+      "Transaction exceeds the 64-account runtime limit.",
+      "accounts",
+    );
   const message = new TransactionMessage({
     payerKey: payer,
     recentBlockhash: params.blockhash,
-    instructions: [
-      ComputeBudgetProgram.setComputeUnitLimit({ units }),
-      ComputeBudgetProgram.setComputeUnitPrice({
-        microLamports: Math.floor((fee * 1_000_000) / units),
-      }),
-      ...params.instructions,
-    ],
+    instructions,
   }).compileToV0Message(params.lookupTables ?? []);
   const accountCount =
     message.staticAccountKeys.length +
@@ -101,15 +118,55 @@ export function composeV0Transaction(params: {
       0,
     );
   if (accountCount > BASKET_MAX_ACCOUNTS)
-    throw new Error("Transaction exceeds the 64-account runtime limit.");
-  let bytes: Uint8Array;
-  try {
-    bytes = new VersionedTransaction(message).serialize();
-  } catch {
-    throw new Error("Transaction exceeds the 1232-byte v0 size limit.");
-  }
+    throw new TransactionCapacityError(
+      "Transaction exceeds the 64-account runtime limit.",
+      "accounts",
+    );
+  // web3.js serializes into fixed buffers. Compute the exact wire length first
+  // so buffer overflow is a capacity result without hiding unrelated codec errors.
+  const shortvec = (length: number) =>
+    length < 128 ? 1 : length < 16384 ? 2 : 3;
+  const wireLength =
+    shortvec(message.header.numRequiredSignatures) +
+    64 * message.header.numRequiredSignatures +
+    1 +
+    3 +
+    shortvec(message.staticAccountKeys.length) +
+    32 * message.staticAccountKeys.length +
+    32 +
+    shortvec(message.compiledInstructions.length) +
+    message.compiledInstructions.reduce(
+      (total, ix) =>
+        total +
+        1 +
+        shortvec(ix.accountKeyIndexes.length) +
+        ix.accountKeyIndexes.length +
+        shortvec(ix.data.length) +
+        ix.data.length,
+      0,
+    ) +
+    shortvec(message.addressTableLookups.length) +
+    message.addressTableLookups.reduce(
+      (total, table) =>
+        total +
+        32 +
+        shortvec(table.writableIndexes.length) +
+        table.writableIndexes.length +
+        shortvec(table.readonlyIndexes.length) +
+        table.readonlyIndexes.length,
+      0,
+    );
+  if (wireLength > V0_MAX_BYTES)
+    throw new TransactionCapacityError(
+      "Transaction exceeds the 1232-byte v0 size limit.",
+      "bytes",
+    );
+  const bytes = new VersionedTransaction(message).serialize();
   if (bytes.length > V0_MAX_BYTES)
-    throw new Error("Transaction exceeds the 1232-byte v0 size limit.");
+    throw new TransactionCapacityError(
+      "Transaction exceeds the 1232-byte v0 size limit.",
+      "bytes",
+    );
   return {
     transaction: Buffer.from(bytes).toString("base64"),
     serializedBytes: bytes.length,
@@ -124,21 +181,18 @@ export function composeBasketV0Chunks(params: {
   blockhash: string;
   legs: BasketSwapLeg[];
   lookupTables: AddressLookupTableAccount[];
-  basketAssetCount: number;
+  /** @deprecated Routing depends on actual account/byte capacity, not asset count. */
+  basketAssetCount?: number;
   finalTipInstruction?: TransactionInstruction;
+  priorityFeeLamports?: number;
 }): ComposedV0Chunk[] {
-  if (
-    !params.legs.length ||
-    params.legs.length > 12 ||
-    new Set(params.legs.map((leg) => leg.allocationIndex)).size !==
-      params.legs.length
-  )
-    throw new Error("Invalid basket execution legs.");
+  validateBasketSwapLegs(params.legs);
   const build = (legs: BasketSwapLeg[], tip: boolean): ComposedV0Chunk => ({
     ...composeV0Transaction({
       payer: params.payer,
       blockhash: params.blockhash,
       lookupTables: params.lookupTables,
+      priorityFeeLamports: params.priorityFeeLamports,
       instructions: [
         ...legs.flatMap((leg) => leg.instructions),
         ...(tip && params.finalTipInstruction
@@ -148,18 +202,12 @@ export function composeBasketV0Chunks(params: {
     }),
     allocationIndexes: legs.map((leg) => leg.allocationIndex),
   });
-  // Small baskets always stay atomic at the chain transaction level; never silently split them.
-  if (params.basketAssetCount <= 4) {
-    try {
-      return [build(params.legs, false)];
-    } catch (error) {
-      if (params.basketAssetCount <= 3) throw error;
-    }
+  try {
+    return [build(params.legs, false)];
+  } catch (error) {
+    if (!isTransactionCapacityError(error) || !params.finalTipInstruction)
+      throw error;
   }
-  if (!params.finalTipInstruction)
-    throw new Error(
-      "A reviewed Jito tip is required for a multi-transaction basket.",
-    );
   const tipAccount = params.finalTipInstruction.keys[1]?.pubkey;
   if (
     !tipAccount ||
@@ -182,7 +230,8 @@ export function composeBasketV0Chunks(params: {
       if (remaining === 1) {
         try {
           return [build(params.legs.slice(start), true)];
-        } catch {
+        } catch (error) {
+          if (!isTransactionCapacityError(error)) throw error;
           return null;
         }
       }
@@ -191,7 +240,8 @@ export function composeBasketV0Chunks(params: {
           const first = build(params.legs.slice(start, end), false);
           const rest = partition(end, remaining - 1);
           if (rest) return [first, ...rest];
-        } catch {
+        } catch (error) {
+          if (!isTransactionCapacityError(error)) throw error;
           /* Try a smaller chunk without changing any allocation. */
         }
       }
@@ -200,7 +250,8 @@ export function composeBasketV0Chunks(params: {
     const chunks = partition(0, count);
     if (chunks) return chunks;
   }
-  throw new Error(
-    "This basket cannot fit within three transactions at current routes. No partial order was created.",
+  throw new TransactionCapacityError(
+    "This basket cannot fit within five transactions at current routes. No partial order was created.",
+    "bundle",
   );
 }

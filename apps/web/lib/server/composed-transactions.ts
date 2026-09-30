@@ -6,10 +6,12 @@ import {
   timingSafeEqual,
   verify,
 } from "node:crypto";
-import { PublicKey } from "@solana/web3.js";
+import { PublicKey, VersionedTransaction } from "@solana/web3.js";
 import { getMainnetRpcUrl, MAINNET_GENESIS } from "./mainnet-connection";
 import {
   inspectWalletTransaction,
+  MAX_BASKET_TRANSACTION_BASE64_LENGTH,
+  BASKET_MAX_ACCOUNTS,
   type WalletTransactionOrder,
 } from "@kite/sdk";
 
@@ -72,6 +74,26 @@ export async function assertMainnetV0Ready(
       "Connect a wallet that supports Solana v0 transactions to trade.",
     );
   await assertMainnet();
+}
+/** Wallet capabilities and the live cluster both gate V1; no wallet-name guesses. */
+export async function selectMainnetTransactionVersion(
+  supportedTransactionVersions?: readonly number[],
+): Promise<0 | 1> {
+  if (
+    !supportedTransactionVersions?.some(
+      (version) => version === 0 || version === 1,
+    )
+  )
+    throw new Error(
+      "Connect a wallet that supports Solana v0 or V1 transactions to trade.",
+    );
+  await assertMainnet();
+  if (supportedTransactionVersions.includes(1) && (await mainnetV1Active()))
+    return 1;
+  if (supportedTransactionVersions.includes(0)) return 0;
+  throw new Error(
+    "V1 trading is waiting for activation on the configured Solana mainnet RPC. No transaction was created.",
+  );
 }
 export async function mainnetV1Active(): Promise<boolean> {
   try {
@@ -150,13 +172,37 @@ function secret() {
     throw new Error("Server transaction authorization is not configured.");
   return value;
 }
+/** ALTs only compress V0 bytes: all loaded indexes still consume runtime locks. */
+export async function inspectMainnetWalletTransaction(encoded: string) {
+  if (
+    typeof encoded !== "string" ||
+    encoded.length > MAX_BASKET_TRANSACTION_BASE64_LENGTH
+  )
+    throw new Error("Invalid transaction encoding or size.");
+  const inspected = await inspectWalletTransaction(encoded);
+  const { message, bytes } = inspected;
+  if (message.version !== 0 && message.version !== 1)
+    throw new Error("Unsupported transaction version.");
+  let accountCount = message.staticAccounts.length;
+  if (message.version === 0) {
+    const messageV0 = VersionedTransaction.deserialize(bytes).message;
+    accountCount += messageV0.addressTableLookups.reduce(
+      (count, table) =>
+        count + table.readonlyIndexes.length + table.writableIndexes.length,
+      0,
+    );
+  }
+  if (accountCount > BASKET_MAX_ACCOUNTS)
+    throw new Error("Transaction exceeds the 64-account runtime limit.");
+  return inspected;
+}
 export async function authorizeComposed(
   input: Omit<WalletTransactionOrder, "requestId" | "authorization">,
   investmentRun?: { planId: string; runId: string },
   investmentSetupHash?: string,
   basketReceipt?: { basketId: string; inputMint: string; inAmount: string },
 ): Promise<WalletTransactionOrder> {
-  const { transaction: tx, message } = await inspectWalletTransaction(
+  const { transaction: tx, message } = await inspectMainnetWalletTransaction(
     input.transaction,
   );
   if (
@@ -219,7 +265,8 @@ export async function verifyComposed(
     (p.expiresAt <= Date.now() && !recovery?.acceptExpired)
   )
     throw new Error("This transaction authorization has expired.");
-  const { transaction: tx, message } = await inspectWalletTransaction(signed);
+  const { transaction: tx, message } =
+    await inspectMainnetWalletTransaction(signed);
   if (
     createHash("sha256").update(Buffer.from(tx.messageBytes)).digest("hex") !==
       p.messageHash ||

@@ -15,10 +15,14 @@ import {
   allocateBasketInput,
   validateJupiterExactInInstruction,
   composeBasketV0Chunks,
+  composeBasketV1Chunks,
+  isTransactionCapacityError,
   BUNDLE_ATOMICITY_WARNING,
   hasCompleteIssuerCatalogs,
   toTokenAmount,
   MAINNET_SOL_MINT,
+  MAX_CUSTOM_BASKET_LEGS,
+  MIN_CUSTOM_BASKET_LEGS,
   type BasketOrderRequest,
   type BasketOrder,
   type BasketPurchaseOrder,
@@ -29,7 +33,7 @@ import {
 import { getServerMarketCatalog } from "./markets";
 import { getTradeMintDecimals } from "./mint-precision";
 import {
-  assertMainnetV0Ready,
+  selectMainnetTransactionVersion,
   authorizeComposed,
   latestBlockhash,
   mainnetRpc,
@@ -186,6 +190,57 @@ export async function prepareTokenSwapOrder(
   return order;
 }
 
+/** Compose first; settlement simulation is deliberately outside capacity fallback. */
+export async function composeBasketExecution({
+  transactionVersion,
+  taker,
+  lifetime,
+  legs,
+  routeLookupTables,
+}: {
+  transactionVersion: 0 | 1;
+  taker: string;
+  lifetime: { blockhash: string; lastValidBlockHeight: number };
+  legs: BasketSwapLeg[];
+  routeLookupTables: Array<Record<string, string[]> | null>;
+}) {
+  // V1 inlines account addresses; referenced ALTs are fetched only for a V0 route.
+  const lookupTables =
+    transactionVersion === 0
+      ? await loadVerifiedLookupTables(routeLookupTables)
+      : [];
+  const composition = {
+    payer: taker,
+    blockhash: lifetime.blockhash,
+    lastValidBlockHeight: lifetime.lastValidBlockHeight,
+    legs,
+    lookupTables,
+  };
+  let tip: Awaited<ReturnType<typeof prepareJitoTip>> | undefined;
+  const compose = (finalTipInstruction?: TransactionInstruction) =>
+    transactionVersion === 1
+      ? composeBasketV1Chunks({
+          payer: taker,
+          blockhash: lifetime.blockhash,
+          lastValidBlockHeight: lifetime.lastValidBlockHeight,
+          legs,
+          allowV1: true,
+          finalTipInstruction,
+        })
+      : composeBasketV0Chunks({ ...composition, finalTipInstruction });
+  let chunks: Awaited<ReturnType<typeof compose>>;
+  try {
+    // Asset count is not a capacity heuristic: every basket first tries one atomic transaction.
+    chunks = await compose();
+  } catch (error) {
+    // Validation errors are never interpreted as a reason to change execution routes.
+    if (!isTransactionCapacityError(error) || legs.length === 1) throw error;
+    tip = await prepareJitoTip(taker);
+    chunks = await compose(tip.instruction);
+  }
+  return { chunks, tipLamports: tip?.lamports ?? 0 };
+}
+
 async function prepareAllocationOrder(
   input: BasketOrderRequest,
   outputToken?: SwapToken,
@@ -206,7 +261,9 @@ async function prepareAllocationOrder(
     throw new Error(
       "Choose an amount and slippage from 1 to 300 basis points.",
     );
-  await assertMainnetV0Ready(input.supportedTransactionVersions);
+  const transactionVersion = await selectMainnetTransactionVersion(
+    input.supportedTransactionVersions,
+  );
   const market = await getServerMarketCatalog();
   if (
     market.backpackSecurities?.some(
@@ -250,9 +307,12 @@ async function prepareAllocationOrder(
     Array.isArray(customAllocations) &&
     customAllocations.length > 0
   ) {
-    if (customAllocations.length < 2 || customAllocations.length > 8) {
+    if (
+      customAllocations.length < MIN_CUSTOM_BASKET_LEGS ||
+      customAllocations.length > MAX_CUSTOM_BASKET_LEGS
+    ) {
       throw new Error(
-        "Custom baskets must contain between 2 and 8 assets, subject to route capacity.",
+        `Custom baskets must contain between ${MIN_CUSTOM_BASKET_LEGS} and ${MAX_CUSTOM_BASKET_LEGS} assets, subject to route capacity.`,
       );
     }
     const seen = new Set<string>();
@@ -486,39 +546,16 @@ async function prepareAllocationOrder(
     legs.push({ allocationIndex: i, instructions });
   }
   if (!legs.length) throw new Error("This allocation does not require a swap.");
-  const lookupTables = await loadVerifiedLookupTables(
-    routes
+  const lifetime = await latestBlockhash();
+  const { chunks, tipLamports } = await composeBasketExecution({
+    transactionVersion,
+    taker,
+    lifetime,
+    legs,
+    routeLookupTables: routes
       .filter((route): route is Route => route !== null)
       .map((route) => route.addressesByLookupTableAddress),
-  );
-  const lifetime = await latestBlockhash();
-  const composition = {
-    payer: taker,
-    blockhash: lifetime.blockhash,
-    legs,
-    lookupTables,
-    basketAssetCount: basket.assets.length,
-  };
-  let tip: Awaited<ReturnType<typeof prepareJitoTip>> | undefined;
-  let chunks: ReturnType<typeof composeBasketV0Chunks>;
-  if (basket.assets.length <= 4) {
-    try {
-      chunks = composeBasketV0Chunks(composition);
-    } catch (error) {
-      if (basket.assets.length <= 3) throw error;
-      tip = await prepareJitoTip(taker);
-      chunks = composeBasketV0Chunks({
-        ...composition,
-        finalTipInstruction: tip.instruction,
-      });
-    }
-  } else {
-    tip = await prepareJitoTip(taker);
-    chunks = composeBasketV0Chunks({
-      ...composition,
-      finalTipInstruction: tip.instruction,
-    });
-  }
+  });
   const addresses = [
     ...destinations,
     ...(inputMint !== MAINNET_SOL_MINT ? [inputAta] : []),
@@ -533,7 +570,7 @@ async function prepareAllocationOrder(
     throw new Error("The fee payer balance is unavailable.");
   let totalLamports = BigInt(0);
   // Chunks deliberately do not consume each other's outputs. Independent simulation validates
-  // every route's delivery; Jito subsequently simulates the sequential signed bundle itself.
+  // every route's delivery. It does not prove sequential bundle execution or Jito V1 transport support.
   for (const chunk of chunks) {
     const simulation = await simulateComposed(chunk.transaction, addresses);
     if (!simulation.accounts || simulation.accounts.length !== addresses.length)
@@ -609,7 +646,7 @@ async function prepareAllocationOrder(
       {
         transaction: chunks[0].transaction,
         serializedBytes: chunks[0].serializedBytes,
-        transactionVersion: 0,
+        transactionVersion,
         taker,
         lastValidBlockHeight: lifetime.lastValidBlockHeight,
         expiresAt,
@@ -624,20 +661,20 @@ async function prepareAllocationOrder(
   return {
     kind: "bundle",
     ...metadata,
-    ...authorizeBundle({
+    ...(await authorizeBundle({
       transactions,
       taker,
       expiresAt,
       lastValidBlockHeight: lifetime.lastValidBlockHeight,
       ...basketReceipt,
-    }),
+    })),
     transactions,
     taker,
     expiresAt,
     lastValidBlockHeight: lifetime.lastValidBlockHeight,
-    transactionVersion: 0,
+    transactionVersion,
     serializedBytes: chunks.map((chunk) => chunk.serializedBytes),
-    tipLamports: tip!.lamports,
+    tipLamports,
     atomicityWarning: BUNDLE_ATOMICITY_WARNING,
   };
 }

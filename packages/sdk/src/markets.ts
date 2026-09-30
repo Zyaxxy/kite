@@ -4,7 +4,7 @@ import {
   type BackpackSecurity,
 } from "./backpack";
 import { hydratePythPrices } from "./pyth-oracle";
-import { getBasketLiquidityAudit, type BasketLiquidityAudit } from "./basket/liquidity-audit";
+import { type BasketLiquidityAudit } from "./basket/liquidity-audit";
 
 /** Mainnet issuer catalogs and observed onchain market prices. Unknown values stay null. */
 export const MAINNET_USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
@@ -161,7 +161,10 @@ async function waitForRateLimit(
 
 function resolveJupiterApiKey(raw?: string): string | undefined {
   if (!raw) return undefined;
-  return raw.split(",").map((k) => k.trim()).find(Boolean);
+  return raw
+    .split(",")
+    .map((k) => k.trim())
+    .find(Boolean);
 }
 
 async function request(url: string, options: MarketOptions): Promise<unknown> {
@@ -497,6 +500,79 @@ export interface BasketConstituentDefinition {
 
 export const CANONICAL_BASKET_DEFINITIONS: BasketConstituentDefinition[] = [
   {
+    id: "sol-mag7",
+    name: "The Magnificent Seven",
+    ticker: "SOL-MAG7",
+    category: "technology",
+    description:
+      "Seven large technology and consumer platforms, equally weighted. A concentrated theme whose companies share meaningful technology exposure.",
+    symbols: ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA"],
+    issuer: "xstocks",
+  },
+  {
+    id: "sol-digital-economy",
+    name: "The Digital Economy",
+    ticker: "SOL-DIG12",
+    category: "technology",
+    description:
+      "Twelve equal allocations across devices, chips, cloud software and internet platforms. Broad within technology, with substantial sector concentration.",
+    symbols: [
+      "AAPL",
+      "MSFT",
+      "NVDA",
+      "AMZN",
+      "GOOGL",
+      "META",
+      "TSLA",
+      "AMD",
+      "AVGO",
+      "ORCL",
+      "CRM",
+      "NFLX",
+    ],
+    issuer: "xstocks",
+  },
+  {
+    id: "sol-connected-world",
+    name: "A Connected World",
+    ticker: "SOL-CONNECT",
+    category: "technology",
+    description:
+      "Communication, entertainment and commerce platforms: Alphabet, Meta, Amazon, Netflix and Apple in equal weights. Advertising and consumer demand are shared risks.",
+    symbols: ["GOOGL", "META", "AMZN", "NFLX", "AAPL"],
+    issuer: "xstocks",
+  },
+  {
+    id: "sol-payment-networks",
+    name: "The Payment Rails",
+    ticker: "SOL-PAY",
+    category: "finance",
+    description:
+      "Visa, Mastercard and JPMorgan in equal allocations. A focused view on payment networks and banking, exposed to spending and credit cycles.",
+    symbols: ["V", "MA", "JPM"],
+    issuer: "xstocks",
+  },
+  {
+    id: "sol-consumer-brands",
+    name: "Brands We Know",
+    ticker: "SOL-BRANDS",
+    category: "consumer",
+    description:
+      "Apple, Amazon, Coca-Cola, McDonald's, Starbucks and Tesla, equally weighted. Familiar brands with distinct business models and consumer-demand risk.",
+    symbols: ["AAPL", "AMZN", "KO", "MCD", "SBUX", "TSLA"],
+    issuer: "xstocks",
+  },
+  {
+    id: "sol-physical-economy",
+    name: "The Physical Economy",
+    ticker: "SOL-PHYS",
+    category: "industrials",
+    description:
+      "Equal allocations across industrial equipment, aerospace and energy: Caterpillar, Deere, GE, Honeywell, Exxon Mobil and Chevron. Sensitive to investment and commodity cycles.",
+    symbols: ["CAT", "DE", "GE", "HON", "XOM", "CVX"],
+    issuer: "xstocks",
+  },
+  {
     id: "sol-ai-infra",
     name: "Intelligence Layer",
     ticker: "SOL-AI",
@@ -639,10 +715,12 @@ export const REVIEWED_BASKET_DEFINITIONS: BasketConstituentDefinition[] = [
     symbols: ["AAPL", "AMZN", "KO"],
     issuer: "xstocks",
   },
-  CANONICAL_BASKET_DEFINITIONS.find((definition) => definition.id === "sol-core")!,
+  CANONICAL_BASKET_DEFINITIONS.find(
+    (definition) => definition.id === "sol-core",
+  )!,
 ];
 
-/** Resolves a canonical basket definition into a MarketBasket in 0ms without external requests. */
+/** Research-only constituent identities. These unresolved symbols are never tradable mints. */
 export function resolveCanonicalBasket(id: string): MarketBasket | null {
   const normId = id.trim().toLowerCase();
   const allDefs = [
@@ -656,17 +734,17 @@ export function resolveCanonicalBasket(id: string): MarketBasket | null {
   const count = def.symbols.length;
   const assets = def.symbols.map((symbol, index) => ({
     asset: {
-      mint: `mint-${symbol.toLowerCase()}`,
+      mint: `unresolved:${symbol.toLowerCase()}`,
       symbol,
       underlyingSymbol: symbol,
       name: symbol,
       issuer: def.issuer,
       kind: "equity" as const,
-      verified: true,
+      verified: false,
       tradingHalted: false,
       priceUsd: null,
       change24hPct: null,
-      decimals: 8,
+      decimals: null,
       logoUrl: null,
       volume24hUsd: null,
       liquidityUsd: null,
@@ -684,8 +762,9 @@ export function resolveCanonicalBasket(id: string): MarketBasket | null {
     category: def.category,
     description: def.description,
     assets,
-    available: true,
-    missingSymbols: [],
+    available: false,
+    missingSymbols: [...def.symbols],
+    unpricedSymbols: [...def.symbols],
   };
 }
 
@@ -694,23 +773,25 @@ export function resolveMarketBaskets(
   assets: MarketAsset[],
   options: { reviewedOnly?: boolean; includeAll?: boolean } = {},
 ): MarketBasket[] {
-  const definitions: BasketConstituentDefinition[] = CANONICAL_BASKET_DEFINITIONS.map((def) => {
-    if (def.id === "sol-pre-stocks") {
-      return {
-        ...def,
-        symbols: [
-          ...new Set(
-            assets
-              .filter(
-                (asset) => asset.issuer === "prestocks" && !asset.tradingHalted,
-              )
-              .map((asset) => asset.underlyingSymbol),
-          ),
-        ].sort(),
-      };
-    }
-    return def;
-  });
+  const definitions: BasketConstituentDefinition[] =
+    CANONICAL_BASKET_DEFINITIONS.map((def) => {
+      if (def.id === "sol-pre-stocks") {
+        return {
+          ...def,
+          symbols: [
+            ...new Set(
+              assets
+                .filter(
+                  (asset) =>
+                    asset.issuer === "prestocks" && !asset.tradingHalted,
+                )
+                .map((asset) => asset.underlyingSymbol),
+            ),
+          ].sort(),
+        };
+      }
+      return def;
+    });
 
   const reviewed = REVIEWED_BASKET_DEFINITIONS;
   const sourceDefinitions = options.reviewedOnly
@@ -758,8 +839,8 @@ export function resolveMarketBaskets(
         count > 0 &&
         missingSymbols.length === 0 &&
         unpricedSymbols.length === 0 &&
-        members.every(({ asset }) => !asset.tradingHalted),
-      liquidityAudit: getBasketLiquidityAudit(definition.id),
+        members.every(({ asset }) => asset.verified && !asset.tradingHalted),
+      // Execution route and liquidity must be checked against the fresh order; historical audits are not availability guarantees.
     };
   });
 }
@@ -771,9 +852,7 @@ export function resolveReviewedMarketBaskets(
   return resolveMarketBaskets(assets, { reviewedOnly: true });
 }
 
-export function resolveAllMarketBaskets(
-  assets: MarketAsset[],
-): MarketBasket[] {
+export function resolveAllMarketBaskets(assets: MarketAsset[]): MarketBasket[] {
   return resolveMarketBaskets(assets, { includeAll: true });
 }
 

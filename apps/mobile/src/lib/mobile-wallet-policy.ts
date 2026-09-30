@@ -1,5 +1,14 @@
 export type WalletNetwork = "mainnet" | "devnet";
 
+const validPayload = (value: unknown, maxBytes: number): value is string =>
+  typeof value === "string" &&
+  value.length > 0 &&
+  value.length % 4 === 0 &&
+  /^[A-Za-z0-9+/]+={0,2}$/.test(value) &&
+  (value.length / 4) * 3 -
+    (value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0) <=
+    maxBytes;
+
 export interface NativeSigningReview {
   signer: string;
   network: WalletNetwork;
@@ -42,32 +51,25 @@ export function assertNativeSigningReview(
     review.transactions.length > 5 ||
     review.transactions.some(
       (transaction) =>
-        !transaction ||
-        transaction.length > 8192 ||
-        !/^[A-Za-z0-9+/]+={0,2}$/.test(transaction),
+        !validPayload(
+          transaction,
+          review.transactionVersion === 1 ? 4096 : 1232,
+        ),
     )
   )
     throw new Error(
       "The reviewed transaction payload is invalid. Nothing was submitted.",
     );
-  if (
-    review.transactions.length > 1 &&
-    (network !== "mainnet" || review.transactionVersion !== 0)
-  )
+  if (review.transactions.length > 1 && network !== "mainnet")
     throw new Error(
-      "Only reviewed mainnet V0 basket bundles support batch signing.",
+      "Only reviewed mainnet basket bundles support batch signing.",
     );
 }
 
 export function assertSignedPayloads(payloads: string[], expected: number) {
   if (
     payloads.length !== expected ||
-    payloads.some(
-      (payload) =>
-        !payload ||
-        payload.length > 8192 ||
-        !/^[A-Za-z0-9+/]+={0,2}$/.test(payload),
-    )
+    payloads.some((payload) => !validPayload(payload, 4096))
   )
     throw new Error(
       "The wallet did not return every signed transaction. Nothing was submitted.",

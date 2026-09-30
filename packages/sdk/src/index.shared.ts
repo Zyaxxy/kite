@@ -26,6 +26,7 @@ export * from "./recurring-investing";
 export * from "./guard/client";
 export * from "./wallet-capabilities";
 export * from "./creator";
+export * from "./basket/transaction-limits";
 export * from "./client/recurring-client";
 export type {
   BasketBundleOrder,
@@ -40,3 +41,5 @@ export type {
   RecurringPayment,
   RecurringPaymentRequest,
 } from "./basket/mainnet";
+
+export * from "./portfolio/cache";

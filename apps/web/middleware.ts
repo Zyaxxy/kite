@@ -8,6 +8,12 @@ import {
 const reads = createRequestLimiter(120);
 const writes = createRequestLimiter(20);
 export function middleware(request: NextRequest) {
+  // Five 4096-byte transactions need 27,320 base64 bytes before authorization/JSON.
+  const maxBodyBytes = ["/api/bundles/execute", "/api/bundles/status"].includes(
+    request.nextUrl.pathname,
+  )
+    ? 32_768
+    : 16_384;
   const api = request.nextUrl.pathname.startsWith("/api/");
   const action =
     request.nextUrl.pathname.startsWith("/api/actions/") ||
@@ -114,7 +120,7 @@ export function middleware(request: NextRequest) {
       );
     else if (
       mutation &&
-      Number(request.headers.get("content-length") ?? 0) > 16_384
+      Number(request.headers.get("content-length") ?? 0) > maxBodyBytes
     )
       response = NextResponse.json(
         action

@@ -36,11 +36,11 @@ The official React Native MWA integration is `@solana-mobile/mobile-wallet-adapt
 
 - Mainnet and devnet authorize with distinct MWA chains and distinct SecureStore keys. A mainnet authorization is never reused for a devnet subscription.
 - Authorization tokens are bound to the configured HTTPS identity. Stored capabilities are cleared on restore; reconnect obtains fresh wallet capabilities.
-- Android batch signing calls MWA once with all reviewed V0 bundle payloads in order. The app verifies the number of returned payloads, account, expiry and wallet version support. A wallet that cannot sign the complete batch is rejected.
-- Single stock trading uses the existing server-selected transaction format. Basket purchases use V0. Larger baskets can return a Jito bundle; the review includes all allocations, tip and partial-execution limitations. A bundle never falls back to individually sending its transactions.
+- Android batch signing calls MWA once with all two to five reviewed bundle payloads in order. V1 or V0 is selected from the wallet’s current advertised capabilities; cached authorization and wallet names do not grant V1 support. The app verifies the number of returned payloads, account, expiry and wallet version support. A wallet that cannot sign the complete batch is rejected.
+- Single stock and basket purchases use the server-negotiated transaction format. V1 requires verified mainnet feature activation and wallet V1 support, has a 4,096-byte/64-static-account limit, and uses no ALTs. The compatible V0 path has a 1,232-byte/64-runtime-account limit and verified Jupiter ALTs. Every basket tries one transaction with zero tip; only a capacity failure may produce a two-to-five-transaction Jito bundle. The review includes the selected format, execution route, all allocations, tip and partial-execution limitations. A bundle never falls back to individually sending its transactions.
 - iOS and Expo web do not expose unsupported native signing controls or redirect trading to a browser. They support market research and paper investing. Android wallet signing must be tested in a custom development/release build.
 
-The app signs only. The server verifies reviewed messages and broadcasts to the correct cluster. Funds never enter a Kite vault.
+The app signs only. The server verifies reviewed messages and broadcasts to the correct cluster. Mainnet spot funds never enter a Kite custodial vault. Web Privy embedded signing currently advertises V0 only; it does not provide a native iOS or Expo-web wallet-signing fallback. Basket definitions may contain two to twelve assets, but actual execution still depends on both byte and account limits.
 
 ## Native subscriptions
 
@@ -72,6 +72,8 @@ npx solana-mobile@latest doctor
 ```
 
 On 2026-09-27 the requested doctor ran successfully as a command and exited **1** because the host lacks JDK 17+, `JAVA_HOME`, Android SDK, `adb` 33+ and any emulator. macOS, disk space, Node and package managers passed. It reported project creation ready, Android builds unavailable, and emulator/physical-device workflows unavailable. Install a complete JDK and Android Studio SDK/Platform Tools, set `JAVA_HOME` and `ANDROID_HOME`, then rerun the doctor. No emulator or real-wallet transaction was tested on this host.
+
+Funded Jito V1 bundles and physical-device Android MWA signing remain unverified. A successful export or mainnet feature check does not prove either flow.
 
 Before distribution, verify on Android: both network authorizations, wallet rejection, account changes, background/resume, one-transaction basket, complete batch signing, insufficient funds, expiration, lost-response recovery, subscription creation and cancellation. Rebuild after any MWA or navigation dependency change.
 

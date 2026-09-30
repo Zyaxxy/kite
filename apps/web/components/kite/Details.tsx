@@ -15,8 +15,6 @@ import {
   GitFork,
   Share2,
   Trash2,
-  Gauge,
-  CheckCircle2,
   Scale,
   RefreshCw,
 } from "lucide-react";
@@ -793,7 +791,6 @@ export function BasketDetail({ id }: { id: string }) {
   const formattedSocial = creatorSocial
     ? formatSocialUrl(creatorSocial)
     : undefined;
-  const audit = basket.source.liquidityAudit;
 
   const totalVolume24h = basket.assets.reduce(
     (sum, a) => sum + (a.volume24hUsd ?? 0),
@@ -906,30 +903,6 @@ export function BasketDetail({ id }: { id: string }) {
                   {basket.source.category ||
                     (isCustom ? "Custom Allocation" : "A Kite Point of View")}
                 </p>
-                {audit && (
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 600,
-                      padding: "2px 8px",
-                      borderRadius: 999,
-                      background:
-                        audit.tier === "verified-high"
-                          ? "rgba(16, 185, 129, 0.12)"
-                          : audit.tier === "moderate"
-                            ? "rgba(245, 158, 11, 0.12)"
-                            : "rgba(239, 68, 68, 0.12)",
-                      color:
-                        audit.tier === "verified-high"
-                          ? "#10b981"
-                          : audit.tier === "moderate"
-                            ? "#f59e0b"
-                            : "#ef4444",
-                    }}
-                  >
-                    {audit.badgeLabel}
-                  </span>
-                )}
                 {isCustom && (
                   <span
                     style={{
@@ -1038,112 +1011,70 @@ export function BasketDetail({ id }: { id: string }) {
                 {basket.assets.length} assets.
                 <br />A shared direction.
               </h2>
-              <p>Equal allocations. Individual ownership.</p>
+              <p>
+                {isCustom
+                  ? "Your allocation. Individual ownership."
+                  : "Equal allocations. Individual ownership."}
+              </p>
             </div>
             <OrbitArt />
           </div>
 
-          {/* Mainnet DEX Liquidity Audit Breakdown Card */}
-          {audit && (
-            <section className="panel panel-pad">
-              <div className="section-head">
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Gauge
-                    size={18}
-                    className={audit.tier === "verified-high" ? "up" : "muted"}
-                  />
-                  <h3 style={{ margin: 0 }}>Mainnet DEX Liquidity Breakdown</h3>
-                </div>
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 600,
-                    padding: "2px 8px",
-                    borderRadius: 999,
-                    background:
-                      audit.tier === "verified-high"
-                        ? "rgba(16, 185, 129, 0.12)"
-                        : audit.tier === "moderate"
-                          ? "rgba(245, 158, 11, 0.12)"
-                          : "rgba(239, 68, 68, 0.12)",
-                    color:
-                      audit.tier === "verified-high"
-                        ? "#10b981"
-                        : audit.tier === "moderate"
-                          ? "#f59e0b"
-                          : "#ef4444",
-                  }}
-                >
-                  {audit.badgeLabel}
-                </span>
+          <section
+            className="panel panel-pad"
+            aria-labelledby="basket-execution-heading"
+          >
+            <div className="section-head">
+              <h3 id="basket-execution-heading">
+                How this basket is purchased
+              </h3>
+              <span className="badge">Checked at review</span>
+            </div>
+            <p className="fineprint">
+              The live quote checks all constituents, account limits and
+              transaction size. A route that fits uses one atomic transaction
+              with no Jito tip. A larger route can use an ordered Jito bundle;
+              your review shows its transaction count, tip and minimum outputs
+              before you sign.
+            </p>
+            <dl className="stats-grid" style={{ margin: "20px 0" }}>
+              <div>
+                <dt>Available prices</dt>
+                <dd>
+                  {
+                    basket.assets.filter(
+                      (asset) => asset.priceUsd != null && asset.priceUsd > 0,
+                    ).length
+                  }{" "}
+                  /{" "}
+                  {basket.assets.length + basket.source.missingSymbols.length ||
+                    "—"}
+                </dd>
               </div>
-
-              <dl className="stats-grid" style={{ margin: "16px 0" }}>
-                <div>
-                  <dt>Execution Format</dt>
-                  <dd
-                    style={{
-                      color: "#10b981",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 4,
-                    }}
-                  >
-                    <CheckCircle2 size={14} /> Atomic Solana V1
-                  </dd>
-                </div>
-                <div>
-                  <dt>Tested Roundtrip Loss</dt>
-                  <dd>{(audit.testedRoundTripLossBps / 100).toFixed(2)}%</dd>
-                </div>
-                <div>
-                  <dt>Account Limit Margin</dt>
-                  <dd>{audit.maxAccounts} / 64 max accounts</dd>
-                </div>
-                <div>
-                  <dt>Combined 24h DEX Vol</dt>
-                  <dd>
-                    {totalVolume24h > 0
-                      ? compactMoney(totalVolume24h)
-                      : "Active pools"}
-                  </dd>
-                </div>
-              </dl>
-
-              <div
-                style={{
-                  padding: "10px 14px",
-                  background: "rgba(255, 255, 255, 0.03)",
-                  borderRadius: 8,
-                  border: "1px solid var(--line)",
-                }}
-              >
-                <span className="eyebrow" style={{ fontSize: 10 }}>
-                  Routing Venues
-                </span>
-                <p
-                  style={{
-                    margin: "4px 0 0",
-                    fontSize: 12,
-                    fontWeight: 500,
-                    color: "var(--ink)",
-                  }}
-                >
-                  {audit.liquidityVenueSummary}
-                </p>
-                <p className="fineprint" style={{ margin: "4px 0 0" }}>
-                  {audit.description}
-                </p>
+              <div>
+                <dt>Execution route</dt>
+                <dd>Quote required</dd>
               </div>
-
-              {audit.recommendedAlternativeTicker && (
-                <p className="fineprint" style={{ margin: "8px 0 0" }}>
-                  Recommended alternative:{" "}
-                  <strong>{audit.recommendedAlternativeTicker}</strong>
-                </p>
-              )}
-            </section>
-          )}
+              <div>
+                <dt>Observed 24h member volume (subtotal)</dt>
+                <dd>
+                  {totalVolume24h > 0
+                    ? compactMoney(totalVolume24h)
+                    : "Unavailable"}
+                </dd>
+              </div>
+              <div>
+                <dt>Ownership</dt>
+                <dd>Individual wallet tokens</dd>
+              </div>
+            </dl>
+            <p className="fineprint">
+              Jito bundle acceptance is pending until confirmed receipts are
+              verified. Skipped-block rebroadcast can cause individual
+              transactions to execute separately. Basket size alone does not
+              guarantee either route.
+            </p>
+          </section>
 
           {/* Drift Analysis and 1-Click Rebalance for Custom Baskets */}
           {isCustom &&

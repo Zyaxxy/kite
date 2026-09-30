@@ -35,9 +35,9 @@ New tests use TypeScript and `node:test` through `tsx`; do not add new `.mjs` te
 
 ## Mainnet transaction model
 
-- New Jupiter spot swaps and basket purchases use **V0**. Retain version-aware signing for compatible existing flows instead of hard-coding V1 requirements in clients.
-- Resolve only Jupiter-referenced ALTs and verify their owner, active state and contents on mainnet. Client-provided tables are not trusted. A transaction must fit **1,232 serialized bytes and 64 runtime accounts**; lookup tables do not expand runtime account capacity.
-- Up to three basket assets use a single transaction or reject if the route does not fit. Four assets try single execution before a bundle. Larger allocations use **two or three ordered V0 transactions** through Jito, subject to actual route constraints.
+- New Jupiter spot swaps and basket purchases negotiate **V1 or V0** using the actual wallet capabilities and the configured mainnet RPC. Prefer V1 only after verifying its feature activation; keep V0 for compatible wallets. Privy embedded signing currently advertises V0 only. Never infer capabilities from a wallet name or hard-code V1 support.
+- V1 uses static accounts with **no ALTs**, **4,096 serialized bytes** and **64 runtime accounts**, with explicit compute/data/fee configuration. V0 must fit **1,232 serialized bytes and 64 runtime accounts**; resolve only Jupiter-referenced ALTs and verify their owner, active state and contents on mainnet. Client-provided tables are not trusted. Lookup tables do not expand runtime account capacity.
+- Every basket attempts one complete transaction first, with no Jito tip. Route by actual byte/account limits, never asset count. Only typed capacity failures may trigger **two to five ordered transactions** of the negotiated version through Jito. Keep each swap leg intact; invalid instructions, signer errors and simulation failures must not be swallowed as capacity errors. Reject a route that cannot fit these bounds.
 - Bundle preparation and execution use the shared SDK contract. Review all debits, minimum outputs, fees, transaction count and tip. Tip accounts are checked against the official Jito set; the tip is the final instruction of the last transaction, never a separate transfer transaction.
 - Validate exact ordered signed messages against the server authorization. Persist the signed payload before submission. Recover lost responses through status checks; never silently fall back to sending bundle transactions individually or build a new order while prior execution is uncertain.
 - Bundle acceptance is pending. Success requires every expected signature to have successful confirmed/finalized receipts in the same slot. Per-transaction simulation is not a stateful simulation of the entire bundle.
@@ -50,7 +50,7 @@ See [Jito basket execution](docs/jito-basket-execution.md) for the authoritative
 
 Baskets are allocation definitions, not synthetic tokens. BigInt Largest Remainder allocation conserves the specified funding amount across weights totaling 10,000 basis points. Outputs settle to owner wallet accounts. Missing, halted, unpriced or unsupported constituents block preparation.
 
-The curated catalog is defined in the SDK; do not hard-code an asset count or old liquidity result into product copy. `/basket/builder` accepts **2–8 assets** and preserves private drafts. This range does not guarantee every live route will fit execution limits.
+The curated catalog is defined in the SDK; do not hard-code an asset count or old liquidity result into product copy. `/basket/builder` accepts **2–12 assets** and preserves private drafts. This range does not guarantee every live route will fit execution limits.
 
 Public creator publishing requires a multi-use code from server `CREATOR_INVITE_CODES`, wallet-signed review of the exact allocation, an expiring origin-bound challenge and a one-time challenge nonce. `CREATOR_AUTH_SECRET` signs the challenge. Redis stores immutable published versions and confirmed activity; publishing fails closed without durable storage.
 
@@ -73,7 +73,7 @@ See [Actions and collector operations](docs/actions-and-collector.md) before cha
 
 ## Native mobile behavior
 
-The native app has a welcome entry and Explore, Subscriptions, Portfolio and Activity tabs. Android development/release builds use `@solana-mobile/mobile-wallet-adapter-protocol` for authorization and exact-message signing on the device. Batch basket signing happens in one MWA session before server submission. SecureStore authorizations are separated by network; restored capabilities must be rechecked.
+The native app has a welcome entry and Explore, Subscriptions, Portfolio and Activity tabs. Android development/release builds use `@solana-mobile/mobile-wallet-adapter-protocol` for authorization and exact-message signing on the device. Batch basket signing happens in one MWA session before server submission, for up to five payloads of the wallet’s advertised transaction version. SecureStore authorizations are separated by network; restored capabilities must be rechecked.
 
 iOS and Expo web currently support browsing and paper mode but **do not support native wallet signing**. Render that limitation honestly. Do not redirect wallet connection, trading or subscription management into the browser. Expo Go lacks the MWA native module. Native devnet plans are created and closed through the shared SDK recurring client; no keeper secret belongs in mobile code.
 
@@ -95,17 +95,17 @@ The physical phone needs a reachable `EXPO_PUBLIC_API_BASE_URL`; `localhost` poi
 - Keep private keys, HMAC secrets, provider API keys, creator invites and keeper authorization out of `NEXT_PUBLIC_*`, `EXPO_PUBLIC_*`, browser bundles and logs. Only public app identifiers and restricted public endpoints belong in client config.
 - Use canonical HTTPS `KITE_SITE_URL` in deployment, explicit browser origins, and trust forwarded headers only behind a configured trusted proxy.
 - No Kite custodial vault is used for mainnet spot purchases. This does not remove issuer, market, network or execution risk; do not claim “no counterparty risk” or guaranteed fills.
-- Do not deploy contracts, fund wallets or submit real trades as an incidental test. Report which checks were static, mocked, read-only RPC or actual wallet/device execution.
+- Do not deploy contracts, fund wallets or submit real trades as an incidental test. Report which checks were static, mocked, read-only RPC or actual wallet/device execution. Local builds and RPC feature activation do not establish Jito V1 transport or funded execution; physical Android signing and funded Jito V1 bundles require explicit verification.
 
 ## Reference documentation
 
 - [Production upgrade and verification](docs/production-upgrade.md)
 - [Jito basket execution](docs/jito-basket-execution.md)
 - [Actions and collector operations](docs/actions-and-collector.md)
-- [Mainnet data](docs/mainnet-data.md)
-- [Stock research](docs/stock-research.md)
-- [Deployment readiness](docs/deployment-readiness.md)
-- [Devnet contract audit](docs/devnet-contract-audit.md)
+- [Architecture and data flow](docs/how-it-works.md)
+- [Trust and scope](docs/trust-and-scope.md)
+- [Guard protocol](docs/kite-guard-protocol.md)
+- [Dependency security](docs/dependency-security.md)
 - [Mobile setup](apps/mobile/README.md)
 
 Historical protocol/roadmap documents describe earlier implementations. Prefer the current source, generated types and upgrade operations documents when they disagree, and call out remaining deployment uncertainty explicitly.

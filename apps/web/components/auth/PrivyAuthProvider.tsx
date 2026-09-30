@@ -9,6 +9,7 @@ import {
   useWallets,
 } from "@privy-io/react-auth/solana";
 import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
+import { advertisedSigningVersions } from "@kite/sdk";
 import { TradingAuthProvider, type PrivySession } from "../trading/TradingAuth";
 import { useTheme } from "../kite/ThemeMode";
 
@@ -33,6 +34,23 @@ function SessionBridge({ children }: { children: ReactNode }) {
           : null,
       login,
       logout,
+      supportedTransactionVersions: advertisedSigningVersions(
+        (
+          wallet?.standardWallet.features["solana:signTransaction"] as
+            | { supportedTransactionVersions?: readonly (number | string)[] }
+            | undefined
+        )?.supportedTransactionVersions,
+        Boolean(
+          ready &&
+          authenticated &&
+          walletsReady &&
+          wallet?.standardWallet.accounts.some(
+            (account) =>
+              account.address === wallet.address &&
+              account.features.includes("solana:signTransaction"),
+          ),
+        ),
+      ),
       signTransaction:
         ready && authenticated && walletsReady && wallet
           ? async (transaction, chain = "solana:mainnet") => {

@@ -13,9 +13,11 @@ import {
   composeV0Transaction,
 } from "../src/basket/bundle";
 
-const key = (seed: number) =>
-  Keypair.fromSeed(Uint8Array.from({ length: 32 }, (_, i) => (seed + i) % 256))
-    .publicKey;
+const key = (seed: number) => {
+  const bytes = Buffer.alloc(32);
+  bytes.writeUInt32LE(seed);
+  return Keypair.fromSeed(bytes).publicKey;
+};
 const payer = key(1),
   blockhash = key(2).toBase58(),
   program = key(3),
@@ -84,7 +86,7 @@ test("small baskets compile to a single actual v0 transaction, without a Jito ti
 });
 
 test("five assets partition to two ordered transactions with the tip only on the final swap", () => {
-  const options = fixture(5);
+  const options = fixture(5, 14);
   const chunks = composeBasketV0Chunks(options);
   assert.equal(chunks.length, 2);
   assert.deepEqual(
@@ -133,16 +135,21 @@ test("ALTs compress wire bytes but five 24-account routes still require three ch
   );
 });
 
-test("capacity failure never emits a truncated basket or splits a simple basket", () => {
+test("capacity failure never emits a truncated basket and a split requires a reviewed tip", () => {
   assert.throws(
-    () => composeBasketV0Chunks(fixture(7, 24)),
-    /cannot fit within three/,
+    () => composeBasketV0Chunks(fixture(11, 24)),
+    /cannot fit within five/,
   );
-  assert.throws(() => composeBasketV0Chunks(fixture(2, 1, 800)), /1232-byte/);
+  const simple = fixture(2, 1, 800);
+  assert.throws(
+    () => composeBasketV0Chunks({ ...simple, finalTipInstruction: undefined }),
+    /1232-byte/,
+  );
+  assert.equal(composeBasketV0Chunks(simple).length, 2);
 });
 
 test("tip cannot be loaded from an ALT, and an extra route signer fails closed", () => {
-  const options = fixture(5);
+  const options = fixture(5, 14);
   options.lookupTables[0].state.addresses.push(tipAccount);
   assert.throws(
     () => composeBasketV0Chunks(options),
@@ -155,4 +162,14 @@ test("tip cannot be loaded from an ALT, and an extra route signer fails closed",
     isWritable: false,
   });
   assert.throws(() => composeBasketV0Chunks(other), /additional signer/);
+});
+
+test("twelve fitting allocations stay single; nine account-heavy legs may use all five chunks", () => {
+  assert.equal(composeBasketV0Chunks(fixture(12)).length, 1);
+  const five = composeBasketV0Chunks(fixture(9, 24));
+  assert.equal(five.length, 5);
+  assert.deepEqual(
+    five.flatMap((chunk) => chunk.allocationIndexes),
+    Array.from({ length: 9 }, (_, i) => i),
+  );
 });

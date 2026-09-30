@@ -503,6 +503,7 @@ function backend({
   protocolFailure = false,
   delegation,
   stateClosed = false,
+  tokenManifest = sdk.createUnprovisionedDevnetManifest(),
 } = {}) {
   const calls = [],
     composed = [];
@@ -561,7 +562,7 @@ function backend({
         },
       },
       "../../public/xstocks-devnet/xstocks.json": {
-        default: sdk.createUnprovisionedDevnetManifest(),
+        default: tokenManifest,
       },
       "./recurring-devnet-transport": {
         recurringTransactionVersion: async () => {
@@ -603,8 +604,12 @@ test("unprovisioned catalog stays visibly blocked without inventing mints, pools
   assert.equal(config.status, "blocked");
   assert.equal(config.readyToPrepare, false);
   assert.equal(config.fundingToken, null);
-  assert.equal(config.stocks.length, 40);
-  assert.equal(config.baskets.length, 13);
+  assert.equal(config.stocks.length, sdk.DEVNET_XSTOCK_CATALOG.length);
+  assert.equal(config.baskets.length, sdk.DEVNET_RECURRING_BASKETS.length);
+  assert.equal(
+    config.baskets.some((basket) => basket.available),
+    false,
+  );
   assert.equal(
     config.stocks.some((stock) => stock.available),
     false,
@@ -613,6 +618,53 @@ test("unprovisioned catalog stays visibly blocked without inventing mints, pools
   await assert.rejects(
     () => api.createDevnetRecurringPlan(create()),
     /has not been provisioned/,
+  );
+});
+
+test("new mainnet basket themes cannot inherit devnet availability from an otherwise ready test catalog", async () => {
+  const tokenManifest = {
+    ...sdk.createUnprovisionedDevnetManifest(),
+    status: "ready",
+    tokens: sdk.DEVNET_XSTOCK_CATALOG.map((definition) => ({
+      ...definition,
+      mint: fixture(`catalog-${definition.underlyingSymbol}`),
+    })),
+    fundingToken: {
+      ...sdk.DEVNET_FUNDING_TOKEN_DEFINITION,
+      mint: fixture("catalog-KUSD"),
+    },
+  };
+  const api = backend({ tokenManifest });
+  const config = await api.getDevnetRecurringConfig();
+  assert.equal(config.status, "requires-wallet-verification");
+  assert.equal(
+    config.stocks.every((stock) => stock.available),
+    true,
+  );
+  for (const basket of config.baskets) {
+    const complete = basket.underlyingSymbols.every((symbol) =>
+      tokenManifest.tokens.some((token) => token.underlyingSymbol === symbol),
+    );
+    assert.equal(basket.available, complete, basket.id);
+    if (!complete)
+      assert.throws(
+        () => sdk.resolveDevnetBasketAssets(tokenManifest, basket.id),
+        /not provisioned/,
+      );
+  }
+  // A later explicit catalog expansion can make these themes available only by
+  // changing the provisioning manifest; their mainnet declaration cannot do so.
+  const unsupportedThemes = sdk.DEVNET_RECURRING_BASKETS.filter((basket) =>
+    basket.underlyingSymbols.some(
+      (symbol) =>
+        !sdk.DEVNET_XSTOCK_CATALOG.some(
+          (token) => token.underlyingSymbol === symbol,
+        ),
+    ),
+  );
+  assert.equal(
+    config.baskets.filter((basket) => !basket.available).length,
+    unsupportedThemes.length,
   );
 });
 

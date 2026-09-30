@@ -11,7 +11,6 @@ import {
 } from "@kite/sdk";
 import { getServerMarketCatalog } from "@/lib/server/markets";
 import { prepareTokenSwapOrder } from "@/lib/server/basket-order";
-import { assertMainnetV0Ready } from "@/lib/server/composed-transactions";
 import { getTradeMintDecimals } from "@/lib/server/mint-precision";
 import { searchJupiterSwapTokens } from "@/lib/server/swap-tokens";
 import { readLimitedJson } from "@/lib/server/request-policy";
@@ -82,7 +81,14 @@ export async function POST(request: NextRequest) {
           (v): v is number => typeof v === "number",
         )
       : [];
-    await assertMainnetV0Ready(supportedTransactionVersions);
+    if (
+      !supportedTransactionVersions.some(
+        (version) => version === 0 || version === 1,
+      )
+    )
+      throw new Error(
+        "Connect a wallet that supports Solana v0 or V1 transactions to trade.",
+      );
     const markets = await getServerMarketCatalog();
     const mints = [inputMint, outputMint];
     if (

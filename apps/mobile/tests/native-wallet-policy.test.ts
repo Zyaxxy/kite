@@ -148,3 +148,59 @@ test("recurring reviews fail closed when terms or network do not match", () => {
     /missing its reviewed/,
   );
 });
+
+test("five V1 transactions require observed V1 support and fit the wire limit", () => {
+  const v1: NativeSigningReview = {
+    ...review,
+    transactionVersion: 1,
+    transactions: Array(5).fill(Buffer.alloc(4096, 1).toString("base64")),
+  };
+  const compatible = { ...account, supportedTransactionVersions: [0, 1] };
+  assert.doesNotThrow(() =>
+    assertNativeSigningReview(v1, compatible, "mainnet", 1000),
+  );
+  assert.throws(
+    () => assertNativeSigningReview(v1, account, "mainnet", 1000),
+    /V1/,
+  );
+  assert.throws(
+    () =>
+      assertNativeSigningReview(
+        { ...v1, transactions: [...v1.transactions, "AQIDBA=="] },
+        compatible,
+        "mainnet",
+        1000,
+      ),
+    /payload/,
+  );
+  assert.throws(
+    () =>
+      assertNativeSigningReview(
+        { ...v1, transactions: [Buffer.alloc(4097).toString("base64")] },
+        compatible,
+        "mainnet",
+        1000,
+      ),
+    /payload/,
+  );
+  assert.throws(
+    () =>
+      assertNativeSigningReview(
+        { ...v1, transactionVersion: 0 },
+        compatible,
+        "mainnet",
+        1000,
+      ),
+    /payload/,
+  );
+  assert.throws(
+    () =>
+      assertNativeSigningReview(
+        { ...v1, network: "devnet" },
+        compatible,
+        "devnet",
+        1000,
+      ),
+    /Only reviewed mainnet/,
+  );
+});

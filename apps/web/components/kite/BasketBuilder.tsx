@@ -299,7 +299,7 @@ function BasketStudio() {
             <p>
               {
                 [
-                  "Choose 2–8 verified assets. You can adjust each allocation next.",
+                  `Choose 2–${MAX_CUSTOM_BASKET_LEGS} verified assets. You can adjust each allocation next.`,
                   "Weights are exact to two decimal places. Every basket must total 100%.",
                   "Private baskets stay on this device. Publishing creates an immutable public allocation.",
                 ][step]
@@ -438,7 +438,10 @@ function BasketStudio() {
                         onChange={(e) => {
                           const val = Math.max(
                             1,
-                            Math.min(9900, Math.round(Number(e.target.value) * 100)),
+                            Math.min(
+                              9900,
+                              Math.round(Number(e.target.value) * 100),
+                            ),
                           );
                           setAllocations((items) =>
                             items.map((item) =>
@@ -467,7 +470,10 @@ function BasketStudio() {
                             const raw = parseFloat(e.target.value);
                             const weight = Number.isNaN(raw)
                               ? 0
-                              : Math.max(0, Math.min(10000, Math.round(raw * 100)));
+                              : Math.max(
+                                  0,
+                                  Math.min(10000, Math.round(raw * 100)),
+                                );
                             setAllocations((items) =>
                               items.map((item) =>
                                 item.mint === allocation.mint
@@ -679,7 +685,7 @@ function BasketStudio() {
                 key={a.mint}
                 style={{
                   flex: Math.max(1, a.weightBps),
-                  opacity: 1 - i * 0.075,
+                  opacity: 1 - (i % 6) * 0.12,
                 }}
               />
             ))}
@@ -697,12 +703,29 @@ function BasketStudio() {
               <p>Add your first company to begin.</p>
             </div>
           )}
+          {allocations.length > 0 && (
+            <div className={styles.previewNote} aria-live="polite">
+              <strong>
+                {allocations.every(
+                  (a) => (byMint.get(a.mint)?.priceUsd ?? 0) > 0,
+                )
+                  ? "Prices available · route checked at review"
+                  : "Some asset prices are unavailable"}
+              </strong>
+              <p>
+                {allocations.length} selected assets ·{" "}
+                {(total / 100).toFixed(2)}% allocated. No route or liquidity
+                claim is made until a fresh quote is prepared.
+              </p>
+            </div>
+          )}
           <div className={styles.previewNote}>
             <strong>A basket is an allocation.</strong>
             <p>
-              Purchases deliver individual tokens to your wallet. Quotes confirm
-              route availability and fees. Recurring subscriptions currently use
-              devnet test tokens.
+              Purchases deliver individual tokens to your wallet. The live
+              route, account count and transaction size determine whether your
+              review uses one transaction or a Jito bundle. A saved allocation
+              is not an execution guarantee. Recurring uses devnet test tokens.
             </p>
           </div>
         </aside>

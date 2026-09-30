@@ -8,6 +8,8 @@ import {
   SystemProgram,
   TransactionMessage,
   VersionedTransaction,
+  AddressLookupTableAccount,
+  TransactionInstruction,
 } from "@solana/web3.js";
 import {
   authorizeComposed,
@@ -15,6 +17,8 @@ import {
   mainnetV1Active,
   assertMainnetV1Ready,
   MAINNET_GENESIS,
+  selectMainnetTransactionVersion,
+  inspectMainnetWalletTransaction,
 } from "../lib/server/composed-transactions";
 
 async function fixture(expiresAt = Date.now() + 60000) {
@@ -241,4 +245,86 @@ test("new and prior v0 single-transaction authorizations remain message and wall
     if (prior === undefined) delete process.env.KITE_TRADE_SECRET;
     else process.env.KITE_TRADE_SECRET = prior;
   }
+});
+
+test("mainnet chooses V1 only with wallet capability and live activation, otherwise honest V0 fallback", async () => {
+  const originalFetch = globalThis.fetch;
+  let genesis = MAINNET_GENESIS,
+    active = true,
+    featureReads = 0;
+  globalThis.fetch = async (_, init) => {
+    const { method } = JSON.parse(String(init?.body));
+    if (method === "getAccountInfo") featureReads++;
+    const bytes = Buffer.alloc(9);
+    bytes[0] = active ? 1 : 0;
+    bytes.writeBigUInt64LE(BigInt(10), 1);
+    return Response.json({
+      result:
+        method === "getGenesisHash"
+          ? genesis
+          : method === "getSlot"
+            ? 20
+            : {
+                value: {
+                  owner: "Feature111111111111111111111111111111111111",
+                  data: [bytes.toString("base64"), "base64"],
+                },
+              },
+    });
+  };
+  try {
+    assert.equal(await selectMainnetTransactionVersion([0]), 0);
+    assert.equal(featureReads, 0, "V0 wallets do not incur a feature probe");
+    assert.equal(await selectMainnetTransactionVersion([0, 1]), 1);
+    active = false;
+    assert.equal(await selectMainnetTransactionVersion([0, 1]), 0);
+    await assert.rejects(selectMainnetTransactionVersion([1]), /activation/);
+    await assert.rejects(selectMainnetTransactionVersion([]), /supports/);
+    genesis = "wrong-network";
+    await assert.rejects(selectMainnetTransactionVersion([0, 1]), /mainnet/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("V0 authorization counts ALT-loaded accounts toward the 64 runtime account ceiling", async () => {
+  const owner = Keypair.generate();
+  const addresses = Array.from(
+    { length: 63 },
+    () => Keypair.generate().publicKey,
+  );
+  const table = new AddressLookupTableAccount({
+    key: Keypair.generate().publicKey,
+    state: {
+      deactivationSlot: BigInt(2) ** BigInt(64) - BigInt(1),
+      lastExtendedSlot: 1,
+      lastExtendedSlotStartIndex: 0,
+      addresses,
+    },
+  });
+  const tx = new VersionedTransaction(
+    new TransactionMessage({
+      payerKey: owner.publicKey,
+      recentBlockhash: Keypair.generate().publicKey.toBase58(),
+      instructions: [
+        new TransactionInstruction({
+          programId: SystemProgram.programId,
+          keys: addresses.map((pubkey) => ({
+            pubkey,
+            isWritable: true,
+            isSigner: false,
+          })),
+          data: Buffer.alloc(0),
+        }),
+      ],
+    }).compileToV0Message([table]),
+  );
+  assert.equal(tx.message.staticAccountKeys.length, 2);
+  assert.ok(tx.serialize().length < 1232);
+  await assert.rejects(
+    inspectMainnetWalletTransaction(
+      Buffer.from(tx.serialize()).toString("base64"),
+    ),
+    /64-account/,
+  );
 });

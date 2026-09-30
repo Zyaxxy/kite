@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { validateProgrammableBasket } from "@kite/sdk";
+import { MAX_CUSTOM_BASKET_LEGS, validateProgrammableBasket } from "@kite/sdk";
 import { getServerMarketCatalog } from "@/lib/server/markets";
 import { readLimitedJson } from "@/lib/server/request-policy";
 import {
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       basket = validateProgrammableBasket(body?.basket);
     } catch {
       throw new CreatorServiceError(
-        "Choose 2–8 assets with positive weights totaling 100%, and complete the basket details.",
+        `Choose 2–${MAX_CUSTOM_BASKET_LEGS} assets with positive weights totaling 100%, and complete the basket details.`,
         400,
       );
     }

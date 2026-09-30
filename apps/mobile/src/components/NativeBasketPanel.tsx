@@ -27,10 +27,21 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
     [now, setNow] = useState(Date.now());
   const token = holdings.find((h) => h.mint === mint),
     disabled = busy || wallet.busy || Boolean(wallet.pending);
+  const signingVersionsKey = wallet.supportedTransactionVersions.join(",");
+  const allocationKey = basket.assets
+    .map(({ asset, weight }) => `${asset.mint}:${weight}`)
+    .join("|");
   useEffect(() => {
     version.current++;
     setOrder(null);
-  }, [mint, amount, basket.id, wallet.account?.address]);
+  }, [
+    mint,
+    amount,
+    basket.id,
+    allocationKey,
+    wallet.account?.address,
+    signingVersionsKey,
+  ]);
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
@@ -69,9 +80,9 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
     setOrder(null);
     setMessage("");
     try {
-      if (!wallet.canSignV0)
+      if (!(wallet.canSignV0 || wallet.canSignV1))
         throw new Error(
-          "Reconnect a wallet that supports V0 transaction signing.",
+          "Reconnect a wallet that supports V0 or V1 transaction signing.",
         );
       const b = await kiteClient.requestBasketOrder({
         basketId: basket.id,
@@ -89,13 +100,15 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
           (o) =>
             `${fromTokenAmount(o.minimumAmount, o.decimals)} ${o.symbol}${o.mint === b.inputMint ? " (retained)" : ""}`,
         ),
-        `Priority fee up to ${b.priorityFeeLamports / 1_000_000_000} SOL per transaction, plus network fees and token-account rent.`,
+        `Priority fee up to ${b.priorityFeeLamports / 1_000_000_000} SOL total, plus network fees and token-account rent.`,
         ...("kind" in b && b.kind === "bundle"
           ? [
-              `${b.transactions.length} transactions approved together · Jito tip ${b.tipLamports / 1_000_000_000} SOL.`,
+              `${b.transactions.length} V${b.transactionVersion} transactions · Jito bundle · tip ${b.tipLamports / 1_000_000_000} SOL.`,
               b.atomicityWarning,
             ]
-          : ["All swaps settle in one atomic transaction."]),
+          : [
+              `All swaps settle in one atomic V${b.transactionVersion} transaction · no Jito tip.`,
+            ]),
       ];
       if (request === version.current) {
         setOrder(result);
@@ -125,8 +138,8 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
     <View style={ui.card}>
       <Text style={ui.heading}>One basket. Your wallet.</Text>
       <Text style={ui.body}>
-        Review every allocation before signing. Larger baskets use a bundle of
-        transactions; the review shows the tip, fees and execution limits.
+        Review every allocation before signing. The review selects a single
+        transaction when it fits, or a bundle, and shows all fees and limits.
       </Text>
       {!wallet.account ? (
         <Button
@@ -139,10 +152,10 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
         />
       ) : (
         <>
-          {!wallet.canSignV0 && (
+          {!(wallet.canSignV0 || wallet.canSignV1) && (
             <>
               <Text style={ui.small}>
-                Reconnect a wallet that supports V0 signing to continue.
+                Reconnect a wallet that supports V0 or V1 signing to continue.
               </Text>
               <Button
                 label="Check wallet compatibility"
@@ -193,7 +206,12 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
           <Button
             label="Review transaction"
             loading={busy}
-            disabled={disabled || !wallet.canSignV0 || !token || !amount}
+            disabled={
+              disabled ||
+              !(wallet.canSignV0 || wallet.canSignV1) ||
+              !token ||
+              !amount
+            }
             onPress={() => {
               void prepare();
             }}
@@ -212,7 +230,13 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
                     : "Approve in wallet"
                 }
                 loading={wallet.busy}
-                disabled={disabled || order.expiresAt <= now}
+                disabled={
+                  disabled ||
+                  !wallet.supportedTransactionVersions.includes(
+                    order.transactionVersion,
+                  ) ||
+                  order.expiresAt <= now
+                }
                 onPress={() => {
                   void wallet
                     .executeBasket(order)

@@ -95,6 +95,10 @@ export function MobileTradingProvider({ children }: { children: ReactNode }) {
       .then(([savedAccount, raw, history]) => {
         if (!active) return;
         if (raw) {
+          if (raw.length > 40_000)
+            throw new Error(
+              "Unreadable pending basket. Check wallet activity before continuing.",
+            );
           const attempt = JSON.parse(raw) as PendingAttempt;
           if (
             typeof attempt.walletAddress !== "string" ||
@@ -110,11 +114,11 @@ export function MobileTradingProvider({ children }: { children: ReactNode }) {
               !attempt.bundle.authorization ||
               !Array.isArray(attempt.bundle.signedTransactions) ||
               attempt.bundle.signedTransactions.length < 2 ||
-              attempt.bundle.signedTransactions.length > 3 ||
+              attempt.bundle.signedTransactions.length > 5 ||
               attempt.bundle.signedTransactions.some(
                 (transaction) =>
                   typeof transaction !== "string" ||
-                  transaction.length > 8192 ||
+                  transaction.length > 5464 ||
                   !/^[A-Za-z0-9+/]+={0,2}$/.test(transaction),
               ))
           )
@@ -284,7 +288,7 @@ export function MobileTradingProvider({ children }: { children: ReactNode }) {
         const signedTransactions = await signMobileTransactions({
           signer: order.taker,
           network: "mainnet",
-          transactionVersion: 0,
+          transactionVersion: order.transactionVersion,
           transactions: order.transactions,
           expiresAt: order.expiresAt,
         });

@@ -45,11 +45,18 @@ export function NativeTradePanel({ asset }: { asset: MarketAsset }) {
       version.current += 1;
     };
   }, []);
+  const signingVersionsKey = wallet.supportedTransactionVersions.join(",");
   useEffect(() => {
     version.current += 1;
     setOrder(null);
     setError(null);
-  }, [amount, input?.mint, asset.mint, wallet.account?.address]);
+  }, [
+    amount,
+    input?.mint,
+    asset.mint,
+    wallet.account?.address,
+    signingVersionsKey,
+  ]);
   useEffect(() => {
     setPortfolio(null);
     setInput(null);
@@ -95,8 +102,8 @@ export function NativeTradePanel({ asset }: { asset: MarketAsset }) {
     setResult(null);
     setLoading(true);
     try {
-      if (!wallet.canSignV0)
-        throw new Error("Reconnect a wallet that supports V0 signing.");
+      if (!(wallet.canSignV0 || wallet.canSignV1))
+        throw new Error("Reconnect a wallet that supports V0 or V1 signing.");
       if (input.decimals === undefined)
         throw new Error(
           "Token precision is unavailable. Refresh your wallet balances.",
@@ -183,10 +190,10 @@ export function NativeTradePanel({ asset }: { asset: MarketAsset }) {
         Spend tokens you already hold. Review the route, then approve it in your
         wallet.
       </Text>
-      {wallet.account && !wallet.canSignV0 && (
+      {wallet.account && !(wallet.canSignV0 || wallet.canSignV1) && (
         <>
           <Text style={ui.small}>
-            Reconnect a wallet that supports V0 signing to trade.
+            Reconnect a wallet that supports V0 or V1 signing to trade.
           </Text>
           <Button
             label="Check wallet compatibility"

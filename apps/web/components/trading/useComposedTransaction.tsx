@@ -132,7 +132,10 @@ export function useComposedTransaction() {
         );
       const bundle = "kind" in order && order.kind === "bundle";
       const signedTransactions = bundle
-        ? await auth.signTransactions(order.transactions, 0)
+        ? await auth.signTransactions(
+            order.transactions,
+            order.transactionVersion,
+          )
         : [
             await auth.signTransaction(
               (order as WalletTransactionOrder).transaction,

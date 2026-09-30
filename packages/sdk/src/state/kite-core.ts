@@ -1,5 +1,5 @@
 import type { KiteClient } from "../client/kite-client";
-import type { MarketSnapshot } from "../markets";
+import { resolveAllMarketBaskets, type MarketSnapshot } from "../markets";
 import {
   createPaperAccount,
   parsePaperAccount,
@@ -39,7 +39,8 @@ export interface KiteCoreOptions {
 /** Platform-independent lifecycle, conditional polling and serial persistence. No wallet keys are stored here. */
 export function createKiteCore(options: KiteCoreOptions) {
   const now = options.now ?? Date.now;
-  const customBasketsKey = options.customBasketsKey ?? "kite.custom-baskets.mainnet.v1";
+  const customBasketsKey =
+    options.customBasketsKey ?? "kite.custom-baskets.mainnet.v1";
   let state: KiteCoreState = {
     market: null,
     account: createPaperAccount(),
@@ -107,22 +108,23 @@ export function createKiteCore(options: KiteCoreOptions) {
   const hydrate = (): Promise<void> => {
     if (hydration) return hydration;
     hydration = (async () => {
-      const [saved, watched, savedMarket, savedCustom] = await Promise.allSettled([
-        Promise.resolve().then(() =>
-          options.storage.getItem(options.accountKey),
-        ),
-        Promise.resolve().then(() =>
-          options.storage.getItem(options.watchlistKey),
-        ),
-        options.marketKey
-          ? Promise.resolve().then(() =>
-              options.storage.getItem(options.marketKey!),
-            )
-          : Promise.resolve(null),
-        Promise.resolve().then(() =>
-          options.storage.getItem(customBasketsKey),
-        ),
-      ]);
+      const [saved, watched, savedMarket, savedCustom] =
+        await Promise.allSettled([
+          Promise.resolve().then(() =>
+            options.storage.getItem(options.accountKey),
+          ),
+          Promise.resolve().then(() =>
+            options.storage.getItem(options.watchlistKey),
+          ),
+          options.marketKey
+            ? Promise.resolve().then(() =>
+                options.storage.getItem(options.marketKey!),
+              )
+            : Promise.resolve(null),
+          Promise.resolve().then(() =>
+            options.storage.getItem(customBasketsKey),
+          ),
+        ]);
       let account = state.account;
       let failed = false;
       try {
@@ -177,7 +179,12 @@ export function createKiteCore(options: KiteCoreOptions) {
             parsed.snapshot.network === "mainnet-beta" &&
             Array.isArray(parsed.snapshot.assets)
           ) {
-            market = parsed.snapshot;
+            // Persist observations, but derive allocations from the current SDK.
+            // Old browser caches must not freeze removed audits or miss new themes.
+            market = {
+              ...parsed.snapshot,
+              baskets: resolveAllMarketBaskets(parsed.snapshot.assets),
+            };
             if (typeof parsed.etag === "string") etag = parsed.etag;
             if (typeof parsed.cachedAt === "number")
               lastFetchedAt = parsed.cachedAt;
@@ -250,10 +257,14 @@ export function createKiteCore(options: KiteCoreOptions) {
             });
           }
         } else {
-          publish({ market: result.data, error: null });
-          if (options.marketKey && result.data && result.data.status !== "unavailable") {
+          const market = {
+            ...result.data,
+            baskets: resolveAllMarketBaskets(result.data.assets),
+          };
+          publish({ market, error: null });
+          if (options.marketKey && market.status !== "unavailable") {
             persist(options.marketKey, {
-              snapshot: result.data,
+              snapshot: market,
               etag: result.etag,
               cachedAt: now(),
             });

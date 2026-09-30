@@ -6,7 +6,12 @@ import {
   timingSafeEqual,
   verify,
 } from "node:crypto";
-import { PublicKey, VersionedTransaction } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
+import {
+  BASKET_MAX_TRANSACTIONS,
+  MAX_BASKET_TRANSACTION_BASE64_LENGTH,
+} from "@kite/sdk";
+import { inspectMainnetWalletTransaction } from "./composed-transactions";
 
 export interface BasketReceipt {
   basketId: string;
@@ -14,7 +19,9 @@ export interface BasketReceipt {
   inAmount: string;
 }
 export interface BundleAuthorization extends BasketReceipt {
-  kind: "kite-bundle-v0";
+  kind: "kite-bundle" | "kite-bundle-v0";
+  /** Absent only on quotes prepared before version-aware bundle authorization. */
+  transactionVersion?: 0 | 1;
   requestId: string;
   taker: string;
   expiresAt: number;
@@ -74,61 +81,59 @@ function decode(
     );
   return payload;
 }
-function transaction(encoded: string, taker: string) {
+async function transaction(encoded: string, taker: string) {
   if (
     typeof encoded !== "string" ||
-    encoded.length > 1644 ||
+    encoded.length > MAX_BASKET_TRANSACTION_BASE64_LENGTH ||
     !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)
   )
-    throw new Error("Invalid v0 bundle transaction.");
-  const bytes = Buffer.from(encoded, "base64");
-  if (bytes.length > 1232)
-    throw new Error("Bundle transaction exceeds 1232 bytes.");
-  const tx = VersionedTransaction.deserialize(bytes);
+    throw new Error("Invalid bundle transaction.");
+  const { transaction: tx, message } =
+    await inspectMainnetWalletTransaction(encoded);
+  const signers = Object.keys(tx.signatures);
   if (
-    tx.message.version !== 0 ||
-    tx.message.header.numRequiredSignatures !== 1 ||
-    tx.message.staticAccountKeys[0].toBase58() !== taker
+    signers.length !== 1 ||
+    signers[0] !== taker ||
+    message.staticAccounts[0] !== taker
   )
     throw new Error(
       "The reviewed wallet must be the only bundle signer and fee payer.",
     );
-  const accountCount =
-    tx.message.staticAccountKeys.length +
-    tx.message.addressTableLookups.reduce(
-      (n, table) =>
-        n + table.readonlyIndexes.length + table.writableIndexes.length,
-      0,
-    );
-  if (accountCount > 64)
-    throw new Error("Bundle transaction exceeds 64 accounts.");
-  return tx;
+  return { tx, version: message.version as 0 | 1 };
 }
-const hash = (tx: VersionedTransaction) =>
-  createHash("sha256").update(tx.message.serialize()).digest("hex");
+const hash = (tx: Awaited<ReturnType<typeof transaction>>["tx"]) =>
+  createHash("sha256").update(Buffer.from(tx.messageBytes)).digest("hex");
 
-export function authorizeBundle(
+export async function authorizeBundle(
   input: BasketReceipt & {
     transactions: string[];
     taker: string;
     expiresAt: number;
     lastValidBlockHeight: number;
   },
-): { requestId: string; authorization: string } {
-  if (input.transactions.length < 2 || input.transactions.length > 3)
+): Promise<{ requestId: string; authorization: string }> {
+  if (
+    input.transactions.length < 2 ||
+    input.transactions.length > BASKET_MAX_TRANSACTIONS
+  )
     throw new Error(
-      "Baskets require two or three complete bundle transactions.",
+      "Baskets require two to five complete bundle transactions.",
     );
-  const messageHashes = input.transactions.map((encoded) =>
-    hash(transaction(encoded, input.taker)),
+  const inspected = await Promise.all(
+    input.transactions.map((encoded) => transaction(encoded, input.taker)),
   );
+  const transactionVersion = inspected[0].version;
+  if (inspected.some((item) => item.version !== transactionVersion))
+    throw new Error("Bundle transactions must use the same reviewed version.");
+  const messageHashes = inspected.map(({ tx }) => hash(tx));
   if (new Set(messageHashes).size !== messageHashes.length)
     throw new Error("Duplicate bundle transaction.");
   const requestId = randomUUID();
   return {
     requestId,
     authorization: encode({
-      kind: "kite-bundle-v0",
+      kind: "kite-bundle",
+      transactionVersion,
       requestId,
       taker: input.taker,
       expiresAt: input.expiresAt,
@@ -142,18 +147,19 @@ export function authorizeBundle(
 }
 
 /** A bundle authorization cannot be presented to the single-transaction execution route. */
-export function verifyBundle(
+export async function verifyBundle(
   authorization: string,
   signedTransactions: string[],
   recovery?: { readOnly: true },
-): BundleAuthorization {
+): Promise<BundleAuthorization & { transactionVersion: 0 | 1 }> {
   const payload = decode(authorization, Boolean(recovery));
   if (
-    payload.kind !== "kite-bundle-v0" ||
+    (payload.kind !== "kite-bundle-v0" && payload.kind !== "kite-bundle") ||
+    !Array.isArray(payload.messageHashes) ||
     !Array.isArray(signedTransactions) ||
     signedTransactions.length !== payload.messageHashes.length ||
     signedTransactions.length < 2 ||
-    signedTransactions.length > 3
+    signedTransactions.length > BASKET_MAX_TRANSACTIONS
   )
     throw new Error(
       "Every reviewed bundle transaction must be signed in its original order.",
@@ -166,18 +172,33 @@ export function verifyBundle(
     format: "der",
     type: "spki",
   });
-  signedTransactions.forEach((encoded, i) => {
-    const tx = transaction(encoded, payload.taker);
-    if (hash(tx) !== payload.messageHashes[i])
-      throw new Error(
-        "The signed bundle differs from the reviewed allocation.",
-      );
-    if (!verify(null, tx.message.serialize(), key, tx.signatures[0]))
-      throw new Error(
-        "A valid wallet signature is required for every bundle transaction.",
-      );
-  });
-  return payload;
+  const transactionVersion =
+    payload.kind === "kite-bundle-v0" ? 0 : payload.transactionVersion;
+  if (transactionVersion !== 0 && transactionVersion !== 1)
+    throw new Error("Invalid bundle transaction version.");
+  await Promise.all(
+    signedTransactions.map(async (encoded, i) => {
+      const { tx, version } = await transaction(encoded, payload.taker);
+      if (version !== transactionVersion)
+        throw new Error(
+          "The signed bundle uses a different transaction version.",
+        );
+      if (hash(tx) !== payload.messageHashes[i])
+        throw new Error(
+          "The signed bundle differs from the reviewed allocation.",
+        );
+      const signature =
+        tx.signatures[payload.taker as keyof typeof tx.signatures];
+      if (
+        !signature ||
+        !verify(null, Buffer.from(tx.messageBytes), key, Buffer.from(signature))
+      )
+        throw new Error(
+          "A valid wallet signature is required for every bundle transaction.",
+        );
+    }),
+  );
+  return { ...payload, transactionVersion };
 }
 export function authorizeBundleStatus(
   input: Omit<BundleStatusAuthorization, "kind" | "expiresAt">,

@@ -101,9 +101,14 @@ const server = createServer(async (request, response) => {
       return fail(response, 415, "A JSON request is required.");
     const chunks = [];
     let size = 0;
+    const bodyLimit = ["/api/bundles/execute", "/api/bundles/status"].includes(
+      url.pathname,
+    )
+      ? 32_768
+      : 16_384;
     for await (const chunk of request) {
       size += chunk.length;
-      if (size > 16_384)
+      if (size > bodyLimit)
         return fail(response, 413, "Request body is too large.");
       chunks.push(chunk);
     }
