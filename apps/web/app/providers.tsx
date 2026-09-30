@@ -22,7 +22,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
       "/app",
       "/markets",
       "/baskets",
-      "/creators",
       "/sip",
       "/portfolio",
       "/orders",
