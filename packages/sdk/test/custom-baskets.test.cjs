@@ -16,7 +16,7 @@ const {
   executePaperOrder,
 } = require("../dist");
 
-test("validates programmable basket invariants (2 to 8 assets, 10000 bps sum)", () => {
+test("validates programmable basket invariants (2 to 12 assets, 10000 bps sum)", () => {
   const valid = {
     id: "custom-test-1",
     name: "AI & Tech",
@@ -41,27 +41,21 @@ test("validates programmable basket invariants (2 to 8 assets, 10000 bps sum)", 
         ...valid,
         allocations: [{ mint: "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp", symbol: "AAPL", weightBps: 10000 }],
       }),
-    /between 2 and 8 assets/,
+    /between 2 and 12 assets/,
   );
 
-  // Rejects 9 assets; live route capacity is checked separately before signing.
+  // Rejects 13 assets; live route capacity is checked separately before signing.
   assert.throws(
     () =>
       validateProgrammableBasket({
         ...valid,
-        allocations: [
-          { mint: "mint11111111111111111111111111111111", symbol: "A", weightBps: 2000 },
-          { mint: "mint22222222222222222222222222222222", symbol: "B", weightBps: 2000 },
-          { mint: "mint33333333333333333333333333333333", symbol: "C", weightBps: 2000 },
-          { mint: "mint44444444444444444444444444444444", symbol: "D", weightBps: 2000 },
-          { mint: "mint55555555555555555555555555555555", symbol: "E", weightBps: 2000 },
-          { mint: "mint66666666666666666666666666666666", symbol: "F", weightBps: 2000 },
-          { mint: "mint77777777777777777777777777777777", symbol: "G", weightBps: 2000 },
-          { mint: "mint88888888888888888888888888888888", symbol: "H", weightBps: 2000 },
-          { mint: "mint99999999999999999999999999999999", symbol: "I", weightBps: 2000 },
-        ],
+        allocations: Array.from({ length: 13 }, (_, i) => ({
+          mint: `mint${String(i).padStart(32, "1")}`,
+          symbol: `ASSET${i}`,
+          weightBps: 1000,
+        })),
       }),
-    /between 2 and 8 assets/,
+    /between 2 and 12 assets/,
   );
 
   // Rejects sum not equal to 10000 bps

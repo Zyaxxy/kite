@@ -4,6 +4,44 @@ import {
   TransactionInstruction,
   AddressLookupTableAccount,
 } from "@solana/web3.js";
+import type { BasketSwapLeg } from "./bundle";
+import {
+  BASKET_MAX_ACCOUNTS,
+  BASKET_MAX_LEGS,
+  BASKET_MAX_TRANSACTIONS,
+  V1_MAX_BYTES,
+  TransactionCapacityError,
+  isTransactionCapacityError,
+} from "./transaction-limits";
+
+/** Includes payer and invoked programs; V1 uses only inline static accounts. */
+export function countTransactionAccounts(
+  payer: string,
+  instructions: TransactionInstruction[],
+): number {
+  const accounts = new Set([new PublicKey(payer).toBase58()]);
+  for (const ix of instructions) {
+    accounts.add(ix.programId.toBase58());
+    for (const key of ix.keys) accounts.add(key.pubkey.toBase58());
+  }
+  return accounts.size;
+}
+
+export function validateBasketSwapLegs(legs: BasketSwapLeg[]): void {
+  if (
+    !legs.length ||
+    legs.length > BASKET_MAX_LEGS ||
+    legs.some(
+      (leg) =>
+        !Number.isSafeInteger(leg.allocationIndex) ||
+        leg.allocationIndex < 0 ||
+        leg.allocationIndex >= BASKET_MAX_LEGS ||
+        !leg.instructions.length,
+    ) ||
+    new Set(legs.map((leg) => leg.allocationIndex)).size !== legs.length
+  )
+    throw new Error("Invalid basket execution legs.");
+}
 
 export interface WalletTransactionOrder {
   /** Bound by the server authorization hash; stored only after a valid owner signature. */
@@ -97,6 +135,7 @@ export async function composeV1Transaction(params: {
   transaction: string;
   serializedBytes: number;
   transactionVersion: 1;
+  accountCount: number;
 }> {
   const units = params.computeUnitLimit ?? 1_400_000;
   const fee = params.priorityFeeLamports ?? 10_000;
@@ -106,6 +145,15 @@ export async function composeV1Transaction(params: {
     throw new Error(
       "V1 transactions require an activated cluster and a wallet that supports V1 signing. No transaction was created.",
     );
+  if (params.lookupTables?.length)
+    throw new Error(
+      "V1 transactions inline static accounts and cannot use lookup tables.",
+    );
+  if (
+    !Number.isSafeInteger(params.lastValidBlockHeight) ||
+    params.lastValidBlockHeight <= 0
+  )
+    throw new Error("Invalid transaction blockheight.");
   const kit = await import("@solana/kit-v1");
   if (!Number.isInteger(units) || units < 1 || units > 1_400_000)
     throw new Error("Invalid compute budget.");
@@ -129,9 +177,10 @@ export async function composeV1Transaction(params: {
       accounts.add(key.pubkey.toBase58());
     }
   }
-  if (accounts.size > 64)
-    throw new Error(
+  if (accounts.size > BASKET_MAX_ACCOUNTS)
+    throw new TransactionCapacityError(
       "This basket exceeds the 64-account limit, including on V1. No partial order was created.",
+      "accounts",
     );
   const message = kit.pipe(
     kit.createTransactionMessage({ version: 1 }),
@@ -163,15 +212,111 @@ export async function composeV1Transaction(params: {
   const bytes = kit
     .getTransactionEncoder()
     .encode(kit.compileTransaction(message));
-  if (bytes.length > 4096)
-    throw new Error(
+  if (bytes.length > V1_MAX_BYTES)
+    throw new TransactionCapacityError(
       "This basket exceeds the V1 transaction size limit. No partial order was created.",
+      "bytes",
     );
   return {
     transaction: Buffer.from(bytes).toString("base64"),
     serializedBytes: bytes.length,
     transactionVersion: 1,
+    accountCount: accounts.size,
   };
+}
+
+export interface ComposedV1Chunk {
+  transaction: string;
+  serializedBytes: number;
+  transactionVersion: 1;
+  accountCount: number;
+  allocationIndexes: number[];
+}
+
+/** Single-first, capacity-driven routing. Every leg remains intact and in review order. */
+export async function composeBasketV1Chunks(params: {
+  payer: string;
+  blockhash: string;
+  lastValidBlockHeight: number;
+  legs: BasketSwapLeg[];
+  allowV1: boolean;
+  finalTipInstruction?: TransactionInstruction;
+  priorityFeeLamports?: number;
+}): Promise<ComposedV1Chunk[]> {
+  validateBasketSwapLegs(params.legs);
+  const build = async (
+    start: number,
+    end: number,
+    tip: boolean,
+  ): Promise<ComposedV1Chunk> => ({
+    ...(await composeV1Transaction({
+      payer: params.payer,
+      blockhash: params.blockhash,
+      lastValidBlockHeight: params.lastValidBlockHeight,
+      allowV1: params.allowV1,
+      priorityFeeLamports: params.priorityFeeLamports,
+      instructions: [
+        ...params.legs.slice(start, end).flatMap((leg) => leg.instructions),
+        ...(tip && params.finalTipInstruction
+          ? [params.finalTipInstruction]
+          : []),
+      ],
+    })),
+    allocationIndexes: params.legs
+      .slice(start, end)
+      .map((leg) => leg.allocationIndex),
+  });
+  try {
+    return [await build(0, params.legs.length, false)];
+  } catch (error) {
+    if (!isTransactionCapacityError(error) || !params.finalTipInstruction)
+      throw error;
+  }
+
+  // At most 78 distinct contiguous slices. Cache attempts instead of recompiling
+  // overlapping partitions, including final-tip account and byte overhead.
+  const cache = new Map<string, ComposedV1Chunk | null>();
+  const fit = async (start: number, end: number, tip: boolean) => {
+    const key = `${start}:${end}:${tip}`;
+    if (cache.has(key)) return cache.get(key)!;
+    let chunk: ComposedV1Chunk | null;
+    try {
+      chunk = await build(start, end, tip);
+    } catch (error) {
+      if (!isTransactionCapacityError(error)) throw error;
+      chunk = null;
+    }
+    cache.set(key, chunk);
+    return chunk;
+  };
+  for (
+    let count = 2;
+    count <= Math.min(BASKET_MAX_TRANSACTIONS, params.legs.length);
+    count++
+  ) {
+    const partition = async (
+      start: number,
+      remaining: number,
+    ): Promise<ComposedV1Chunk[] | null> => {
+      if (remaining === 1) {
+        const last = await fit(start, params.legs.length, true);
+        return last ? [last] : null;
+      }
+      for (let end = params.legs.length - remaining + 1; end > start; end--) {
+        const first = await fit(start, end, false);
+        if (!first) continue;
+        const rest = await partition(end, remaining - 1);
+        if (rest) return [first, ...rest];
+      }
+      return null;
+    };
+    const chunks = await partition(0, count);
+    if (chunks) return chunks;
+  }
+  throw new TransactionCapacityError(
+    "This basket cannot fit within five transactions at current routes. No partial order was created.",
+    "bundle",
+  );
 }
 
 /** Backwards-compatible name for existing mainnet callers with their own cluster gates. */

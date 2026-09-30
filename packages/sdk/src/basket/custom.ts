@@ -1,6 +1,6 @@
 import type { MarketAsset, MarketBasket } from "../markets";
 
-export const MAX_CUSTOM_BASKET_LEGS = 8;
+export const MAX_CUSTOM_BASKET_LEGS = 12;
 export const MIN_CUSTOM_BASKET_LEGS = 2;
 
 export interface BasketAllocation {
@@ -457,7 +457,7 @@ export function decodeBasketShareCode(code: string): ProgrammableBasket | null {
 
 /** Forks any existing curated basket into an editable custom basket. */
 export function forkCuratedBasket(basket: MarketBasket): ProgrammableBasket {
-  // Take up to 4 assets to guarantee mainnet V1 account limits
+  // Keep the editable basket bound; live route capacity is checked at quote time.
   const topAssets = basket.assets.slice(0, MAX_CUSTOM_BASKET_LEGS);
   const count = topAssets.length;
   const base = Math.floor(10_000 / count);

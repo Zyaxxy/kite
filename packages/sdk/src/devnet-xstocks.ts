@@ -86,7 +86,10 @@ const COMPANIES: ReadonlyArray<readonly [string, string]> = [
   ["GLD", "Gold ETF"],
 ];
 
-/** Intended test instruments, not claims that the mints have been provisioned. */
+/** Explicitly reviewed test instruments, independent of the mainnet theme catalog.
+ * Adding a mainnet constituent must not silently change a deployed manifest's
+ * provisioning status or invent a devnet substitute. Expanding this catalog is
+ * a separate provisioning/migration operation; these definitions are not mints. */
 export const DEVNET_XSTOCK_CATALOG: readonly DevnetXStockDefinition[] =
   COMPANIES.map(([underlyingSymbol, company]) => ({
     underlyingSymbol,
@@ -98,7 +101,10 @@ export const DEVNET_XSTOCK_CATALOG: readonly DevnetXStockDefinition[] =
     status: "test",
   }));
 
-/** Reuse the canonical basket definitions; private PreStocks have no test substitute. */
+/** Reuse public allocation definitions, not mainnet availability. A new theme may
+ * reference symbols outside the intended/provisioned devnet catalog and must
+ * stay unavailable until every constituent is explicitly provisioned.
+ * Private PreStocks have no test substitute. */
 export const DEVNET_RECURRING_BASKETS = resolveMarketBaskets([], {
   includeAll: true,
 })

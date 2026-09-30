@@ -40,25 +40,20 @@ function provisionedManifest() {
   };
 }
 
-test("the devnet catalog covers every public basket without creating private substitutes", () => {
+test("devnet reuses public allocation definitions without implicitly expanding the provisioned test catalog", () => {
   const canonical = resolveMarketBaskets([], { includeAll: true }).filter(
     (basket) => basket.category !== "private",
   );
   const expectedSymbols = [
     ...new Set(canonical.flatMap((basket) => basket.missingSymbols)),
   ].sort();
-  assert.equal(canonical.length, 13);
-  assert.equal(DEVNET_XSTOCK_CATALOG.length, 40);
-  for (const symbol of expectedSymbols) {
-    assert.ok(
-      DEVNET_XSTOCK_CATALOG.some((token) => token.underlyingSymbol === symbol),
-    );
-  }
+  assert.ok(canonical.length > 0);
   assert.deepEqual(
     DEVNET_RECURRING_BASKETS.map((basket) => basket.id),
     canonical.map((basket) => basket.id),
   );
   for (const token of DEVNET_XSTOCK_CATALOG) {
+    assert.ok(expectedSymbols.includes(token.underlyingSymbol));
     assert.ok(
       fs.existsSync(
         path.join(__dirname, "../../../apps/web/public", token.logo),
@@ -73,7 +68,7 @@ test("unprovisioned manifests publish intentions without fabricated mint address
   assert.equal(validateDevnetXStockManifest(manifest), manifest);
   assert.deepEqual(manifest.tokens, []);
   assert.equal(manifest.fundingToken, null);
-  assert.equal(manifest.intendedCatalog.length, 40);
+  assert.deepEqual(manifest.intendedCatalog, DEVNET_XSTOCK_CATALOG);
   assert.equal(manifest.intendedFundingToken.symbol, "KUSD");
   assert.ok(!manifest.intendedCatalog.some((token) => "mint" in token));
   assert.throws(
@@ -82,9 +77,21 @@ test("unprovisioned manifests publish intentions without fabricated mint address
   );
 });
 
-test("all provisioned baskets use canonical constituents and allocate exactly 10000 bps", () => {
+test("fully provisioned baskets conserve their canonical allocation; new mainnet-only constituents remain unavailable", () => {
   const manifest = provisionedManifest();
+  assert.equal(validateDevnetXStockManifest(manifest), manifest);
   for (const basket of DEVNET_RECURRING_BASKETS) {
+    const missing = basket.underlyingSymbols.filter(
+      (symbol) =>
+        !manifest.tokens.some((token) => token.underlyingSymbol === symbol),
+    );
+    if (missing.length) {
+      assert.throws(
+        () => resolveDevnetBasketAssets(manifest, basket.id),
+        (error) => missing.every((symbol) => error.message.includes(symbol)),
+      );
+      continue;
+    }
     const allocations = resolveDevnetBasketAssets(manifest, basket.id);
     assert.deepEqual(
       allocations.map(({ token }) => token.underlyingSymbol),

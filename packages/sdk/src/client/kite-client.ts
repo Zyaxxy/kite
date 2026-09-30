@@ -10,6 +10,12 @@ import type {
   BasketPurchaseOrder,
 } from "../basket/bundle";
 import {
+  BASKET_MAX_TRANSACTIONS,
+  MAX_BASKET_TRANSACTION_BASE64_LENGTH,
+  V0_MAX_BYTES,
+  V1_MAX_BYTES,
+} from "../basket/transaction-limits";
+import {
   assertRecurringInvestmentSchedule,
   deriveRecurringPermissionWindow,
   type RecurringInvestmentConfig,
@@ -322,19 +328,35 @@ export class KiteClient {
       body: input,
       signal,
     });
-    return verified<BasketPurchaseOrder>(
-      data,
-      (v) =>
-        (v.kind === "bundle"
-          ? validBundleOrder(v, input.taker)
-          : v.kind === undefined && validWalletOrder(v, input.taker)) &&
-        v.basketId === input.basketId &&
-        v.inputMint === input.inputMint &&
-        Number.isInteger(v.inputDecimals) &&
-        v.inAmount === toTokenAmount(input.amount, v.inputDecimals as number) &&
-        v.slippageBps === input.slippageBps &&
-        validBasketOutputs(v.outputs, v.inAmount as string),
-    );
+    return verified<BasketPurchaseOrder>(data, (v) => {
+      try {
+        return (
+          (v.kind === "bundle"
+            ? validBundleOrder(v, input.taker)
+            : v.kind === undefined &&
+              validWalletOrder(v, input.taker) &&
+              validSerializedTransaction(
+                v.transaction,
+                v.transactionVersion,
+                v.serializedBytes,
+              )) &&
+          (input.supportedTransactionVersions ?? [0]).includes(
+            Number(v.transactionVersion),
+          ) &&
+          v.basketId === input.basketId &&
+          v.inputMint === input.inputMint &&
+          Number.isInteger(v.inputDecimals) &&
+          Number(v.inputDecimals) >= 0 &&
+          Number(v.inputDecimals) <= 18 &&
+          v.inAmount ===
+            toTokenAmount(input.amount, v.inputDecimals as number) &&
+          v.slippageBps === input.slippageBps &&
+          validBasketOutputs(v.outputs, v.inAmount as string)
+        );
+      } catch {
+        return false;
+      }
+    });
   }
   /** @deprecated Use the devnet Guard V2 plan API; legacy payment schemas are retired. */
   async getRecurringPayments(
@@ -460,12 +482,14 @@ export class KiteClient {
     signedTransactions: string[];
     authorization: string;
   }): Promise<BasketBundleExecution> {
+    if (!validSignedBundleInput(input))
+      throw new KiteApiError("Invalid bundle submission payload.");
     try {
       const { data } = await this.request("/api/bundles/execute", {
         body: input,
         acceptExecutionResult: true,
       });
-      return validBundleExecution(data);
+      return validBundleExecution(data, input.signedTransactions.length);
     } catch {
       // The response may be lost after submission. Recovery only queries receipts; it never sends transactions.
       return this.recoverBundle(input);
@@ -497,13 +521,15 @@ export class KiteClient {
     input: { signedTransactions: string[]; authorization: string },
     signal?: AbortSignal,
   ): Promise<BasketBundleExecution> {
+    if (!validSignedBundleInput(input))
+      throw new KiteApiError("Invalid bundle recovery payload.");
     try {
       const { data } = await this.request("/api/bundles/status", {
         body: input,
         signal,
         acceptExecutionResult: true,
       });
-      return validBundleExecution(data);
+      return validBundleExecution(data, input.signedTransactions.length);
     } catch {
       return {
         status: "Unknown",
@@ -531,12 +557,15 @@ export class KiteClient {
   }
 }
 
-function validBundleExecution(value: unknown): BasketBundleExecution {
+function validBundleExecution(
+  value: unknown,
+  expectedCount?: number,
+): BasketBundleExecution {
   return verified<BasketBundleExecution>(value, (v) => {
     if (
       !["Pending", "Success", "Failed", "Unknown"].includes(String(v.status)) ||
       !Array.isArray(v.signatures) ||
-      v.signatures.length > 3 ||
+      v.signatures.length > BASKET_MAX_TRANSACTIONS ||
       v.signatures.some(
         (signature) =>
           typeof signature !== "string" ||
@@ -555,6 +584,8 @@ function validBundleExecution(value: unknown): BasketBundleExecution {
     return (
       (v.status !== "Success" && v.status !== "Pending") ||
       (v.signatures.length >= 2 &&
+        (expectedCount === undefined ||
+          v.signatures.length === expectedCount) &&
         new Set(v.signatures).size === v.signatures.length &&
         typeof v.statusAuthorization === "string")
     );
@@ -564,7 +595,7 @@ function validBundleExecution(value: unknown): BasketBundleExecution {
 function validBundleOrder(v: Record<string, unknown>, taker: string): boolean {
   return (
     v.taker === taker &&
-    v.transactionVersion === 0 &&
+    (v.transactionVersion === 0 || v.transactionVersion === 1) &&
     typeof v.requestId === "string" &&
     v.requestId.length > 0 &&
     v.requestId.length <= 256 &&
@@ -579,31 +610,92 @@ function validBundleOrder(v: Record<string, unknown>, taker: string): boolean {
     Number.isSafeInteger(v.tipLamports) &&
     Number(v.tipLamports) >= 1000 &&
     Number(v.tipLamports) <= 100000 &&
+    Number.isSafeInteger(v.priorityFeeLamports) &&
+    Number(v.priorityFeeLamports) >= 0 &&
+    Number(v.priorityFeeLamports) <= 100000 * BASKET_MAX_TRANSACTIONS &&
     typeof v.atomicityWarning === "string" &&
     v.atomicityWarning.length > 0 &&
     v.atomicityWarning.length <= 2000 &&
     Array.isArray(v.transactions) &&
     v.transactions.length >= 2 &&
-    v.transactions.length <= 3 &&
+    v.transactions.length <= BASKET_MAX_TRANSACTIONS &&
     new Set(v.transactions).size === v.transactions.length &&
     Array.isArray(v.serializedBytes) &&
     v.serializedBytes.length === v.transactions.length &&
-    v.transactions.every((transaction, index) => {
-      if (
-        typeof transaction !== "string" ||
-        transaction.length > 1644 ||
-        !/^[A-Za-z0-9+/]+={0,2}$/.test(transaction)
-      )
-        return false;
-      const byteLength =
-        (transaction.length * 3) / 4 -
-        (transaction.endsWith("==") ? 2 : transaction.endsWith("=") ? 1 : 0);
-      return (
-        byteLength >= 100 &&
-        byteLength <= 1232 &&
-        (v.serializedBytes as unknown[])[index] === byteLength
-      );
-    })
+    v.transactions.every((transaction, index) =>
+      validSerializedTransaction(
+        transaction,
+        v.transactionVersion,
+        (v.serializedBytes as unknown[])[index],
+      ),
+    )
+  );
+}
+
+/** Read the wire discriminator without Node/kit imports in the native transport. */
+function serializedVersion(transaction: string): 0 | 1 | null {
+  const alphabet =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  const byteAt = (index: number) => {
+    const offset = Math.floor(index / 3) * 4;
+    const group = [...transaction.slice(offset, offset + 4)].map((c) =>
+      alphabet.indexOf(c),
+    );
+    const shift = index % 3;
+    if (shift === 0) return (group[0] << 2) | (group[1] >> 4);
+    if (shift === 1) return ((group[1] & 15) << 4) | (group[2] >> 2);
+    return ((group[2] & 3) << 6) | group[3];
+  };
+  // V1 puts its discriminator at the front. V0 follows one owner signature.
+  if (byteAt(0) === 0x81) return 1;
+  if (byteAt(0) === 1 && byteAt(65) === 0x80) return 0;
+  return null;
+}
+
+function validSerializedTransaction(
+  transaction: unknown,
+  version: unknown,
+  serializedBytes?: unknown,
+): boolean {
+  if (
+    typeof transaction !== "string" ||
+    (version !== 0 && version !== 1) ||
+    transaction.length > MAX_BASKET_TRANSACTION_BASE64_LENGTH ||
+    transaction.length % 4 !== 0 ||
+    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(
+      transaction,
+    )
+  )
+    return false;
+  const bytes =
+    (transaction.length * 3) / 4 -
+    (transaction.endsWith("==") ? 2 : transaction.endsWith("=") ? 1 : 0);
+  return (
+    bytes >= 100 &&
+    bytes <= (version === 1 ? V1_MAX_BYTES : V0_MAX_BYTES) &&
+    (serializedBytes === undefined || serializedBytes === bytes) &&
+    serializedVersion(transaction) === version
+  );
+}
+
+function validSignedBundleInput(input: {
+  signedTransactions: string[];
+  authorization: string;
+}): boolean {
+  if (
+    !Array.isArray(input.signedTransactions) ||
+    input.signedTransactions.length < 2 ||
+    input.signedTransactions.length > BASKET_MAX_TRANSACTIONS ||
+    typeof input.authorization !== "string" ||
+    !input.authorization ||
+    input.authorization.length > 5000 ||
+    new Set(input.signedTransactions).size !== input.signedTransactions.length
+  )
+    return false;
+  const first = input.signedTransactions[0];
+  const version = typeof first === "string" ? serializedVersion(first) : null;
+  return input.signedTransactions.every((transaction) =>
+    validSerializedTransaction(transaction, version),
   );
 }
 

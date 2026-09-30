@@ -6,7 +6,15 @@ import {
   TransactionInstruction,
   VersionedTransaction,
 } from "@solana/web3.js";
-import { composeDevnetV0Transaction } from "../src/guard/devnet";
+import {
+  buildGuardCreateInstructions,
+  buildGuardCollectInstructions,
+  composeDevnetV0Transaction,
+} from "../src/guard/devnet";
+import {
+  composeV1Transaction,
+  inspectWalletTransaction,
+} from "../src/basket/mainnet";
 import {
   DEVNET_RECURRING_BASKETS,
   createUnprovisionedDevnetManifest,
@@ -111,4 +119,54 @@ test("focused landing basket links use their canonical symbols and fail closed u
     new Set(DEVNET_RECURRING_BASKETS.map((basket) => basket.id)).size,
     DEVNET_RECURRING_BASKETS.length,
   );
+});
+
+test("a large current devnet setup stays one atomic instruction set and rejects a V0 packet that cannot fit", async () => {
+  const outputs = Array.from({ length: 12 }, (_, index) => ({
+    mint: Keypair.generate().publicKey.toBase58(),
+    weightBps: Math.floor(10000 / 12) + (index < 10000 % 12 ? 1 : 0),
+    pool: SystemProgram.programId.toBase58(),
+    minimumAmountOut: 100n,
+  }));
+  const { plan, instructions } = await buildGuardCreateInstructions({
+    owner: lifetime.payer,
+    fundingMint: Keypair.generate().publicKey.toBase58(),
+    nonce: 1n,
+    fundingAmount: 12_000_000n,
+    periodSeconds: 86400n,
+    startsAt: 1_800_000_000n,
+    expiresAt: 1_800_259_200n,
+    periods: 3,
+    initializeAuthority: true,
+    devnetMock: true,
+    outputs,
+    pools: [],
+  });
+  assert.equal(plan.devnetMock, true);
+  assert.throws(
+    () => composeDevnetV0Transaction({ ...lifetime, instructions }),
+    /size limit/,
+  );
+  for (const instructionSet of [
+    instructions,
+    buildGuardCollectInstructions(plan, [], lifetime.payer, 0),
+  ]) {
+    const composed = await composeV1Transaction({
+      ...lifetime,
+      lastValidBlockHeight: 100,
+      allowV1: true,
+      instructions: instructionSet,
+    });
+    assert.equal(typeof composed.transaction, "string");
+    assert.ok(composed.accountCount <= 64 && composed.serializedBytes <= 4096);
+    const inspected = await inspectWalletTransaction(composed.transaction);
+    const kit = await import("@solana/kit-v1");
+    assert.equal(
+      kit.decompileTransactionMessage(inspected.message).instructions.length,
+      instructionSet.length,
+    );
+    assert.deepEqual(Object.keys(inspected.transaction.signatures), [
+      lifetime.payer,
+    ]);
+  }
 });

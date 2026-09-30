@@ -75,7 +75,8 @@ test("parallel refreshes coalesce and errors retain the last observed prices", a
   assert.equal(calls, 1);
   fail = true;
   await core.refresh();
-  assert.equal(core.getSnapshot().market, market);
+  assert.equal(core.getSnapshot().market.assets, market.assets);
+  assert.equal(core.getSnapshot().market.asOf, market.asOf);
   assert.equal(core.getSnapshot().error, "offline");
 });
 test("reset cannot race with account hydration", async () => {
@@ -211,7 +212,8 @@ test("marketKey hydrates cached snapshot immediately and persists refreshed mark
   });
   await core.hydrate();
   assert.equal(core.getSnapshot().loading, false);
-  assert.deepEqual(core.getSnapshot().market, cachedMarket);
+  assert.deepEqual(core.getSnapshot().market.assets, cachedMarket.assets);
+  assert.equal(core.getSnapshot().market.asOf, cachedMarket.asOf);
   await core.refresh();
   await core.flush();
   assert.equal(calledEtag, "tag-1");

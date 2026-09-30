@@ -6,6 +6,7 @@ import {
   composeV0Transaction,
   type BasketBundleOrder,
 } from "../src/basket/bundle";
+import { composeV1Transaction } from "../src/basket/mainnet";
 
 const wallet = Keypair.fromSeed(new Uint8Array(32).fill(1)).publicKey;
 const recipient = Keypair.fromSeed(new Uint8Array(32).fill(2)).publicKey;
@@ -129,4 +130,123 @@ test("a success label with missing transaction signatures never becomes confirme
     authorization: bundle.authorization,
   });
   assert.equal(result.status, "Unknown");
+});
+
+test("client accepts five V1 chunks only when advertised, with matching wire versions and exact sizes", async () => {
+  const builtV1 = await Promise.all(
+    Array.from({ length: 5 }, (_, index) =>
+      composeV1Transaction({
+        payer: wallet.toBase58(),
+        blockhash: recipient.toBase58(),
+        lastValidBlockHeight: 100,
+        allowV1: true,
+        instructions: [
+          SystemProgram.transfer({
+            fromPubkey: wallet,
+            toPubkey: recipient,
+            lamports: 1000 + index,
+          }),
+        ],
+      }),
+    ),
+  );
+  const v1Bundle: BasketBundleOrder = {
+    ...bundle,
+    transactionVersion: 1,
+    transactions: builtV1.map((chunk) => chunk.transaction),
+    serializedBytes: builtV1.map((chunk) => chunk.serializedBytes),
+    priorityFeeLamports: 50000,
+  };
+  const requestV1 = { ...request, supportedTransactionVersions: [0, 1] };
+  const prepared = await new KiteClient({
+    fetcher: async () => json(v1Bundle),
+  }).requestBasketOrder(requestV1);
+  assert.equal(prepared.transactionVersion, 1);
+  assert.equal((prepared as BasketBundleOrder).transactions.length, 5);
+  await assert.rejects(
+    new KiteClient({ fetcher: async () => json(v1Bundle) }).requestBasketOrder(
+      request,
+    ),
+    /invalid response/,
+  );
+  for (const patch of [
+    {
+      transactions: [...v1Bundle.transactions, built.transaction],
+      serializedBytes: [...v1Bundle.serializedBytes, built.serializedBytes],
+    },
+    {
+      transactions: [built.transaction, ...v1Bundle.transactions.slice(1)],
+      serializedBytes: [
+        built.serializedBytes,
+        ...v1Bundle.serializedBytes.slice(1),
+      ],
+    },
+    { transactionVersion: 0 },
+    { serializedBytes: v1Bundle.serializedBytes.map((size) => size + 1) },
+    {
+      outputs: v1Bundle.outputs.map((output) => ({
+        ...output,
+        minimumAmount: "101",
+      })),
+    },
+  ])
+    await assert.rejects(
+      new KiteClient({
+        fetcher: async () => json({ ...v1Bundle, ...patch }),
+      }).requestBasketOrder(requestV1),
+      /invalid response/,
+    );
+
+  const signatures = ["1", "2", "3", "4", "5"].map((digit) => digit.repeat(88));
+  const executed = await new KiteClient({
+    fetcher: async () =>
+      json({ status: "Success", signatures, statusAuthorization: "receipts" }),
+  }).executeBundle({
+    signedTransactions: v1Bundle.transactions,
+    authorization: v1Bundle.authorization,
+  });
+  assert.equal(executed.status, "Success");
+  const incomplete = await new KiteClient({
+    fetcher: async () =>
+      json({
+        status: "Success",
+        signatures: signatures.slice(0, 2),
+        statusAuthorization: "receipts",
+      }),
+  }).executeBundle({
+    signedTransactions: v1Bundle.transactions,
+    authorization: v1Bundle.authorization,
+  });
+  assert.equal(incomplete.status, "Unknown");
+});
+
+test("invalid bundle inputs fail before any broadcast or recovery request", async () => {
+  let calls = 0;
+  const client = new KiteClient({
+    fetcher: async () => {
+      calls++;
+      return json({});
+    },
+  });
+  for (const signedTransactions of [
+    [built.transaction],
+    [built.transaction, built.transaction],
+    [...bundle.transactions, ...bundle.transactions, ...bundle.transactions],
+  ]) {
+    await assert.rejects(
+      client.executeBundle({
+        signedTransactions,
+        authorization: bundle.authorization,
+      }),
+      /Invalid bundle submission/,
+    );
+    await assert.rejects(
+      client.recoverBundle({
+        signedTransactions,
+        authorization: bundle.authorization,
+      }),
+      /Invalid bundle recovery/,
+    );
+  }
+  assert.equal(calls, 0);
 });
