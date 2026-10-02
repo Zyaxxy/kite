@@ -95,10 +95,14 @@ function tokenAccount(
   new web3.PublicKey(wallet).toBuffer().copy(data, 32);
   data.writeBigUInt64LE(BigInt(amount), 64);
   data[108] = 1;
+  if (mint === sdk.MAINNET_SOL_MINT) {
+    data.writeUInt32LE(1, 109);
+    data.writeBigUInt64LE(BigInt(2039280), 113);
+  }
   return {
     owner: tokenProgram.toBase58(),
     data: [data.toString("base64"), "base64"],
-    lamports: 2039280,
+    lamports: 2039280 + (mint === sdk.MAINNET_SOL_MINT ? amount : 0),
     executable: false,
   };
 }
@@ -162,6 +166,9 @@ function builder({
   tokenProgram = spl.TOKEN_PROGRAM_ID,
   routeChange = (_route: Route) => {},
   intermediateAccount = mintAccount(tokenProgram) as RpcAccount | null,
+  intermediateMintOverride,
+  intermediateStartingAccount,
+  intermediateEndingAccount,
   intermediateBefore = 0,
   intermediateAfter = intermediateBefore,
 }: {
@@ -177,16 +184,20 @@ function builder({
   tokenProgram?: web3.PublicKey;
   routeChange?: (route: Route) => void;
   intermediateAccount?: RpcAccount | null;
+  intermediateMintOverride?: string;
+  intermediateStartingAccount?: RpcAccount | null;
+  intermediateEndingAccount?: RpcAccount | null;
   intermediateBefore?: number;
   intermediateAfter?: number;
 } = {}) {
+  const routeIntermediateMint = intermediateMintOverride ?? intermediateMint;
   const mints = basket ? outputMints : outputMints.slice(0, 1);
   const fundingMint = nativeInput
     ? sdk.MAINNET_SOL_MINT
     : (fundingMintOverride ?? inputMint);
   const fundingAta = ata(fundingMint);
   const legAmount = nativeInput ? 1_000_000_000 : 1_000_000;
-  const intermediateAta = ata(intermediateMint, tokenProgram);
+  const intermediateAta = ata(routeIntermediateMint, tokenProgram);
   const addresses = [
     ...mints.map((mint) => ata(mint)),
     ...(nativeInput ? [] : [fundingAta]),
@@ -302,19 +313,19 @@ function builder({
               swapInfo: {
                 ammKey: key(),
                 inputMint: fundingMint,
-                outputMint: intermediateMint,
+                outputMint: routeIntermediateMint,
               },
             },
             {
               percent: 100,
               swapInfo: {
                 ammKey: key(),
-                inputMint: intermediateMint,
+                inputMint: routeIntermediateMint,
                 outputMint,
               },
             },
           ],
-          setupInstructions: [createAta(intermediateMint, tokenProgram)],
+          setupInstructions: [createAta(routeIntermediateMint, tokenProgram)],
           cleanupInstruction: null,
           otherInstructions: [],
           addressesByLookupTableAddress: null,
@@ -408,9 +419,9 @@ function builder({
           assert.deepEqual(requested, [fundingMint, ...mints]);
           return { value: requested.map(() => mintAccount()) };
         }
-        if (requested[0] === intermediateMint) {
+        if (requested[0] === routeIntermediateMint) {
           calls.intermediateMintReads++;
-          assert.deepEqual(requested, [intermediateMint]);
+          assert.deepEqual(requested, [routeIntermediateMint]);
           return { value: [intermediateAccount] };
         }
         assert.deepEqual(requested, addresses);
@@ -419,13 +430,15 @@ function builder({
             ...mints.map((mint) => tokenAccount(mint, 0)),
             ...(nativeInput ? [] : [tokenAccount(fundingMint, 3_000_000)]),
             walletAccount(10_000_000_000),
-            intermediateBefore === 0
-              ? null
-              : tokenAccount(
-                  intermediateMint,
-                  intermediateBefore,
-                  tokenProgram,
-                ),
+            intermediateStartingAccount !== undefined
+              ? intermediateStartingAccount
+              : intermediateBefore === 0
+                ? null
+                : tokenAccount(
+                    routeIntermediateMint,
+                    intermediateBefore,
+                    tokenProgram,
+                  ),
           ],
         };
       },
@@ -456,7 +469,13 @@ function builder({
                 (nativeInput ? mints.length * legAmount : 0) -
                 15_000,
             ),
-            tokenAccount(intermediateMint, intermediateAfter, tokenProgram),
+            intermediateEndingAccount !== undefined
+              ? intermediateEndingAccount
+              : tokenAccount(
+                  routeIntermediateMint,
+                  intermediateAfter,
+                  tokenProgram,
+                ),
           ],
         };
       },
@@ -842,4 +861,183 @@ test("a positive catalog price cannot bypass missing current price observations"
   });
   await assert.rejects(run.prepare(), /no current market price/);
   assert.equal(run.calls.quotes, 0);
+});
+
+const closedIntermediate: RpcAccount = {
+  owner: web3.SystemProgram.programId.toBase58(),
+  data: ["", "base64"],
+  lamports: 0,
+  executable: false,
+};
+const wrappedIntermediateClose = apiInstruction(
+  spl.createCloseAccountInstruction(
+    new web3.PublicKey(ata(sdk.MAINNET_SOL_MINT)),
+    new web3.PublicKey(wallet),
+    new web3.PublicKey(wallet),
+  ),
+);
+for (const transactionVersion of [0, 1] as const) {
+  test(`USDT basket accepts closed empty WSOL simulation accounts in V${transactionVersion}`, async () => {
+    const run = builder({
+      basket: true,
+      transactionVersion,
+      fundingMintOverride: sdk.MAINNET_USDT_MINT,
+      intermediateMintOverride: sdk.MAINNET_SOL_MINT,
+      intermediateEndingAccount: closedIntermediate,
+      routeChange: (route) => {
+        route.cleanupInstruction = wrappedIntermediateClose;
+      },
+    });
+    const order = await run.prepare();
+    assert.equal(order.inAmount, "2000000");
+    assert.equal(run.calls.simulations, 1);
+  });
+}
+
+test("closing an existing positive WSOL balance is still rejected", async () => {
+  const run = builder({
+    fundingMintOverride: sdk.MAINNET_USDT_MINT,
+    intermediateMintOverride: sdk.MAINNET_SOL_MINT,
+    intermediateBefore: 250,
+    intermediateEndingAccount: closedIntermediate,
+    routeChange: (route) => {
+      route.cleanupInstruction = wrappedIntermediateClose;
+    },
+  });
+  await assert.rejects(run.prepare(), /existing intermediate token balance/);
+});
+
+for (const [label, account] of [
+  ["funded system account", { ...closedIntermediate, lamports: 1 }],
+  ["executable system account", { ...closedIntermediate, executable: true }],
+  [
+    "system account with data",
+    { ...closedIntermediate, data: ["AA==", "base64"] },
+  ],
+  ["invalid base64", { ...closedIntermediate, data: ["!!!", "base64"] }],
+  ["incorrect encoding", { ...closedIntermediate, data: ["", "base58"] }],
+  ["unrelated program", { ...closedIntermediate, owner: key() }],
+] as const) {
+  test(`${label} cannot masquerade as a closed intermediate`, async () => {
+    const run = builder({ intermediateEndingAccount: account as RpcAccount });
+    await assert.rejects(run.prepare(), /intermediate|token account/);
+  });
+}
+
+test("prefunded system-owned WSOL cannot be treated as an empty starting token account", async () => {
+  const run = builder({
+    intermediateMintOverride: sdk.MAINNET_SOL_MINT,
+    intermediateStartingAccount: { ...closedIntermediate, lamports: 3_000_000 },
+    intermediateEndingAccount: closedIntermediate,
+    routeChange: (route) => {
+      route.cleanupInstruction = wrappedIntermediateClose;
+    },
+  });
+  await assert.rejects(run.prepare(), /intermediate|token account/);
+});
+
+test("existing intermediate holdings are checked even if Jupiter omits ATA setup", async () => {
+  const run = builder({
+    intermediateBefore: 250,
+    intermediateAfter: 249,
+    routeChange: (route) => {
+      route.setupInstructions = [];
+    },
+  });
+  await assert.rejects(run.prepare(), /existing intermediate token balance/);
+  assert.equal(run.calls.intermediateMintReads, 1);
+  assert.equal(run.calls.simulations, 1);
+});
+
+test("USDT basket recreates a WSOL intermediary before each leg when Jupiter omits setup", async () => {
+  const run = builder({
+    basket: true,
+    fundingMintOverride: sdk.MAINNET_USDT_MINT,
+    intermediateMintOverride: sdk.MAINNET_SOL_MINT,
+    intermediateEndingAccount: closedIntermediate,
+    routeChange: (route) => {
+      route.setupInstructions = [
+        apiInstruction(
+          spl.createSyncNativeInstruction(
+            new web3.PublicKey(ata(sdk.MAINNET_SOL_MINT)),
+          ),
+        ),
+      ];
+      route.cleanupInstruction = wrappedIntermediateClose;
+    },
+  });
+  const order = await run.prepare();
+  assert.ok(!("kind" in order));
+  const transaction = web3.VersionedTransaction.deserialize(
+    Buffer.from(order.transaction, "base64"),
+  );
+  const instructions = web3.TransactionMessage.decompile(
+    transaction.message,
+  ).instructions;
+  let open = false;
+  let creates = 0;
+  let closes = 0;
+  for (const instruction of instructions) {
+    if (
+      instruction.programId.equals(spl.ASSOCIATED_TOKEN_PROGRAM_ID) &&
+      instruction.keys[1].pubkey.toBase58() === ata(sdk.MAINNET_SOL_MINT)
+    ) {
+      assert.equal(instruction.data[0], 1);
+      open = true;
+      creates++;
+    }
+    if (
+      instruction.programId.toBase58() ===
+      "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4"
+    ) {
+      assert.equal(
+        open,
+        true,
+        "Each swap needs its own WSOL setup after a preceding close",
+      );
+    }
+    if (
+      instruction.programId.equals(spl.TOKEN_PROGRAM_ID) &&
+      instruction.data[0] === 17
+    ) {
+      assert.equal(open, true, "WSOL must exist before SyncNative");
+    }
+    if (
+      instruction.programId.equals(spl.TOKEN_PROGRAM_ID) &&
+      instruction.data[0] === 9
+    ) {
+      assert.equal(open, true);
+      open = false;
+      closes++;
+    }
+  }
+  assert.equal(creates, 2);
+  assert.equal(closes, 2);
+  assert.equal(run.calls.intermediateMintReads, 1);
+});
+
+test("closing WSOL with an unsynced preexisting SOL balance is still rejected", async () => {
+  const starting = tokenAccount(sdk.MAINNET_SOL_MINT, 0);
+  starting.lamports += 250;
+  const run = builder({
+    fundingMintOverride: sdk.MAINNET_USDT_MINT,
+    intermediateMintOverride: sdk.MAINNET_SOL_MINT,
+    intermediateStartingAccount: starting,
+    intermediateEndingAccount: closedIntermediate,
+    routeChange: (route) => {
+      route.cleanupInstruction = wrappedIntermediateClose;
+    },
+  });
+  await assert.rejects(run.prepare(), /existing intermediate token balance/);
+});
+
+test("omitting ATA setup cannot bypass a missing intermediate route plan", async () => {
+  const run = builder({
+    routeChange: (route) => {
+      route.setupInstructions = [];
+      delete route.routePlan;
+    },
+  });
+  await assert.rejects(run.prepare(), /route plan/);
+  assert.equal(run.calls.simulations, 0);
 });

@@ -19,6 +19,8 @@ import {
   allocateBasketInput,
   validateJupiterExactInInstruction,
   getJupiterIntermediateMints,
+  isClosedJupiterTokenAccount,
+  getJupiterNativeTokenBalance,
   validateJupiterIntermediateMint,
   composeBasketV0Chunks,
   composeBasketV1Chunks,
@@ -175,6 +177,11 @@ function balance(account: RpcAccount, mint: string, owner: string): bigint {
     new PublicKey(data.subarray(32, 64)).toBase58() !== owner
   )
     throw new Error("Basket assets must settle to your own token accounts.");
+  if (mint === MAINNET_SOL_MINT) {
+    if (account.owner !== TOKEN_PROGRAM_ID.toBase58())
+      throw new Error("Invalid wrapped SOL token program.");
+    return getJupiterNativeTokenBalance({ data, lamports: account.lamports });
+  }
   return data.readBigUInt64LE(64);
 }
 export async function prepareBasketOrder(
@@ -541,6 +548,25 @@ async function prepareAllocationOrder(
     string,
     { mint: string; tokenProgram: string; allocationIndexes: Set<number> }
   >();
+  const trackIntermediate = (
+    address: string,
+    mint: string,
+    tokenProgram: string,
+    allocationIndex: number,
+  ) => {
+    const account = intermediateAccounts.get(address);
+    if (account) account.allocationIndexes.add(allocationIndex);
+    else
+      intermediateAccounts.set(address, {
+        mint,
+        tokenProgram,
+        allocationIndexes: new Set([allocationIndex]),
+      });
+    if (intermediateAccounts.size > 64)
+      throw new Error(
+        "The route requires too many intermediate token accounts.",
+      );
+  };
   for (let i = 0; i < routes.length; i++) {
     const r = routes[i];
     if (!r) continue;
@@ -618,23 +644,44 @@ async function prepareAllocationOrder(
             throw new Error(
               "A route requested a token account outside its verified swap path.",
             );
-          const account = intermediateAccounts.get(key);
-          if (account) account.allocationIndexes.add(i);
-          else
-            intermediateAccounts.set(key, {
-              mint,
-              tokenProgram,
-              allocationIndexes: new Set([i]),
-            });
-          if (intermediateAccounts.size > 64)
-            throw new Error(
-              "The route requires too many intermediate token accounts.",
-            );
+          trackIntermediate(key, mint, tokenProgram, i);
         }
         if (setupKeys.has(key)) continue;
         setupKeys.add(key);
       }
       instructions.push(instruction);
+    }
+    // Existing owner ATAs may be omitted from Jupiter's setup list. Track
+    // canonical writable intermediates too; setup omission cannot skip checks.
+    intermediateMints ??= getJupiterIntermediateMints(
+      r.routePlan,
+      inputMint,
+      allocations[i].mint,
+    );
+    for (const mint of intermediateMints) {
+      for (const program of [TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID]) {
+        const address = getAssociatedTokenAddressSync(
+          new PublicKey(mint),
+          new PublicKey(taker),
+          false,
+          program,
+        ).toBase58();
+        if (!writableSwapAccounts.has(address)) continue;
+        trackIntermediate(address, mint, program.toBase58(), i);
+        // A preceding leg can close a WSOL intermediary even for USDT funding.
+        if (mint === MAINNET_SOL_MINT && !setupKeys.has(address)) {
+          instructions.unshift(
+            createAssociatedTokenAccountIdempotentInstruction(
+              new PublicKey(taker),
+              new PublicKey(address),
+              new PublicKey(taker),
+              new PublicKey(mint),
+              program,
+            ),
+          );
+          setupKeys.add(address);
+        }
+      }
     }
     instructions.push(ix(r.swapInstruction, taker));
     if (r.cleanupInstruction)
@@ -768,13 +815,25 @@ async function prepareAllocationOrder(
       )
         continue;
       const index = addresses.indexOf(address);
-      const starting = before.value[index];
-      const ending = simulation.accounts[index];
+      // RPC simulation may return a cleared system account after CloseAccount
+      // instead of null. Only that exact zero-lamport representation is empty;
+      // prefunded or malformed accounts must still fail validation.
+      const starting = isClosedJupiterTokenAccount(before.value[index])
+        ? null
+        : before.value[index];
+      const ending = isClosedJupiterTokenAccount(simulation.accounts[index])
+        ? null
+        : simulation.accounts[index];
       if (
         (starting && starting.owner !== account.tokenProgram) ||
-        (ending && ending.owner !== account.tokenProgram) ||
+        (ending && ending.owner !== account.tokenProgram)
+      )
+        throw new Error(
+          "An intermediate token account has an unexpected owner or state. No transaction was created.",
+        );
+      if (
         balance(ending, account.mint, taker) <
-          balance(starting, account.mint, taker)
+        balance(starting, account.mint, taker)
       )
         throw new Error(
           "A route would spend an existing intermediate token balance.",
