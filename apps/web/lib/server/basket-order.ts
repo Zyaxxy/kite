@@ -1,4 +1,8 @@
-import { fetchJupiterBuild } from "./jupiter-build";
+import {
+  describeJupiterBuildFailure,
+  JupiterBuildError,
+  fetchJupiterBuild,
+} from "./jupiter-build";
 import {
   PublicKey,
   TransactionInstruction,
@@ -200,12 +204,15 @@ export async function composeBasketExecution({
   lifetime,
   legs,
   routeLookupTables,
+  allowBundle = true,
 }: {
   transactionVersion: 0 | 1;
   taker: string;
   lifetime: { blockhash: string; lastValidBlockHeight: number };
   legs: BasketSwapLeg[];
   routeLookupTables: Array<Record<string, string[]> | null>;
+  /** Standard routes must be rebuilt for Jito after an actual capacity failure. */
+  allowBundle?: boolean;
 }) {
   // V1 inlines account addresses; referenced ALTs are fetched only for a V0 route.
   const lookupTables =
@@ -237,7 +244,8 @@ export async function composeBasketExecution({
     chunks = await compose();
   } catch (error) {
     // Validation errors are never interpreted as a reason to change execution routes.
-    if (!isTransactionCapacityError(error) || legs.length === 1) throw error;
+    if (!isTransactionCapacityError(error) || legs.length === 1 || !allowBundle)
+      throw error;
     tip = await prepareJitoTip(taker);
     chunks = await compose(tip.instruction);
   }
@@ -247,6 +255,7 @@ export async function composeBasketExecution({
 async function prepareAllocationOrder(
   input: BasketOrderRequest,
   outputToken?: SwapToken,
+  bundleRoutes = false,
 ): Promise<BasketPurchaseOrder> {
   const apiKey = process.env.JUPITER_API_KEY;
   if (!apiKey) throw new Error("Jupiter routing is not configured.");
@@ -365,6 +374,18 @@ async function prepareAllocationOrder(
     throw new Error(
       "The complete, tradable issuer basket is unavailable. No partial basket will be purchased.",
     );
+  if (!outputToken) {
+    const unpriced = basket.assets.filter(
+      ({ asset }) =>
+        typeof asset.priceUsd !== "number" ||
+        !Number.isFinite(asset.priceUsd) ||
+        asset.priceUsd <= 0,
+    );
+    if (unpriced.length)
+      throw new Error(
+        `This basket is unavailable because ${unpriced.map(({ asset }) => asset.symbol).join(", ")} ${unpriced.length === 1 ? "has" : "have"} no current market price. No partial basket will be purchased.`,
+      );
+  }
   if (market.assets.find((a) => a.mint === inputMint)?.tradingHalted)
     throw new Error("The input asset is halted.");
   const mints = [inputMint, ...basket.assets.map((a) => a.asset.mint)];
@@ -442,13 +463,32 @@ async function prepareAllocationOrder(
         maxAccounts: "32",
         destinationTokenAccount: destinations[i],
         wrapAndUnwrapSol: "true",
+        // Only the bounded second preparation pass restricts DEXes for Jito.
+        ...(bundleRoutes ? { forJitoBundle: "true" } : {}),
       });
       const response = await fetchJupiterBuild(params, apiKey);
       if (!response.ok)
-        throw new Error(
-          `No executable route for ${basket.assets[i].asset.symbol}. Try a different funding token or amount.`,
+        throw await describeJupiterBuildFailure(
+          response,
+          basket.assets[i].asset.symbol,
         );
-      const r = (await response.json()) as Route;
+      let body: unknown;
+      try {
+        body = await response.json();
+      } catch {
+        throw new JupiterBuildError(
+          "invalid-response",
+          "Jupiter returned an unreadable routing response. No transactions were submitted.",
+          response.status,
+        );
+      }
+      if (!body || typeof body !== "object" || Array.isArray(body))
+        throw new JupiterBuildError(
+          "invalid-response",
+          "Jupiter returned an invalid routing response. No transactions were submitted.",
+          response.status,
+        );
+      const r = body as Route;
       if (
         r.inputMint !== inputMint ||
         r.outputMint !== a.mint ||
@@ -504,6 +544,20 @@ async function prepareAllocationOrder(
     const instructions: TransactionInstruction[] = [];
     // Every leg is independently executable: ATA setup cannot depend on an earlier chunk.
     const setupKeys = new Set<string>();
+    // Jupiter may omit setup for an existing WSOL ATA, but an earlier basket leg
+    // can close it. Recreate it idempotently before each native SOL funding leg.
+    if (inputMint === MAINNET_SOL_MINT) {
+      instructions.push(
+        createAssociatedTokenAccountIdempotentInstruction(
+          new PublicKey(taker),
+          new PublicKey(inputAta),
+          new PublicKey(taker),
+          new PublicKey(inputMint),
+          programs[0],
+        ),
+      );
+      setupKeys.add(inputAta);
+    }
     // A destination override asks Jupiter not to create its ATA. Create it ourselves.
     if (!setupKeys.has(destinations[i]))
       instructions.push(
@@ -626,15 +680,33 @@ async function prepareAllocationOrder(
         );
   }
   const lifetime = await latestBlockhash();
-  const { chunks, tipLamports } = await composeBasketExecution({
-    transactionVersion,
-    taker,
-    lifetime,
-    legs,
-    routeLookupTables: routes
-      .filter((route): route is Route => route !== null)
-      .map((route) => route.addressesByLookupTableAddress),
-  });
+  let composition: Awaited<ReturnType<typeof composeBasketExecution>>;
+  try {
+    composition = await composeBasketExecution({
+      transactionVersion,
+      taker,
+      lifetime,
+      legs,
+      routeLookupTables: routes
+        .filter((route): route is Route => route !== null)
+        .map((route) => route.addressesByLookupTableAddress),
+      allowBundle: bundleRoutes,
+    });
+  } catch (error) {
+    if (
+      !bundleRoutes &&
+      !outputToken &&
+      legs.length > 1 &&
+      isTransactionCapacityError(error)
+    ) {
+      // Re-quote every exact allocation once with compatible DEXes. All owner,
+      // mint, amount and instruction validation runs again on the new routes.
+      // No order has been authorized or submitted at this point.
+      return prepareAllocationOrder(input, outputToken, true);
+    }
+    throw error;
+  }
+  const { chunks, tipLamports } = composition;
   const addresses = [
     ...destinations,
     ...(inputMint !== MAINNET_SOL_MINT ? [inputAta] : []),

@@ -12,9 +12,22 @@ New spot swaps and basket purchases negotiate Solana V1 or V0 from the selected 
 
 Jupiter Swap V2 builds each leg for its exact integer funding allocation. The server validates route amounts, slippage, minimum output, signer, input account, destination ATA and setup instructions. Routes cannot add token approvals or redirect settlement. Published creator basket IDs resolve to immutable server allocations; client overrides are rejected.
 
-Each chunk contains complete swap legs, including idempotent ATA setup, so it does not depend on outputs from a previous chunk. On V0 only, Jupiter-referenced lookup-table addresses are loaded and their actual mainnet owner, active state and address contents are verified before compilation. V1 preparation never fetches or accepts ALTs. Chunk selection searches valid contiguous partitions rather than splitting an already serialized transaction.
+The initial quotes use standard Jupiter routing and attempt the entire basket as one untipped transaction. Only a typed capacity failure triggers one fresh preparation pass with `forJitoBundle=true`, excluding DEXes incompatible with bundles. That pass repeats all amount, owner, mint and instruction checks and still tries one complete transaction before requesting a Jito tip. Quote, validation and simulation failures never trigger this fallback.
+
+Each chunk contains complete swap legs, including idempotent ATA setup, so it does not depend on outputs from a previous chunk. Native SOL legs explicitly recreate the canonical owner WSOL ATA before funding it, even if Jupiter omitted setup because that ATA existed at quote time; a preceding leg may close it. On V0 only, Jupiter-referenced lookup-table addresses are loaded and their actual mainnet owner, active state and address contents are verified before compilation. V1 preparation never fetches or accepts ALTs. V0 compilation compares original table order, no tables, and a compact coverage order by serialized size. Forced-static tip accounts retain their correct instruction indexes without changing the verified lookup-table contents. Chunk selection searches valid contiguous partitions rather than splitting an already serialized transaction.
 
 Every chunk is simulated before review. The simulation checks each recipient ATA's minimum output, exact SPL funding debit, and the aggregate SOL budget for fees, rent and tip. These independent preflights are not a stateful simulation of all chunks; shared pool state may change between legs. Jito evaluates accepted signed bundles before attempting inclusion. Mainnet V1 feature activation alone does not establish the Block Engine’s V1 transport support. Funded V1 bundle submission has not been verified by these local checks, and a fresh quote can still be rejected, fail to land or expire.
+
+## Preparation errors
+
+An issuer listing does not establish an executable route. Unpriced basket constituents block preparation before quoting, and one unavailable constituent blocks the complete basket without changing its reviewed allocation.
+
+- Jupiter HTTP 400 with the observed `No routes found` response means no executable route was returned for that funding token and exact leg amount. Changing the amount or funding token may help, but is not guaranteed.
+- Rate limits, authentication failures, provider outages and unreadable/unknown responses have separate errors; they are not reported as evidence of missing liquidity. Quote scheduling respects provider cooldowns within a bounded request deadline.
+- Jito `getTipAccounts` failures occur during unsigned preparation and explicitly say that nothing was submitted. They do not mean a signed bundle was rejected.
+- After any `sendBundle` attempt, failures remain subject to signature recovery. An error response does not prove that no transaction can land.
+
+Read-only diagnostics on 2026-10-01 observed COPx returning `No routes found` for SOL and USDT at both 32 and 64 route-account limits. At that time, AAPLx/MSFTx/NVDAx quotes with both funding tokens passed instruction validation and assembled into two V0 transactions using verified mainnet ALTs. These were unsigned diagnostic quotes and local compilation with an unfunded generated taker, not wallet execution, settlement simulation or lasting liquidity guarantees.
 
 ## Tip and wallet approval
 

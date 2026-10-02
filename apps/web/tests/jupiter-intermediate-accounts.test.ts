@@ -7,6 +7,10 @@ import ts from "typescript";
 import * as web3 from "@solana/web3.js";
 import * as spl from "@solana/spl-token";
 import type { SwapToken } from "@kite/sdk";
+import {
+  describeJupiterBuildFailure,
+  JupiterBuildError,
+} from "../lib/server/jupiter-build";
 
 const require = createRequire(import.meta.url);
 const sdk =
@@ -148,6 +152,10 @@ const compiled = ts.transpileModule(
 function builder({
   basket = false,
   nativeInput = false,
+  fundingMintOverride,
+  basketPriceUsd = 1,
+  quoteFailure,
+  initialCapacityFailure = false,
   transactionVersion = 0,
   tokenProgram = spl.TOKEN_PROGRAM_ID,
   routeChange = (_route: Route) => {},
@@ -157,6 +165,10 @@ function builder({
 }: {
   basket?: boolean;
   nativeInput?: boolean;
+  fundingMintOverride?: string;
+  basketPriceUsd?: number | null;
+  quoteFailure?: Response;
+  initialCapacityFailure?: boolean;
   transactionVersion?: 0 | 1;
   tokenProgram?: web3.PublicKey;
   routeChange?: (route: Route) => void;
@@ -165,7 +177,9 @@ function builder({
   intermediateAfter?: number;
 } = {}) {
   const mints = basket ? outputMints : outputMints.slice(0, 1);
-  const fundingMint = nativeInput ? sdk.MAINNET_SOL_MINT : inputMint;
+  const fundingMint = nativeInput
+    ? sdk.MAINNET_SOL_MINT
+    : (fundingMintOverride ?? inputMint);
   const fundingAta = ata(fundingMint);
   const legAmount = nativeInput ? 1_000_000_000 : 1_000_000;
   const intermediateAta = ata(intermediateMint, tokenProgram);
@@ -175,7 +189,12 @@ function builder({
     wallet,
     intermediateAta,
   ];
-  const calls = { quotes: 0, simulations: 0, intermediateMintReads: 0 };
+  const calls = {
+    quotes: 0,
+    simulations: 0,
+    intermediateMintReads: 0,
+    bundleFlags: [] as (string | null)[],
+  };
   const exports: Partial<ServerExports> = {};
   const walletAccount = (lamports: number): RpcAccount => ({
     owner: web3.SystemProgram.programId.toBase58(),
@@ -186,10 +205,27 @@ function builder({
   const dependencies: Record<string, unknown> = {
     "@solana/web3.js": web3,
     "@solana/spl-token": spl,
-    "@kite/sdk": sdk,
+    "@kite/sdk": {
+      ...sdk,
+      composeBasketV0Chunks: (
+        params: Parameters<typeof sdk.composeBasketV0Chunks>[0],
+      ) => {
+        if (initialCapacityFailure) {
+          initialCapacityFailure = false;
+          throw new sdk.TransactionCapacityError(
+            "test initial route exceeds bytes",
+            "bytes",
+          );
+        }
+        return sdk.composeBasketV0Chunks(params);
+      },
+    },
     "./markets": {
       getServerMarketCatalog: async () => ({
-        assets: mints.map(outputToken),
+        assets: mints.map((mint) => ({
+          ...outputToken(mint),
+          priceUsd: basketPriceUsd,
+        })),
         baskets: [],
         sources: [],
       }),
@@ -203,8 +239,12 @@ function builder({
     "./jito-bundles": {},
     "./jupiter-lookup-tables": { loadVerifiedLookupTables: async () => [] },
     "./jupiter-build": {
+      describeJupiterBuildFailure,
+      JupiterBuildError,
       fetchJupiterBuild: async (params: URLSearchParams) => {
         calls.quotes++;
+        calls.bundleFlags.push(params.get("forJitoBundle"));
+        if (quoteFailure) return quoteFailure.clone();
         const outputMint = params.get("outputMint");
         const amount = params.get("amount");
         assert.ok(outputMint && mints.includes(outputMint));
@@ -438,6 +478,7 @@ test("multi-leg basket validates a shared intermediate mint once and includes it
   assert.equal(order.inAmount, "2000000");
   assert.equal(order.outputs.length, 2);
   assert.equal(run.calls.quotes, 2);
+  assert.deepEqual(run.calls.bundleFlags, [null, null]);
   assert.equal(run.calls.intermediateMintReads, 1);
   assert.equal(run.calls.simulations, 1);
 });
@@ -450,6 +491,80 @@ test("native SOL funding supports a token intermediary and preserves the wallet 
   assert.equal(order.inputDecimals, 9);
   assert.equal(run.calls.intermediateMintReads, 1);
   assert.equal(run.calls.simulations, 1);
+});
+
+test("SOL basket recreates canonical WSOL before each leg when Jupiter omits existing account setup", async () => {
+  const run = builder({
+    basket: true,
+    nativeInput: true,
+    routeChange: (route) => {
+      route.setupInstructions = route.setupInstructions.filter(
+        (instruction) =>
+          !(
+            instruction.programId ===
+              spl.ASSOCIATED_TOKEN_PROGRAM_ID.toBase58() &&
+            instruction.accounts[3].pubkey === sdk.MAINNET_SOL_MINT
+          ),
+      );
+    },
+  });
+  const order = await run.prepare();
+  assert.ok(!("kind" in order));
+  const transaction = web3.VersionedTransaction.deserialize(
+    Buffer.from(order.transaction, "base64"),
+  );
+  const instructions = web3.TransactionMessage.decompile(
+    transaction.message,
+  ).instructions;
+  const wrapped = ata(sdk.MAINNET_SOL_MINT);
+  let open = false;
+  let created = 0;
+  let closed = 0;
+  for (const instruction of instructions) {
+    if (
+      instruction.programId.equals(spl.ASSOCIATED_TOKEN_PROGRAM_ID) &&
+      instruction.keys[1].pubkey.toBase58() === wrapped
+    ) {
+      assert.equal(instruction.data[0], 1);
+      assert.equal(instruction.keys[0].pubkey.toBase58(), wallet);
+      assert.equal(instruction.keys[2].pubkey.toBase58(), wallet);
+      open = true;
+      created++;
+    }
+    if (instruction.programId.equals(web3.SystemProgram.programId)) {
+      assert.equal(open, true, "WSOL ATA must exist before funding every leg");
+    }
+    if (
+      instruction.programId.equals(spl.TOKEN_PROGRAM_ID) &&
+      instruction.data[0] === 9
+    ) {
+      assert.equal(open, true);
+      open = false;
+      closed++;
+    }
+  }
+  assert.equal(created, 2);
+  assert.equal(closed, 2);
+  assert.equal(order.inAmount, "2000000000");
+});
+
+test("USDT basket requotes with bundle-compatible routes only after typed capacity failure", async () => {
+  const run = builder({
+    basket: true,
+    fundingMintOverride: sdk.MAINNET_USDT_MINT,
+    initialCapacityFailure: true,
+  });
+  const order = await run.prepare();
+  assert.equal(order.inputMint, sdk.MAINNET_USDT_MINT);
+  assert.equal(order.inAmount, "2000000");
+  assert.deepEqual(run.calls.bundleFlags, [null, null, "true", "true"]);
+  assert.equal(run.calls.simulations, 1);
+});
+
+test("single-token swaps do not restrict Jupiter to bundle-compatible routes", async () => {
+  const run = builder();
+  await run.prepare();
+  assert.deepEqual(run.calls.bundleFlags, [null]);
 });
 
 test("a negotiated V1 route retains intermediate ATA validation and settlement checks", async () => {
@@ -607,3 +722,48 @@ test("simulation cannot spend a wallet's existing intermediate-token balance", a
   await assert.rejects(run.prepare(), /intermediate|balance|debit/i);
   assert.equal(run.calls.simulations, 1);
 });
+
+for (const price of [null, 0, NaN]) {
+  test(`unpriced basket constituents block preparation before quotes (${price})`, async () => {
+    const run = builder({ basket: true, basketPriceUsd: price });
+    await assert.rejects(
+      run.prepare(),
+      /no current market price.*No partial basket/,
+    );
+    assert.equal(run.calls.quotes, 0);
+    assert.equal(run.calls.simulations, 0);
+  });
+}
+
+for (const [status, body, expected] of [
+  [400, { error: "No routes found" }, /Jupiter found no executable route/],
+  [401, { error: "Unauthorized" }, /routing authentication failed/],
+  [503, { error: "unavailable" }, /routing is temporarily unavailable/],
+] as const) {
+  test(`basket preserves the actual Jupiter preparation failure (HTTP ${status})`, async () => {
+    const run = builder({
+      basket: true,
+      quoteFailure: Response.json(body, { status }),
+    });
+    await assert.rejects(run.prepare(), expected);
+    assert.equal(run.calls.simulations, 0);
+  });
+}
+
+for (const [name, body] of [
+  ["HTML", "<html>private provider diagnostic</html>"],
+  ["null", "null"],
+  ["array", "[]"],
+] as const) {
+  test(`successful HTTP with ${name} is a sanitized invalid response`, async () => {
+    const run = builder({ basket: true, quoteFailure: new Response(body) });
+    await assert.rejects(
+      run.prepare(),
+      (error: unknown) =>
+        error instanceof JupiterBuildError &&
+        error.kind === "invalid-response" &&
+        !error.message.includes("private"),
+    );
+    assert.equal(run.calls.simulations, 0);
+  });
+}
