@@ -36,7 +36,7 @@ import {
   type MarketAsset,
   type SwapToken,
 } from "@kite/sdk";
-import { getServerMarketCatalog } from "./markets";
+import { getServerBasketPrices, getServerMarketCatalog } from "./markets";
 import { getTradeMintDecimals } from "./mint-precision";
 import {
   selectMainnetTransactionVersion,
@@ -375,11 +375,14 @@ async function prepareAllocationOrder(
       "The complete, tradable issuer basket is unavailable. No partial basket will be purchased.",
     );
   if (!outputToken) {
+    // The issuer catalog supplies identity/status, not xStock market prices.
+    // Check independently hydrated token observations for only this allocation.
+    const prices = await getServerBasketPrices(
+      market,
+      basket.assets.map(({ asset }) => asset.mint),
+    );
     const unpriced = basket.assets.filter(
-      ({ asset }) =>
-        typeof asset.priceUsd !== "number" ||
-        !Number.isFinite(asset.priceUsd) ||
-        asset.priceUsd <= 0,
+      ({ asset }) => !prices.has(asset.mint),
     );
     if (unpriced.length)
       throw new Error(

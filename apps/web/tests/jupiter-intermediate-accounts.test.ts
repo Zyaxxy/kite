@@ -154,6 +154,8 @@ function builder({
   nativeInput = false,
   fundingMintOverride,
   basketPriceUsd = 1,
+  catalogPriceUsd = null,
+  basketSource = "custom",
   quoteFailure,
   initialCapacityFailure = false,
   transactionVersion = 0,
@@ -167,6 +169,8 @@ function builder({
   nativeInput?: boolean;
   fundingMintOverride?: string;
   basketPriceUsd?: number | null;
+  catalogPriceUsd?: number | null;
+  basketSource?: "custom" | "curated" | "published";
   quoteFailure?: Response;
   initialCapacityFailure?: boolean;
   transactionVersion?: 0 | 1;
@@ -193,6 +197,7 @@ function builder({
     quotes: 0,
     simulations: 0,
     intermediateMintReads: 0,
+    marketPriceReads: 0,
     bundleFlags: [] as (string | null)[],
   };
   const exports: Partial<ServerExports> = {};
@@ -224,17 +229,50 @@ function builder({
       getServerMarketCatalog: async () => ({
         assets: mints.map((mint) => ({
           ...outputToken(mint),
-          priceUsd: basketPriceUsd,
+          priceUsd: catalogPriceUsd,
         })),
-        baskets: [],
-        sources: [],
+        baskets:
+          basketSource === "curated"
+            ? [
+                {
+                  id: "curated-test",
+                  missingSymbols: [],
+                  assets: mints.map((mint) => ({
+                    asset: { ...outputToken(mint), priceUsd: catalogPriceUsd },
+                    weight: 5000,
+                  })),
+                },
+              ]
+            : [],
+        sources: ["xStocks issuer catalog", "PreStocks issuer catalog"],
       }),
+      getServerBasketPrices: async (
+        _catalog: unknown,
+        requestedMints: string[],
+      ) => {
+        calls.marketPriceReads++;
+        assert.deepEqual(Array.from(requestedMints), mints);
+        return new Map(
+          mints.flatMap((mint) =>
+            typeof basketPriceUsd === "number" &&
+            Number.isFinite(basketPriceUsd) &&
+            basketPriceUsd > 0
+              ? [[mint, basketPriceUsd] as const]
+              : [],
+          ),
+        );
+      },
     },
     "./mint-precision": {
       getTradeMintDecimals: async (mint: string) =>
         mint === sdk.MAINNET_SOL_MINT ? 9 : 6,
     },
-    "./creator-store": { resolvePublishedCreatorBasket: async () => null },
+    "./creator-store": {
+      resolvePublishedCreatorBasket: async () =>
+        basketSource === "published"
+          ? { allocations: mints.map((mint) => ({ mint, weightBps: 5000 })) }
+          : null,
+    },
     "./bundle-authorization": {},
     "./jito-bundles": {},
     "./jupiter-lookup-tables": { loadVerifiedLookupTables: async () => [] },
@@ -450,8 +488,20 @@ function builder({
       return basket
         ? exports.prepareBasketOrder({
             ...request,
-            basketId: "custom",
-            customAllocations: mints.map((mint) => ({ mint, weightBps: 5000 })),
+            basketId:
+              basketSource === "published"
+                ? "creator-test"
+                : basketSource === "curated"
+                  ? "curated-test"
+                  : "custom",
+            ...(basketSource === "custom"
+              ? {
+                  customAllocations: mints.map((mint) => ({
+                    mint,
+                    weightBps: 5000,
+                  })),
+                }
+              : {}),
           })
         : exports.prepareTokenSwapOrder(request, outputToken(mints[0]));
     },
@@ -767,3 +817,29 @@ for (const [name, body] of [
     assert.equal(run.calls.simulations, 0);
   });
 }
+
+for (const basketSource of ["custom", "curated", "published"] as const) {
+  test(`${basketSource} basket uses current observations when the issuer-only catalog has null prices`, async () => {
+    const run = builder({
+      basket: true,
+      basketSource,
+      catalogPriceUsd: null,
+      basketPriceUsd: 125,
+    });
+    const order = await run.prepare();
+    assert.equal(order.outputs.length, 2);
+    assert.equal(run.calls.marketPriceReads, 1);
+    assert.equal(run.calls.quotes, 2);
+    assert.equal(run.calls.simulations, 1);
+  });
+}
+
+test("a positive catalog price cannot bypass missing current price observations", async () => {
+  const run = builder({
+    basket: true,
+    catalogPriceUsd: 125,
+    basketPriceUsd: null,
+  });
+  await assert.rejects(run.prepare(), /no current market price/);
+  assert.equal(run.calls.quotes, 0);
+});

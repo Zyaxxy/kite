@@ -20,7 +20,7 @@ Every chunk is simulated before review. The simulation checks each recipient ATA
 
 ## Preparation errors
 
-An issuer listing does not establish an executable route. Unpriced basket constituents block preparation before quoting, and one unavailable constituent blocks the complete basket without changing its reviewed allocation.
+An issuer listing does not establish an executable route. Unpriced basket constituents block preparation before quoting, and one unavailable constituent blocks the complete basket without changing its reviewed allocation. Issuer catalogs provide identity and trading status; their null xStock prices do not indicate missing market data. Preparation checks separate, recent token-price observations for the exact basket mints and hydrates missing observations from Jupiter without loading prices for the entire catalog. Stale observations and underlying share references cannot satisfy this check. Incomplete issuer catalogs are retried after 30 seconds rather than treated as an hour-long identity cache hit; incomplete persisted catalogs are skipped and do not replace a complete stored catalog. Preparation still requires the existing issuer-coverage checks.
 
 - Jupiter HTTP 400 with the observed `No routes found` response means no executable route was returned for that funding token and exact leg amount. Changing the amount or funding token may help, but is not guaranteed.
 - Rate limits, authentication failures, provider outages and unreadable/unknown responses have separate errors; they are not reported as evidence of missing liquidity. Quote scheduling respects provider cooldowns within a bounded request deadline.
