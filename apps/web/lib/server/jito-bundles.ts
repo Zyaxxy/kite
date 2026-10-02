@@ -16,31 +16,83 @@ export const JITO_TIP_ACCOUNTS = [
   "DttWaMuVvTiduZRnguLF7jNxTgiMBZ1hyAumKUiL2KRL",
   "3AVi9Tg9Uo68tJfuvoKvqKNWKkC5wPdSSdeBnizKZ6jT",
 ] as const;
+/** An explicit engine rejection is not proof that no signed transaction can land. */
 export class JitoRejectedError extends Error {}
 
-async function jitoRpc<T>(method: string, params: unknown[] = []): Promise<T> {
-  const response = await fetch(ENGINE, {
-    method: "POST",
-    cache: "no-store",
-    signal: AbortSignal.timeout(12_000),
-    headers: {
-      "Content-Type": "application/json",
-      ...(process.env.JITO_AUTH_UUID
-        ? { "x-jito-auth": process.env.JITO_AUTH_UUID }
-        : {}),
-    },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
-  });
-  const body = (await response.json()) as { result?: T; error?: unknown };
-  if (body.error)
-    throw new JitoRejectedError(
-      "Jito rejected the bundle request. No individual transaction fallback was attempted.",
+type JitoMethod = "getTipAccounts" | "sendBundle" | "getInflightBundleStatuses";
+
+function jitoUnavailable(method: JitoMethod, rateLimited = false): Error {
+  if (method === "getTipAccounts")
+    return new Error(
+      rateLimited
+        ? "Jito tip discovery is rate-limited. No transactions were submitted. Try preparing the basket again shortly."
+        : "Jito tip accounts are temporarily unavailable. No transactions were submitted. Try preparing the basket again shortly.",
     );
-  if (!response.ok || body.result === undefined)
-    throw new Error(
-      "Jito did not provide a receipt; check every signature before retrying.",
-    );
-  return body.result;
+  return new Error(
+    method === "sendBundle"
+      ? "Jito did not confirm bundle submission. Check every signature before retrying; no individual transaction fallback was sent."
+      : "Jito bundle status is temporarily unavailable. Check every signature before retrying.",
+  );
+}
+
+async function jitoRpc<T>(
+  method: JitoMethod,
+  params: unknown[] = [],
+): Promise<T> {
+  let response: Response;
+  let body: unknown;
+  try {
+    response = await fetch(ENGINE, {
+      method: "POST",
+      cache: "no-store",
+      signal: AbortSignal.timeout(12_000),
+      headers: {
+        "Content-Type": "application/json",
+        ...(process.env.JITO_AUTH_UUID
+          ? { "x-jito-auth": process.env.JITO_AUTH_UUID }
+          : {}),
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+    });
+  } catch {
+    // Provider/transport errors can contain credentials or request data. Do not expose them.
+    throw jitoUnavailable(method);
+  }
+  try {
+    body = await response.json();
+  } catch {
+    throw jitoUnavailable(method, response.status === 429);
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body))
+    throw jitoUnavailable(method, response.status === 429);
+  const reply = body as {
+    result?: T;
+    error?: unknown;
+    jsonrpc?: unknown;
+    id?: unknown;
+  };
+  if (reply.error !== undefined && reply.error !== null) {
+    const error = reply.error;
+    // Only a well-formed response to sendBundle is an explicit engine rejection.
+    // Transport failures and malformed receipts keep submission uncertain.
+    if (
+      method === "sendBundle" &&
+      reply.jsonrpc === "2.0" &&
+      reply.id === 1 &&
+      reply.result === undefined &&
+      typeof error === "object" &&
+      !Array.isArray(error) &&
+      Number.isInteger((error as { code?: unknown }).code) &&
+      typeof (error as { message?: unknown }).message === "string"
+    )
+      throw new JitoRejectedError(
+        "Jito rejected the bundle request. Check every signature before retrying; no individual transaction fallback was sent.",
+      );
+    throw jitoUnavailable(method, response.status === 429);
+  }
+  if (!response.ok || reply.result === undefined || reply.result === null)
+    throw jitoUnavailable(method, response.status === 429);
+  return reply.result;
 }
 let tipCache:
   | { until: number; accounts: string[]; floorSol: number | undefined }
@@ -83,7 +135,9 @@ async function tipQuote() {
           ),
       )
     )
-      throw new Error("Jito tip accounts could not be verified.");
+      throw new Error(
+        "Jito tip accounts could not be verified. No transactions were submitted.",
+      );
     tipCache = {
       until: Date.now() + 30_000,
       accounts,

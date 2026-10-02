@@ -1,4 +1,4 @@
-import { PublicKey } from "@solana/web3.js";
+import { PublicKey, SystemProgram } from "@solana/web3.js";
 import {
   ExtensionType,
   METADATA_POINTER_SIZE,
@@ -152,4 +152,61 @@ export function validateJupiterIntermediateMint(
       "A route uses an invalid or unsupported intermediate token mint.",
     );
   }
+}
+
+/**
+ * Normalize only a missing account or the exact closed-account state returned
+ * by simulation. Callers must still reject a decrease from a starting balance.
+ * Prefunded System accounts are not closed token accounts.
+ */
+export function isClosedJupiterTokenAccount(
+  account: {
+    owner: string;
+    data: readonly [string, string];
+    executable: boolean;
+    lamports: number;
+  } | null,
+): boolean {
+  if (account === null) return true;
+  return (
+    typeof account === "object" &&
+    account !== undefined &&
+    account.owner === SystemProgram.programId.toBase58() &&
+    account.executable === false &&
+    Array.isArray(account.data) &&
+    account.data.length === 2 &&
+    account.data[0] === "" &&
+    account.data[1] === "base64" &&
+    Object.is(account.lamports, 0)
+  );
+}
+
+/**
+ * Effective WSOL includes lamports deposited before SyncNative updates the
+ * encoded amount. The caller must verify the native mint, token program and
+ * wallet owner before using this balance.
+ */
+export function getJupiterNativeTokenBalance(account: {
+  data: Uint8Array;
+  lamports: number;
+}): bigint {
+  const invalid = () =>
+    new Error("The route uses a malformed native SOL token account.");
+  if (
+    !account ||
+    !(account.data instanceof Uint8Array) ||
+    account.data.byteLength < 165 ||
+    !Number.isSafeInteger(account.lamports) ||
+    account.lamports < 0
+  )
+    throw invalid();
+  const data = Buffer.from(account.data);
+  // SPL Account.is_native is a four-byte COption followed by its u64 reserve.
+  if (data.readUInt32LE(109) !== 1) throw invalid();
+  const reserve = data.readBigUInt64LE(113);
+  const lamports = BigInt(account.lamports);
+  if (lamports < reserve) throw invalid();
+  const effective = lamports - reserve;
+  if (data.readBigUInt64LE(64) > effective) throw invalid();
+  return effective;
 }

@@ -103,6 +103,7 @@ function cache({ getCatalog = async () => snapshot(), getMarkets } = {}) {
       return {
         resolveReviewedMarketBaskets: sdk.resolveReviewedMarketBaskets,
         resolveAllMarketBaskets: sdk.resolveAllMarketBaskets,
+        hasCompleteIssuerCatalogs: sdk.hasCompleteIssuerCatalogs,
         getMainnetCatalog: () => {
           calls.catalog++;
           return getCatalog();

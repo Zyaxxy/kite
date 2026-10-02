@@ -102,6 +102,7 @@ function builder({
           otherAmountThreshold: "990000",
           swapMode: "ExactIn",
           slippageBps: 100,
+          routePlan: [{ percent: 100, swapInfo: { inputMint, outputMint } }],
           setupInstructions: [],
           cleanupInstruction: null,
           otherInstructions: [],

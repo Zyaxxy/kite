@@ -1,7 +1,10 @@
 import {
   getMainnetCatalog,
   getMainnetMarkets,
+  hasCompleteIssuerCatalogs,
+  MAX_CUSTOM_BASKET_LEGS,
   resolveAllMarketBaskets,
+  type MarketAsset,
   type MarketSnapshot,
 } from "@kite/sdk";
 import {
@@ -23,6 +26,7 @@ type Deferred = (task: Promise<unknown>) => void;
 const PRICE_TTL = 30_000;
 const REFERENCE_TTL = 5 * 60_000;
 const CATALOG_TTL = 3600_000;
+const INCOMPLETE_CATALOG_TTL = 30_000;
 let catalog: { value: MarketSnapshot; expiresAt: number } | null = null;
 let catalogPending: Promise<MarketSnapshot> | null = null;
 let cached: { value: MarketSnapshot; expiresAt: number } | null = null;
@@ -49,7 +53,7 @@ export async function getServerMarketCatalog(): Promise<MarketSnapshot> {
         if (
           fromRedis &&
           fromRedis.assets.length &&
-          fromRedis.status !== "unavailable" &&
+          hasCompleteIssuerCatalogs(fromRedis) &&
           fromRedis.assets.some((a) => a.issuer === "xstocks")
         ) {
           const value = withCurrentBasketDefinitions(fromRedis);
@@ -68,7 +72,7 @@ export async function getServerMarketCatalog(): Promise<MarketSnapshot> {
         if (
           fromDisk &&
           fromDisk.assets.length &&
-          fromDisk.status !== "unavailable" &&
+          hasCompleteIssuerCatalogs(fromDisk) &&
           fromDisk.assets.some((a) => a.issuer === "xstocks")
         ) {
           const value = withCurrentBasketDefinitions(fromDisk);
@@ -81,12 +85,20 @@ export async function getServerMarketCatalog(): Promise<MarketSnapshot> {
     }
 
     const value = withCurrentBasketDefinitions(await getMainnetCatalog());
+    const complete = hasCompleteIssuerCatalogs(value);
     catalog = {
       value,
       expiresAt:
-        Date.now() + (value.status === "unavailable" ? 5_000 : CATALOG_TTL),
+        Date.now() +
+        (value.status === "unavailable"
+          ? 5_000
+          : complete
+            ? CATALOG_TTL
+            : INCOMPLETE_CATALOG_TTL),
     };
+    // Preserve durable complete coverage during a temporary issuer outage.
     if (
+      complete &&
       value.assets.length &&
       value.assets.some((a) => a.issuer === "xstocks")
     ) {
@@ -100,6 +112,100 @@ export async function getServerMarketCatalog(): Promise<MarketSnapshot> {
     catalogPending = null;
   });
   return catalogPending;
+}
+
+const BASKET_PRICE_MAX_AGE_MS = 120_000;
+
+function freshTokenPrice(
+  asset: MarketAsset | undefined,
+  now: number,
+): number | null {
+  if (
+    !asset ||
+    typeof asset.priceUsd !== "number" ||
+    !Number.isFinite(asset.priceUsd) ||
+    asset.priceUsd <= 0 ||
+    !["jupiter-tokens-v2", "jupiter-price-v3", "prestocks-issuer"].includes(
+      asset.priceSource ?? "",
+    )
+  )
+    return null;
+  const observedAt = Date.parse(asset.priceObservedAt ?? "");
+  return Number.isFinite(observedAt) &&
+    observedAt <= now &&
+    now - observedAt <= BASKET_PRICE_MAX_AGE_MS
+    ? asset.priceUsd
+    : null;
+}
+
+/** Price only the reviewed issuer mints without replacing the full display cache. */
+export async function getServerBasketPrices(
+  identity: MarketSnapshot,
+  mints: readonly string[],
+): Promise<Map<string, number>> {
+  const byMint = new Map(identity.assets.map((asset) => [asset.mint, asset]));
+  if (
+    identity.network !== "mainnet-beta" ||
+    !Array.isArray(mints) ||
+    !mints.length ||
+    mints.length > MAX_CUSTOM_BASKET_LEGS ||
+    new Set(mints).size !== mints.length ||
+    mints.some((mint) => typeof mint !== "string" || !byMint.has(mint))
+  )
+    throw new Error(
+      "Basket price requests must contain distinct reviewed catalog mints.",
+    );
+
+  const displayed = new Map(
+    cached?.value.network === "mainnet-beta"
+      ? cached.value.assets.map((asset) => [asset.mint, asset])
+      : [],
+  );
+  const observations = new Map<string, MarketAsset>();
+  const missing: MarketAsset[] = [];
+  const now = Date.now();
+  for (const mint of mints) {
+    const known = byMint.get(mint)!;
+    const current = displayed.get(mint);
+    const candidates = [current, known].filter(
+      (asset): asset is MarketAsset => freshTokenPrice(asset, now) !== null,
+    );
+    candidates.sort(
+      (a, b) => Date.parse(b.priceObservedAt!) - Date.parse(a.priceObservedAt!),
+    );
+    if (candidates[0]) observations.set(mint, candidates[0]);
+    else
+      missing.push({
+        ...known,
+        priceUsd: null,
+        priceObservedAt: null,
+        priceSource: null,
+        priceBlockId: null,
+      });
+  }
+  if (missing.length) {
+    try {
+      const refreshed = await getMainnetMarkets({
+        catalog: { ...identity, assets: missing, baskets: [] },
+        jupiterApiKey: process.env.JUPITER_API_KEY,
+        includePriceReferences: false,
+        priceFallbackMints: missing.map((asset) => asset.mint),
+        signal: AbortSignal.timeout(8_000),
+      });
+      const requested = new Set(missing.map((asset) => asset.mint));
+      for (const asset of refreshed.assets)
+        if (requested.has(asset.mint)) observations.set(asset.mint, asset);
+    } catch {
+      // Missing observations remain absent; the caller rejects incomplete baskets.
+    }
+  }
+  const result = new Map<string, number>();
+  const finishedAt = Date.now();
+  for (const mint of mints) {
+    const price = freshTokenPrice(observations.get(mint), finishedAt);
+    if (price !== null) result.set(mint, price);
+  }
+  return result;
 }
 
 function retainReferences(value: MarketSnapshot): MarketSnapshot {

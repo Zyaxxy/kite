@@ -151,10 +151,11 @@ test("capacity failure never emits a truncated basket and a split requires a rev
 test("tip cannot be loaded from an ALT, and an extra route signer fails closed", () => {
   const options = fixture(5, 14);
   options.lookupTables[0].state.addresses.push(tipAccount);
-  assert.throws(
-    () => composeBasketV0Chunks(options),
-    /tip accounts must remain static/,
-  );
+  const chunks = composeBasketV0Chunks(options);
+  const final = VersionedTransaction.deserialize(
+    Buffer.from(chunks.at(-1)!.transaction, "base64"),
+  ).message;
+  assert.ok(final.staticAccountKeys.some((key) => key.equals(tipAccount)));
   const other = fixture(1);
   other.legs[0].instructions[0].keys.push({
     pubkey: key(8),

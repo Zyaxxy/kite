@@ -4,7 +4,6 @@ import {
   ComputeBudgetProgram,
   PublicKey,
   TransactionInstruction,
-  TransactionMessage,
   VersionedTransaction,
 } from "@solana/web3.js";
 import {
@@ -19,6 +18,8 @@ import {
   TransactionCapacityError,
   isTransactionCapacityError,
 } from "./transaction-limits";
+
+import { compilePackedV0Message } from "./v0-lookup-packing";
 
 export * from "./transaction-limits";
 export const BUNDLE_ATOMICITY_WARNING =
@@ -62,6 +63,8 @@ export function composeV0Transaction(params: {
   blockhash: string;
   instructions: TransactionInstruction[];
   lookupTables?: AddressLookupTableAccount[];
+  /** Accounts such as the Jito tip recipient that must never be loaded from an ALT. */
+  staticAccountKeys?: readonly PublicKey[];
   priorityFeeLamports?: number;
   computeUnitLimit?: number;
 }): Omit<ComposedV0Chunk, "allocationIndexes"> {
@@ -105,11 +108,13 @@ export function composeV0Transaction(params: {
       "Transaction exceeds the 64-account runtime limit.",
       "accounts",
     );
-  const message = new TransactionMessage({
-    payerKey: payer,
-    recentBlockhash: params.blockhash,
+  const { message, wireLength } = compilePackedV0Message({
+    payer,
+    blockhash: params.blockhash,
     instructions,
-  }).compileToV0Message(params.lookupTables ?? []);
+    lookupTables: params.lookupTables ?? [],
+    staticAccountKeys: params.staticAccountKeys ?? [],
+  });
   const accountCount =
     message.staticAccountKeys.length +
     message.addressTableLookups.reduce(
@@ -121,40 +126,6 @@ export function composeV0Transaction(params: {
     throw new TransactionCapacityError(
       "Transaction exceeds the 64-account runtime limit.",
       "accounts",
-    );
-  // web3.js serializes into fixed buffers. Compute the exact wire length first
-  // so buffer overflow is a capacity result without hiding unrelated codec errors.
-  const shortvec = (length: number) =>
-    length < 128 ? 1 : length < 16384 ? 2 : 3;
-  const wireLength =
-    shortvec(message.header.numRequiredSignatures) +
-    64 * message.header.numRequiredSignatures +
-    1 +
-    3 +
-    shortvec(message.staticAccountKeys.length) +
-    32 * message.staticAccountKeys.length +
-    32 +
-    shortvec(message.compiledInstructions.length) +
-    message.compiledInstructions.reduce(
-      (total, ix) =>
-        total +
-        1 +
-        shortvec(ix.accountKeyIndexes.length) +
-        ix.accountKeyIndexes.length +
-        shortvec(ix.data.length) +
-        ix.data.length,
-      0,
-    ) +
-    shortvec(message.addressTableLookups.length) +
-    message.addressTableLookups.reduce(
-      (total, table) =>
-        total +
-        32 +
-        shortvec(table.writableIndexes.length) +
-        table.writableIndexes.length +
-        shortvec(table.readonlyIndexes.length) +
-        table.readonlyIndexes.length,
-      0,
     );
   if (wireLength > V0_MAX_BYTES)
     throw new TransactionCapacityError(
@@ -192,6 +163,10 @@ export function composeBasketV0Chunks(params: {
       payer: params.payer,
       blockhash: params.blockhash,
       lookupTables: params.lookupTables,
+      staticAccountKeys:
+        tip && params.finalTipInstruction?.keys[1]
+          ? [params.finalTipInstruction.keys[1].pubkey]
+          : [],
       priorityFeeLamports: params.priorityFeeLamports,
       instructions: [
         ...legs.flatMap((leg) => leg.instructions),
@@ -209,15 +184,7 @@ export function composeBasketV0Chunks(params: {
       throw error;
   }
   const tipAccount = params.finalTipInstruction.keys[1]?.pubkey;
-  if (
-    !tipAccount ||
-    params.lookupTables.some((table) =>
-      table.state.addresses.some((key) => key.equals(tipAccount)),
-    )
-  )
-    throw new Error(
-      "Jito tip accounts must remain static, outside lookup tables.",
-    );
+  if (!tipAccount) throw new Error("Invalid Jito tip instruction.");
   for (
     let count = 2;
     count <= Math.min(BASKET_MAX_TRANSACTIONS, params.legs.length);

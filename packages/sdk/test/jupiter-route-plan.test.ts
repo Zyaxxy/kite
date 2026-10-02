@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { PublicKey } from "@solana/web3.js";
+import { PublicKey, SystemProgram } from "@solana/web3.js";
 import {
   ACCOUNT_SIZE,
   AccountType,
@@ -11,6 +11,8 @@ import {
 } from "@solana/spl-token";
 import {
   getJupiterIntermediateMints,
+  getJupiterNativeTokenBalance,
+  isClosedJupiterTokenAccount,
   validateJupiterIntermediateMint,
 } from "../src/jupiter-route-plan";
 
@@ -275,5 +277,217 @@ test("transfer-affecting, unknown and malformed intermediate mint extensions are
     assert.throws(
       () => validateJupiterIntermediateMint(bridge, account),
       /invalid or unsupported intermediate token mint/,
+    );
+});
+
+const closedAccount = {
+  owner: SystemProgram.programId.toBase58(),
+  data: ["", "base64"] as const,
+  executable: false,
+  lamports: 0,
+};
+
+test("missing and exact closed simulation accounts are recognized as zero balances", () => {
+  assert.equal(isClosedJupiterTokenAccount(null), true);
+  assert.equal(isClosedJupiterTokenAccount(closedAccount), true);
+  assert.equal(
+    isClosedJupiterTokenAccount({ ...closedAccount, data: ["", "base64"] }),
+    true,
+  );
+});
+
+const liveTokenData = Buffer.alloc(ACCOUNT_SIZE);
+new PublicKey(bridge).toBuffer().copy(liveTokenData, 0);
+new PublicKey(input).toBuffer().copy(liveTokenData, 32);
+liveTokenData.writeBigUInt64LE(250n, 64);
+liveTokenData[108] = 1;
+
+for (const [name, account] of [
+  [
+    "positive legacy token balance",
+    {
+      ...closedAccount,
+      owner: TOKEN_PROGRAM_ID.toBase58(),
+      data: [liveTokenData.toString("base64"), "base64"] as const,
+      lamports: 2039280,
+    },
+  ],
+  [
+    "positive Token-2022 balance",
+    {
+      ...closedAccount,
+      owner: TOKEN_2022_PROGRAM_ID.toBase58(),
+      data: [liveTokenData.toString("base64"), "base64"] as const,
+      lamports: 2039280,
+    },
+  ],
+  ["prefunded System account", { ...closedAccount, lamports: 1 }],
+  [
+    "zero-lamport token-owned account",
+    { ...closedAccount, owner: TOKEN_PROGRAM_ID.toBase58() },
+  ],
+  ["unrelated owner", { ...closedAccount, owner: input }],
+  [
+    "noncanonical System owner",
+    { ...closedAccount, owner: ` ${closedAccount.owner}` },
+  ],
+  ["executable account", { ...closedAccount, executable: true }],
+  [
+    "nonempty zero data",
+    { ...closedAccount, data: ["AA==", "base64"] as const },
+  ],
+  [
+    "nonempty token data",
+    {
+      ...closedAccount,
+      data: [liveTokenData.toString("base64"), "base64"] as const,
+    },
+  ],
+  ["negative lamports", { ...closedAccount, lamports: -1 }],
+  ["negative-zero lamports", { ...closedAccount, lamports: -0 }],
+  ["NaN lamports", { ...closedAccount, lamports: NaN }],
+  ["infinite lamports", { ...closedAccount, lamports: Infinity }],
+  ["fractional lamports", { ...closedAccount, lamports: 0.5 }],
+  [
+    "unsafe lamports",
+    { ...closedAccount, lamports: Number.MAX_SAFE_INTEGER + 1 },
+  ],
+] as const) {
+  test(`${name} is not a closed token account`, () => {
+    assert.equal(isClosedJupiterTokenAccount(account), false);
+  });
+}
+
+test("malformed closed-account fields are rejected without coercion", () => {
+  for (const account of [
+    undefined,
+    [],
+    {},
+    "closed",
+    { ...closedAccount, executable: 0 },
+    { ...closedAccount, executable: undefined },
+    { ...closedAccount, data: undefined },
+    { ...closedAccount, data: null },
+    { ...closedAccount, data: [] },
+    { ...closedAccount, data: "" },
+    { ...closedAccount, data: new Uint8Array() },
+    { ...closedAccount, data: ["", "base58"] },
+    { ...closedAccount, data: ["", "base64", "extra"] },
+    { ...closedAccount, data: ["!!!!", "base64"] },
+    { ...closedAccount, data: [" ", "base64"] },
+    { ...closedAccount, data: { byteLength: 0 } },
+    { ...closedAccount, lamports: "0" },
+    { ...closedAccount, lamports: 0n },
+    { ...closedAccount, lamports: null },
+    { ...closedAccount, lamports: false },
+  ])
+    assert.equal(
+      isClosedJupiterTokenAccount(
+        account as Parameters<typeof isClosedJupiterTokenAccount>[0],
+      ),
+      false,
+    );
+});
+
+function nativeAccount({
+  amount = 250n,
+  excessLamports = 250,
+  reserve = 2039280n,
+  nativeFlag = 1,
+}: {
+  amount?: bigint;
+  excessLamports?: number;
+  reserve?: bigint;
+  nativeFlag?: number;
+} = {}) {
+  const data = Buffer.alloc(ACCOUNT_SIZE);
+  data[108] = 1;
+  data.writeBigUInt64LE(amount, 64);
+  data.writeUInt32LE(nativeFlag, 109);
+  data.writeBigUInt64LE(reserve, 113);
+  return { data, lamports: Number(reserve) + excessLamports };
+}
+
+for (const [name, amount, excessLamports] of [
+  ["synced WSOL", 250n, 250],
+  ["unsynced WSOL with zero encoded amount", 0n, 250],
+  ["partially synced WSOL", 100n, 250],
+  ["reserve-only WSOL", 0n, 0],
+] as const) {
+  test(`${name} preserves all effective lamports above the native reserve`, () => {
+    assert.equal(
+      getJupiterNativeTokenBalance(nativeAccount({ amount, excessLamports })),
+      BigInt(excessLamports),
+    );
+  });
+}
+
+test("the largest safely represented native account balance remains exact", () => {
+  const account = nativeAccount({ amount: 0n });
+  account.lamports = Number.MAX_SAFE_INTEGER;
+  assert.equal(
+    getJupiterNativeTokenBalance(account),
+    BigInt(Number.MAX_SAFE_INTEGER) - 2039280n,
+  );
+});
+
+for (const nativeFlag of [0, 2, 256, 0xffffffff]) {
+  test(`native COption flag ${nativeFlag} is rejected`, () => {
+    assert.throws(
+      () => getJupiterNativeTokenBalance(nativeAccount({ nativeFlag })),
+      /malformed native SOL token account/,
+    );
+  });
+}
+
+for (const [name, lamports] of [
+  ["negative", -1],
+  ["fractional", 2039280.5],
+  ["NaN", NaN],
+  ["infinite", Infinity],
+  ["unsafe", Number.MAX_SAFE_INTEGER + 1],
+  ["below reserve", 2039279],
+] as const) {
+  test(`${name} native lamports are rejected`, () => {
+    assert.throws(
+      () => getJupiterNativeTokenBalance({ ...nativeAccount(), lamports }),
+      /malformed native SOL token account/,
+    );
+  });
+}
+
+test("encoded token amounts cannot exceed actual native balance", () => {
+  assert.throws(
+    () => getJupiterNativeTokenBalance(nativeAccount({ amount: 251n })),
+    /malformed native SOL token account/,
+  );
+  const account = nativeAccount({ amount: 0n });
+  account.data.writeBigUInt64LE(1n << 63n, 113);
+  assert.throws(
+    () => getJupiterNativeTokenBalance(account),
+    /malformed native SOL token account/,
+  );
+});
+
+test("truncated and malformed native account inputs fail descriptively", () => {
+  const valid = nativeAccount();
+  for (const account of [
+    null,
+    undefined,
+    {},
+    { ...valid, data: valid.data.subarray(0, 164) },
+    { ...valid, data: valid.data.subarray(0, 120) },
+    { ...valid, data: new Uint8Array() },
+    { ...valid, data: Array(165).fill(0) },
+    { ...valid, data: "" },
+    { ...valid, lamports: "2039530" },
+    { ...valid, lamports: 2039530n },
+  ])
+    assert.throws(
+      () =>
+        getJupiterNativeTokenBalance(
+          account as Parameters<typeof getJupiterNativeTokenBalance>[0],
+        ),
+      /malformed native SOL token account/,
     );
 });
