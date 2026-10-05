@@ -454,6 +454,14 @@ export function Landing({
             <Link href="/privacy">Privacy</Link>
             <Link href="/terms">Terms</Link>
             <Link href="/creators">Creator studio</Link>
+            <a
+              href="https://x.com/InvestonKite"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Follow Kite on X, @InvestonKite"
+            >
+              X · @InvestonKite <ArrowUpRight size={13} aria-hidden="true" />
+            </a>
           </nav>
         </footer>
       </main>

@@ -10,7 +10,11 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { executePaperBasket, type MarketBasket } from "@kite/sdk";
+import {
+  executePaperBasket,
+  resolveAllMarketBaskets,
+  type MarketBasket,
+} from "@kite/sdk";
 import { Button, Chip, EmptyState, FilterRow } from "../components/Primitives";
 import { AssetLogo, MarketStatus } from "../components/Market";
 import { IconArrowUpRight } from "../components/Icons";
@@ -26,16 +30,17 @@ export function BasketsScreen({
   const { colors, ui } = useTheme();
   const styles = useStyles();
   const { market, account, updateAccount, ready, loading, refresh } = useKite();
+  const catalogBaskets = resolveAllMarketBaskets(market?.assets ?? []);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState("Paper");
   const [category, setCategory] = useState("All themes");
   const categories = [
     "All themes",
     ...new Set(
-      (market?.baskets ?? []).map((basket) => basket.category ?? "diversified"),
+      catalogBaskets.map((basket) => basket.category ?? "diversified"),
     ),
   ];
-  const baskets = (market?.baskets ?? []).filter(
+  const baskets = catalogBaskets.filter(
     (basket) =>
       category === "All themes" ||
       (basket.category ?? "diversified") === category,
@@ -43,7 +48,7 @@ export function BasketsScreen({
   const [amount, setAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const selected = market?.baskets.find((basket) => basket.id === selectedId);
+  const selected = catalogBaskets.find((basket) => basket.id === selectedId);
 
   function buy() {
     if (!selected) return;
@@ -134,7 +139,7 @@ export function BasketsScreen({
                   style={[ui.small, basket.available ? ui.positive : undefined]}
                 >
                   {basket.available
-                    ? "Live prices available"
+                    ? "Prices available · quotes rechecked before signing"
                     : "Awaiting complete market data"}
                 </Text>
                 <Text style={[ui.label, { color: colors.accent }]}>

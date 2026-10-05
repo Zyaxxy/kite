@@ -6,6 +6,11 @@ import type {
 } from "../basket/mainnet";
 import type { MarketSnapshot } from "../markets";
 import type {
+  BasketRouteHealthRequest,
+  BasketRouteHealth,
+  BasketRouteCoverage,
+} from "../basket/route-health";
+import type {
   BasketBundleExecution,
   BasketPurchaseOrder,
 } from "../basket/bundle";
@@ -318,6 +323,114 @@ export class KiteClient {
     });
     return verified<MainnetTradeOrder>(data, (value) =>
       matchesOrder(value, request),
+    );
+  }
+  async getBasketRouteCoverage(
+    signal?: AbortSignal,
+  ): Promise<BasketRouteCoverage[]> {
+    const { data } = await this.request("/api/baskets/route-health", {
+      signal,
+    });
+    return verified<{ baskets: BasketRouteCoverage[] }>(
+      data,
+      (v) =>
+        Array.isArray(v.baskets) &&
+        v.baskets.every(
+          (basket) =>
+            record(basket) &&
+            typeof basket.basketId === "string" &&
+            typeof basket.featured === "boolean" &&
+            Array.isArray(basket.funding) &&
+            basket.funding.length === 3 &&
+            basket.funding.every(
+              (funding) =>
+                record(funding) &&
+                typeof funding.inputMint === "string" &&
+                typeof funding.symbol === "string" &&
+                Number.isInteger(funding.routable) &&
+                Number(funding.routable) >= 0 &&
+                Number.isInteger(funding.total) &&
+                Number(funding.total) >= Number(funding.routable) &&
+                (funding.checkedAt === null ||
+                  (typeof funding.checkedAt === "number" &&
+                    Number.isFinite(funding.checkedAt))) &&
+                typeof funding.stale === "boolean" &&
+                typeof funding.consistent === "boolean",
+            ) &&
+            (!basket.featured ||
+              basket.funding.every(
+                (funding) =>
+                  record(funding) &&
+                  funding.consistent === true &&
+                  funding.stale === false,
+              )),
+        ),
+    ).baskets;
+  }
+  async requestBasketRouteHealth(
+    input: BasketRouteHealthRequest,
+    signal?: AbortSignal,
+  ): Promise<BasketRouteHealth> {
+    const { data } = await this.request("/api/baskets/route-health", {
+      body: input,
+      signal,
+    });
+    return verified<BasketRouteHealth>(
+      data,
+      (v) =>
+        v.network === "mainnet-beta" &&
+        v.advisory === true &&
+        v.inputMint === input.inputMint &&
+        v.amount === input.amount &&
+        typeof v.inputSymbol === "string" &&
+        v.inputSymbol.length <= 40 &&
+        Number.isInteger(v.inputDecimals) &&
+        Number(v.inputDecimals) >= 0 &&
+        Number(v.inputDecimals) <= 18 &&
+        v.slippageBps === input.slippageBps &&
+        Array.isArray(v.legs) &&
+        v.legs.length > 0 &&
+        v.legs.length <= 12 &&
+        (!input.allocations || v.legs.length === input.allocations.length) &&
+        v.legs.every(
+          (leg, index) =>
+            record(leg) &&
+            typeof leg.mint === "string" &&
+            typeof leg.detail === "string" &&
+            (!input.allocations ||
+              leg.mint === input.allocations[index].mint) &&
+            typeof leg.symbol === "string" &&
+            leg.symbol.length <= 44 &&
+            typeof leg.consistent === "boolean" &&
+            (leg.maxAccounts === null ||
+              (Number.isInteger(leg.maxAccounts) &&
+                Number(leg.maxAccounts) >= 0 &&
+                Number(leg.maxAccounts) <= 48)) &&
+            (leg.liquidityUsd === null ||
+              (typeof leg.liquidityUsd === "number" &&
+                Number.isFinite(leg.liquidityUsd) &&
+                leg.liquidityUsd >= 0)) &&
+            [
+              "routable",
+              "no-route",
+              "liquidity",
+              "capacity",
+              "unknown",
+              "unavailable",
+            ].includes(String(leg.status)) &&
+            typeof leg.checkedAt === "number" &&
+            Number.isFinite(leg.checkedAt) &&
+            leg.checkedAt >= 0 &&
+            typeof leg.expiresAt === "number" &&
+            Number.isFinite(leg.expiresAt) &&
+            leg.expiresAt > leg.checkedAt &&
+            typeof leg.allocatedAmount === "string" &&
+            /^\d{1,20}$/.test(leg.allocatedAmount) &&
+            BigInt(leg.allocatedAmount) > BigInt(0) &&
+            typeof leg.probeAmount === "string" &&
+            /^\d{1,20}$/.test(leg.probeAmount) &&
+            BigInt(leg.probeAmount) > BigInt(0),
+        ),
     );
   }
   async requestBasketOrder(

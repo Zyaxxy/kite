@@ -154,6 +154,12 @@ function builder({
   intermediateAccount = mintAccount(tokenProgram) as RpcAccount | null,
   intermediateBefore = 0,
   intermediateAfter = intermediateBefore,
+  inputDust = 0,
+  legInputAmount,
+  outputAmount = 1_000_000,
+  outputAmounts,
+  fundingBalance = 3_000_000,
+  forceChunks = false,
 }: {
   basket?: boolean;
   nativeInput?: boolean;
@@ -163,11 +169,17 @@ function builder({
   intermediateAccount?: RpcAccount | null;
   intermediateBefore?: number;
   intermediateAfter?: number;
+  inputDust?: number;
+  legInputAmount?: number;
+  outputAmount?: number;
+  outputAmounts?: readonly number[];
+  fundingBalance?: number;
+  forceChunks?: boolean;
 } = {}) {
   const mints = basket ? outputMints : outputMints.slice(0, 1);
   const fundingMint = nativeInput ? sdk.MAINNET_SOL_MINT : inputMint;
   const fundingAta = ata(fundingMint);
-  const legAmount = nativeInput ? 1_000_000_000 : 1_000_000;
+  const legAmount = legInputAmount ?? (nativeInput ? 1_000_000_000 : 1_000_000);
   const intermediateAta = ata(intermediateMint, tokenProgram);
   const addresses = [
     ...mints.map((mint) => ata(mint)),
@@ -175,7 +187,12 @@ function builder({
     wallet,
     intermediateAta,
   ];
-  const calls = { quotes: 0, simulations: 0, intermediateMintReads: 0 };
+  const calls = {
+    quotes: 0,
+    simulations: 0,
+    intermediateMintReads: 0,
+    authorizedDebit: null as string | null,
+  };
   const exports: Partial<ServerExports> = {};
   const walletAccount = (lamports: number): RpcAccount => ({
     owner: web3.SystemProgram.programId.toBase58(),
@@ -186,7 +203,17 @@ function builder({
   const dependencies: Record<string, unknown> = {
     "@solana/web3.js": web3,
     "@solana/spl-token": spl,
-    "@kite/sdk": sdk,
+    "@kite/sdk": forceChunks
+      ? {
+          ...sdk,
+          composeBasketV0Chunks: (
+            params: Parameters<typeof sdk.composeBasketV0Chunks>[0],
+          ) =>
+            params.legs.flatMap((leg) =>
+              sdk.composeBasketV0Chunks({ ...params, legs: [leg] }),
+            ),
+        }
+      : sdk,
     "./markets": {
       getServerMarketCatalog: async () => ({
         assets: mints.map(outputToken),
@@ -199,7 +226,12 @@ function builder({
         mint === sdk.MAINNET_SOL_MINT ? 9 : 6,
     },
     "./creator-store": { resolvePublishedCreatorBasket: async () => null },
-    "./bundle-authorization": {},
+    "./bundle-authorization": {
+      authorizeBundle: async (input: { inAmount: string }) => {
+        calls.authorizedDebit = input.inAmount;
+        return { requestId: "test", authorization: "test" };
+      },
+    },
     "./jito-bundles": {},
     "./jupiter-lookup-tables": { loadVerifiedLookupTables: async () => [] },
     "./jupiter-build": {
@@ -307,11 +339,15 @@ function builder({
         blockhash: key(),
         lastValidBlockHeight: 100,
       }),
-      authorizeComposed: async (order: Record<string, unknown>) => ({
-        ...order,
-        requestId: "test",
-        authorization: "test",
-      }),
+      authorizeComposed: async (
+        order: Record<string, unknown>,
+        _run: unknown,
+        _setup: unknown,
+        receipt: { inAmount: string },
+      ) => {
+        calls.authorizedDebit = receipt.inAmount;
+        return { ...order, requestId: "test", authorization: "test" };
+      },
       mainnetRpc: async (method: string, params: unknown[]) => {
         if (method === "getBalance") {
           assert.equal(nativeInput, true);
@@ -321,7 +357,7 @@ function builder({
         if (method === "getAccountInfo") {
           assert.equal(nativeInput, false);
           assert.equal(params[0], fundingAta);
-          return { value: tokenAccount(fundingMint, 3_000_000) };
+          return { value: tokenAccount(fundingMint, fundingBalance) };
         }
         assert.equal(method, "getMultipleAccounts");
         assert.ok(Array.isArray(params[0]));
@@ -339,7 +375,7 @@ function builder({
         return {
           value: [
             ...mints.map((mint) => tokenAccount(mint, 0)),
-            ...(nativeInput ? [] : [tokenAccount(fundingMint, 3_000_000)]),
+            ...(nativeInput ? [] : [tokenAccount(fundingMint, fundingBalance)]),
             walletAccount(10_000_000_000),
             intermediateBefore === 0
               ? null
@@ -357,25 +393,35 @@ function builder({
       ) => {
         calls.simulations++;
         assert.deepEqual(Array.from(queriedAddresses), addresses);
-        assert.equal(
-          (await sdk.inspectWalletTransaction(transaction)).message.version,
-          transactionVersion,
+        const inspected = await sdk.inspectWalletTransaction(transaction);
+        assert.equal(inspected.message.version, transactionVersion);
+        const executing = mints.filter((mint) =>
+          inspected.message.staticAccounts.some(
+            (account) => account === ata(mint),
+          ),
         );
         return {
           err: null,
           accounts: [
-            ...mints.map((mint) => tokenAccount(mint, 1_000_000)),
+            ...mints.map((mint, index) =>
+              tokenAccount(
+                mint,
+                executing.includes(mint)
+                  ? (outputAmounts?.[index] ?? outputAmount)
+                  : 0,
+              ),
+            ),
             ...(nativeInput
               ? []
               : [
                   tokenAccount(
                     fundingMint,
-                    3_000_000 - mints.length * legAmount,
+                    fundingBalance - executing.length * legAmount + inputDust,
                   ),
                 ]),
             walletAccount(
               10_000_000_000 -
-                (nativeInput ? mints.length * legAmount : 0) -
+                (nativeInput ? executing.length * legAmount : 0) -
                 15_000,
             ),
             tokenAccount(intermediateMint, intermediateAfter, tokenProgram),
@@ -401,7 +447,10 @@ function builder({
     prepare: async () => {
       const request = {
         inputMint: fundingMint,
-        amount: basket ? "2" : "1",
+        amount: sdk.fromTokenAmount(
+          String(legAmount * mints.length),
+          nativeInput ? 9 : 6,
+        ),
         taker: wallet,
         slippageBps: 100,
         supportedTransactionVersions: [transactionVersion],
@@ -440,6 +489,109 @@ test("multi-leg basket validates a shared intermediate mint once and includes it
   assert.equal(run.calls.quotes, 2);
   assert.equal(run.calls.intermediateMintReads, 1);
   assert.equal(run.calls.simulations, 1);
+});
+
+for (const transactionVersion of [0, 1] as const) {
+  for (const inputDust of [-50, 1, 11, 100]) {
+    test(`V${transactionVersion} review accepts a 20,000 budget with a ${20_000 - inputDust} debit`, async () => {
+      const run = builder({
+        legInputAmount: 20_000,
+        inputDust,
+        transactionVersion,
+      });
+      const order = await run.prepare();
+      assert.equal(order.inAmount, "20000");
+      assert.equal(order.outputs[0].inputAmount, "20000");
+      assert.equal(order.outputs[0].minimumAmount, "990000");
+      assert.equal(run.calls.simulations, 1);
+      assert.equal(run.calls.authorizedDebit, "20050");
+    });
+  }
+}
+
+test("basket review accepts lower spending when all minimum outputs are delivered", async () => {
+  const run = builder({ basket: true, inputDust: 11 });
+  const order = await run.prepare();
+  assert.equal(order.inAmount, "2000000");
+  assert.deepEqual(
+    Array.from(order.outputs, (output) => output.inputAmount),
+    ["1000000", "1000000"],
+  );
+});
+
+for (const inputDust of [-51, 101, 2_000_000, 2_000_001]) {
+  test(`basket review rejects invalid funding difference ${inputDust}`, async () => {
+    const run = builder({ basket: true, inputDust });
+    await assert.rejects(run.prepare(), /simulated input debit/);
+    assert.equal(run.calls.simulations, 1);
+  });
+}
+
+test("lower spending cannot bypass minimum outputs", async () => {
+  const run = builder({ inputDust: 11, outputAmount: 989_999 });
+  await assert.rejects(run.prepare(), /minimum output/);
+});
+
+test("preparation reserves the extra 50 funding units before requesting routes", async () => {
+  const short = builder({ basket: true, fundingBalance: 2_000_000 });
+  await assert.rejects(short.prepare(), /requires up to 2\.00005/);
+  assert.equal(short.calls.quotes, 0);
+  const enough = builder({
+    basket: true,
+    fundingBalance: 2_000_050,
+    inputDust: -50,
+  });
+  await enough.prepare();
+  assert.equal(enough.calls.authorizedDebit, "2000050");
+});
+
+for (const [inputDust, allowed] of [
+  [-25, true],
+  [-30, false],
+  [50, true],
+  [51, false],
+] as const) {
+  test(`the whole bundle ${allowed ? "accepts" : "rejects"} a ${-2 * inputDust} unit debit difference`, async () => {
+    const run = builder({ basket: true, forceChunks: true, inputDust });
+    if (allowed) {
+      const order = await run.prepare();
+      assert.equal("kind" in order && order.kind, "bundle");
+      assert.equal(run.calls.authorizedDebit, "2000050");
+    } else {
+      await assert.rejects(run.prepare(), /simulated input debit/);
+      assert.equal(run.calls.authorizedDebit, null);
+    }
+    assert.equal(run.calls.simulations, 2);
+  });
+}
+
+test("a cheaper basket with one missing constituent still fails review", async () => {
+  const run = builder({
+    basket: true,
+    inputDust: 1_000_000,
+    outputAmounts: [1_000_000, 0],
+  });
+  await assert.rejects(run.prepare(), /minimum output/);
+});
+
+test("a lower debit cannot bypass the exact encoded allocation", async () => {
+  const run = builder({
+    inputDust: 11,
+    routeChange: (route) => {
+      route.inAmount = "999989";
+    },
+  });
+  await assert.rejects(run.prepare(), /requested allocation/);
+  assert.equal(run.calls.simulations, 0);
+});
+
+test("lower spending cannot spend an existing intermediate balance", async () => {
+  const run = builder({
+    inputDust: 11,
+    intermediateBefore: 250,
+    intermediateAfter: 249,
+  });
+  await assert.rejects(run.prepare(), /existing intermediate token balance/);
 });
 
 test("native SOL funding supports a token intermediary and preserves the wallet simulation index", async () => {

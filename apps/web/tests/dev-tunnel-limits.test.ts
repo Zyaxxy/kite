@@ -102,5 +102,8 @@ test(
     assert.equal((await post("/api/trade/order")).status, 413);
     assert.equal((await post("/api/recurring/collect", "{}")).status, 404);
     assert.equal(received.length, 2);
+    assert.equal((await post("/api/baskets/route-health", "{}")).status, 200);
+    assert.equal((await post("/api/baskets/route-health")).status, 413);
+    assert.equal((await fetch(`http://127.0.0.1:${proxyPort}/api/baskets/route-health`)).status, 200);
   },
 );

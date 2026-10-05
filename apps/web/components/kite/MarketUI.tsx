@@ -35,6 +35,7 @@ import {
   TableRow,
 } from "../ui/table";
 import { NativeSelect, NativeSelectOption } from "../ui/native-select";
+import { useRouteCoverage } from "./useRouteHealth";
 
 export const money = (value: number | null | undefined, digits = 2) =>
   value == null || !Number.isFinite(value)
@@ -436,6 +437,7 @@ export function BasketCard({
     (sum, a) => sum + (a.volume24hUsd ?? 0),
     0,
   );
+  const routeCoverage = useRouteCoverage().find((value) => value.basketId === basket.id);
   const growth24h = useMemo(() => calculateBasket24hGrowth(basket), [basket]);
   const [perf30d, setPerf30d] = useState<BasketPerformance | null>(() =>
     basketPerformanceClient.peek(basket.id, "30d"),
@@ -630,6 +632,14 @@ export function BasketCard({
             Single transaction or Jito bundle · confirmed in your order review
           </p>
         )}
+        {presentation === "app" && !basket.isCustom && (
+          <p className="fineprint" style={{ margin: "0 0 12px", fontVariantNumeric: "tabular-nums" }} title="Cached per-stock probes at 25 USDC, 25 USDT or 0.1 SOL and 1% slippage. Complete basket fit is checked at review.">
+            {routeCoverage?.funding.some((funding) => funding.checkedAt !== null)
+              ? routeCoverage.funding.map((funding) => `${funding.symbol} ${funding.checkedAt === null ? "unknown" : `${funding.routable}/${funding.total}${funding.stale ? " · stale" : ""}`}`).join(" · ")
+              : "Funding routes awaiting observations"}
+            {routeCoverage?.featured ? " · Consistent route coverage" : ""}
+          </p>
+        )}
         <div className="basket-meta">
           <span>
             {basket.assets.length ? `${basket.assets.length} assets · ` : ""}
@@ -639,7 +649,7 @@ export function BasketCard({
             {presentation === "marketing"
               ? "Explore theme"
               : basket.available
-                ? "Priced · quote required"
+                ? "Prices available · quotes rechecked before signing"
                 : basket.source.missingSymbols.length
                   ? "Some components unavailable"
                   : "Some token prices unavailable"}

@@ -231,7 +231,7 @@ test("minimum output, destination ownership and maximum input debit are enforced
   for (const [options, pattern] of [
     [{ outputAmount: 989999 }, /minimum output/],
     [{ destinationOwner: key() }, /your own token/],
-    [{ inputSpent: 1000001 }, /input debit/],
+    [{ inputSpent: 1000051 }, /input debit/],
   ])
     await assert.rejects(builder(options).prepare(), pattern);
 });

@@ -26,11 +26,14 @@ import {
   type BasketDisplay,
 } from "./MarketUI";
 import { useBaskets } from "./useBaskets";
+import { useRouteCoverage } from "./useRouteHealth";
 import { MarketPulse, MarketHeadlines, MarketBreadth } from "./MarketPulse";
 import { NativeSelect, NativeSelectOption } from "../ui/native-select";
 import { calculateBasket24hGrowth, MAX_CUSTOM_BASKET_LEGS } from "@kite/sdk";
 import { BasketPerformancePanel } from "./BasketPerformancePanel";
 import { basketPerformanceClient } from "./basket-performance-client";
+import { useTradingAuth } from "../trading/TradingAuth";
+import { useWalletPortfolio } from "../trading/useWalletPortfolio";
 
 export function MarketStatus() {
   const { snapshot, loading, error, refresh, storageError } = useKite();
@@ -81,6 +84,15 @@ export function MarketStatus() {
 }
 export function PaperAccountCard() {
   const { paper, portfolio, hydrated, mode } = useKite();
+  const { walletAddress } = useTradingAuth();
+  const {
+    portfolio: walletPortfolio,
+    loading: walletLoading,
+    error: walletError,
+    cached,
+    stale,
+    refresh: refreshWallet,
+  } = useWalletPortfolio(mode === "actual" ? walletAddress : null, true);
   return (
     <div className="panel account-card">
       <div className="flex-between">
@@ -109,6 +121,70 @@ export function PaperAccountCard() {
           <p className="caption">
             Virtual USD only. Paper orders do not move funds onchain.
           </p>
+        </>
+      ) : walletAddress ? (
+        <>
+          <p>
+            {walletPortfolio?.hasUnpricedHoldings
+              ? "Priced account balance"
+              : "Total account balance"}
+          </p>
+          <h2>
+            {walletPortfolio
+              ? money(walletPortfolio.pricedHoldingsValueUsd)
+              : "—"}
+          </h2>
+          <p>
+            Mainnet · {walletAddress.slice(0, 6)}…{walletAddress.slice(-4)}
+          </p>
+          {walletPortfolio && (
+            <div className="balance-breakdown">
+              <div>
+                <small>USDC balance</small>
+                <strong>{walletPortfolio.usdcBalance}</strong>
+              </div>
+              <div>
+                <small>Native SOL</small>
+                <strong>{walletPortfolio.solBalance}</strong>
+              </div>
+            </div>
+          )}
+          {walletLoading && !walletPortfolio && (
+            <p role="status">Reading your wallet balance…</p>
+          )}
+          {walletError && (
+            <p role="alert">
+              {walletPortfolio
+                ? "Could not refresh your balance. Showing the last observation."
+                : "Wallet balance is unavailable."}{" "}
+              <button
+                className="text-link"
+                disabled={walletLoading}
+                onClick={refreshWallet}
+              >
+                Retry
+              </button>
+            </p>
+          )}
+          <Link
+            href="/portfolio"
+            className="btn full"
+            style={{ marginTop: 22 }}
+          >
+            View portfolio <ArrowUpRight size={14} />
+          </Link>
+          {walletPortfolio && (
+            <p className="caption">
+              {walletPortfolio.hasUnpricedHoldings
+                ? "Includes assets with available prices only. Unpriced assets are excluded."
+                : "Includes SOL and tokens held in your wallet at available market prices."}
+              {cached
+                ? " Saved balance · refreshing."
+                : stale
+                  ? " Older observation · refresh your portfolio for the latest balance."
+                  : " Balances refresh while this page is visible."}
+            </p>
+          )}
         </>
       ) : (
         <>
@@ -164,6 +240,16 @@ function DiscoverContent() {
     useKite();
   const baskets = useBaskets();
   const assets = snapshot?.assets ?? [];
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refresh();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+  const isUpdating = loading || refreshing || Boolean(snapshot?.refreshing);
   return (
     <div className="discover-workspace">
       <div className="discover-heading">
@@ -175,11 +261,11 @@ function DiscoverContent() {
         <button
           type="button"
           className="btn secondary small"
-          disabled={loading}
-          onClick={() => void refresh()}
+          disabled={isUpdating}
+          onClick={() => void handleRefresh()}
         >
           <RefreshCw size={14} aria-hidden="true" />
-          Refresh prices
+          {isUpdating ? "Updating…" : "Refresh prices"}
         </button>
       </div>
       <MarketStatus />
@@ -270,16 +356,6 @@ function DiscoverContent() {
               </span>
               <ChevronRight size={16} aria-hidden="true" />
             </Link>
-            <Link href="/portfolio">
-              <span className="discover-tool-icon">
-                <Wallet2 size={18} aria-hidden="true" />
-              </span>
-              <span>
-                <strong>Portfolio &amp; activity</strong>
-                <small>Your holdings and investment history</small>
-              </span>
-              <ChevronRight size={16} aria-hidden="true" />
-            </Link>
           </section>
           <MarketBreadth />
           <MarketHeadlines />
@@ -316,9 +392,8 @@ export function Baskets() {
     useState<BasketDisplay | null>(null);
   const [perfMapVersion, setPerfMapVersion] = useState(0);
 
-  const verifiedCount = baskets.filter(
-    (b) => b.source.liquidityAudit?.tier === "verified-high",
-  ).length;
+  const routeCoverage = useRouteCoverage();
+  const verifiedCount = baskets.filter((b) => routeCoverage.some((value) => value.basketId === b.id && value.featured)).length;
   const customCount = baskets.filter((b) => b.isCustom).length;
 
   const categories = [
@@ -332,7 +407,7 @@ export function Baskets() {
   const visible = baskets.filter((basket) => {
     if (filter === "all") return true;
     if (filter === "verified")
-      return basket.source.liquidityAudit?.tier === "verified-high";
+      return routeCoverage.some((value) => value.basketId === basket.id && value.featured);
     if (filter === "custom") return Boolean(basket.isCustom);
     return basket.source.category === filter;
   });
@@ -438,7 +513,7 @@ export function Baskets() {
             aria-pressed={filter === "verified"}
             onClick={() => setFilter("verified")}
           >
-            Verified Liquid · {verifiedCount}
+            Consistent routes · {verifiedCount}
           </button>
           {customCount > 0 && (
             <button

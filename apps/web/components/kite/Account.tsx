@@ -929,6 +929,18 @@ export function Settings() {
             </a>
           </div>
         </section>
+        <section className="panel panel-pad">
+          <h2>About Kite</h2>
+          <a
+            href="https://x.com/InvestonKite"
+            className="text-link"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Follow Kite on X, @InvestonKite"
+          >
+            X · @InvestonKite <ExternalLink size={13} aria-hidden="true" />
+          </a>
+        </section>
         <p className="fineprint">
           Paper data and watchlists are saved locally on this device. They are
           separate from your actual wallet and do not sync between web and

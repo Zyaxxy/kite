@@ -2,11 +2,19 @@ import React, { useEffect, useRef, useState } from "react";
 import { Linking, Pressable, Text, TextInput, View } from "react-native";
 import {
   fromTokenAmount,
+  basketInputDebitBounds,
   maxSwapAmount,
   type MarketBasket,
   type MainnetHolding,
   type BasketPurchaseOrder,
+  MAINNET_USDC_MINT,
+  MAINNET_USDT_MINT,
+  MAINNET_SOL_MINT,
 } from "@kite/sdk";
+import {
+  NativeRouteHealthReport,
+  useNativeRouteHealth,
+} from "./NativeRouteHealth";
 import { Button } from "./Primitives";
 import { useMobileTrading } from "../state/MobileTradingProvider";
 import { kiteClient } from "../lib/config";
@@ -31,6 +39,24 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
   const allocationKey = basket.assets
     .map(({ asset, weight }) => `${asset.mint}:${weight}`)
     .join("|");
+  const routeInput =
+    Number(amount) > 0 &&
+    [MAINNET_USDC_MINT, MAINNET_USDT_MINT, MAINNET_SOL_MINT].includes(mint)
+      ? {
+          basketId: basket.id,
+          inputMint: mint,
+          amount,
+          slippageBps: 100,
+          allocations:
+            basket.isCustom && !basket.id.startsWith("creator-")
+              ? basket.assets.map(({ asset, weight }) => ({
+                  mint: asset.mint,
+                  weightBps: Math.round(weight),
+                }))
+              : undefined,
+        }
+      : null;
+  const routeHealth = useNativeRouteHealth(routeInput);
   useEffect(() => {
     version.current++;
     setOrder(null);
@@ -74,7 +100,7 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
     return () => controller.abort();
   }, [wallet.account?.address, refresh, basket.id]);
   async function prepare() {
-    if (!wallet.account || disabled) return;
+    if (!wallet.account || disabled || routeHealth.loading) return;
     const request = version.current;
     setBusy(true);
     setOrder(null);
@@ -91,10 +117,17 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
         taker: wallet.account.address,
         slippageBps: 100,
         supportedTransactionVersions: wallet.supportedTransactionVersions,
+        customAllocations:
+          basket.isCustom && !basket.id.startsWith("creator-")
+            ? basket.assets.map(({ asset, weight }) => ({
+                mint: asset.mint,
+                weightBps: Math.round(weight),
+              }))
+            : undefined,
       });
       const result = b;
       const lines = [
-        `Pay ${fromTokenAmount(b.inAmount, b.inputDecimals)} ${token?.symbol}`,
+        `Pay up to ${fromTokenAmount(b.inputMint === MAINNET_SOL_MINT ? b.inAmount : basketInputDebitBounds(BigInt(b.inAmount)).maximum.toString(), b.inputDecimals)} ${token?.symbol}`,
         "Minimum received at 1% slippage:",
         ...b.outputs.map(
           (o) =>
@@ -203,11 +236,17 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
             placeholder="0.00"
             placeholderTextColor={colors.muted}
           />
+          <NativeRouteHealthReport input={routeInput} {...routeHealth} />
           <Button
-            label="Review transaction"
+            label={
+              routeHealth.loading
+                ? "Waiting for route check…"
+                : "Review transaction"
+            }
             loading={busy}
             disabled={
               disabled ||
+              routeHealth.loading ||
               !(wallet.canSignV0 || wallet.canSignV1) ||
               !token ||
               !amount

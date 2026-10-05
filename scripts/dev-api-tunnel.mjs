@@ -43,11 +43,13 @@ const readPaths = new Set([
   "/api/recurring",
   "/api/recurring/config",
   "/api/creators/baskets",
+  "/api/baskets/route-health",
 ]);
 const writePaths = new Set([
   "/api/trade/order",
   "/api/trade/execute",
   "/api/buy-basket",
+  "/api/baskets/route-health",
   "/api/transaction/execute",
   "/api/recurring",
   "/api/recurring/revoke",

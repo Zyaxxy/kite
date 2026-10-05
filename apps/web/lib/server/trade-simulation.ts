@@ -37,7 +37,7 @@ export async function preflightMainnetOrder(
         result.status === "passed"
           ? null
           : result.status === "failed"
-            ? "This quote did not pass mainnet simulation. Refresh the quote before signing."
+            ? result.error
             : "Mainnet preflight is unavailable. Try again or check the server RPC configuration.",
     };
   } catch {

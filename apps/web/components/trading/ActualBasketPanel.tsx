@@ -1,9 +1,12 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import {
   BASE_SWAP_TOKENS,
   MAINNET_USDC_MINT,
   fromTokenAmount,
+  basketInputDebitBounds,
+  maxSwapAmount,
   type BasketPurchaseOrder,
   type MarketBasket,
 } from "@kite/sdk";
@@ -14,6 +17,11 @@ import {
   TransactionFeedback,
 } from "./useComposedTransaction";
 import { kiteClient } from "../kite/api-client";
+import { RouteHealthReport } from "../kite/RouteHealth";
+import { useRouteHealth } from "../kite/useRouteHealth";
+import { NativeSelect } from "../ui/native-select";
+import { MAINNET_SOL_MINT, MAINNET_USDT_MINT } from "@kite/sdk";
+import styles from "./swap-tokens.module.css";
 
 export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
   const flow = useComposedTransaction(),
@@ -51,9 +59,58 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
+  const routeInput =
+    Number(amount) > 0 &&
+    [MAINNET_USDC_MINT, MAINNET_USDT_MINT, MAINNET_SOL_MINT].includes(
+      token.mint,
+    )
+      ? {
+          inputMint: token.mint,
+          amount,
+          slippageBps: Number(slippage),
+          basketId: basket.id,
+          allocations:
+            basket.isCustom && !basket.id.startsWith("creator-")
+              ? basket.assets.map(({ asset, weight }) => ({
+                  mint: asset.mint,
+                  weightBps: Math.round(weight),
+                }))
+              : undefined,
+        }
+      : null;
+  const routeHealth = useRouteHealth(routeInput);
   const disabled = quoting || flow.busy || flow.pending;
+  const selectedHolding = balances.portfolio?.holdings.find(
+    (holding) => holding.mint === token.mint,
+  );
+  const availableAmount = selectedHolding
+    ? maxSwapAmount(selectedHolding)
+    : token.mint === MAINNET_USDC_MINT
+      ? balances.portfolio?.usdcBalance ?? "0"
+      : "0";
+  const tokenPriceUsd =
+    token.priceUsd ??
+    (token.mint === MAINNET_USDC_MINT || token.mint === MAINNET_USDT_MINT
+      ? 1
+      : null);
+  const availableUsd =
+    tokenPriceUsd === null ? null : Number(availableAmount) * tokenPriceUsd;
+  const suggestedUsd =
+    availableUsd !== null && Number.isFinite(availableUsd) && availableUsd > 0
+      ? Math.min(
+          Math.floor(availableUsd / 10) * 10,
+          Math.max(
+            basket.assets.length * 10,
+            Math.ceil((availableUsd * 0.1) / 10) * 10,
+          ),
+        )
+      : 0;
+  const suggestedAmount = suggestedUsd > 0 ? suggestedUsd / tokenPriceUsd! : null;
+  const suggestedDisplay = suggestedAmount
+    ? suggestedAmount.toFixed(6).replace(/0+$/, "").replace(/\.$/, "")
+    : null;
   async function review() {
-    if (disabled || !auth.walletAddress) return;
+    if (disabled || routeHealth.loading || !auth.walletAddress) return;
     const requestRevision = revision.current;
     setQuoting(true);
     setOrder(null);
@@ -111,7 +168,22 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
         balancesLoading={balances.loading}
       />
       <label className="form-field">
-        <span>Amount in {token.symbol}</span>
+        <span className="flex-between">
+          <span>Amount in {token.symbol}</span>
+          {suggestedDisplay && (
+            <span className={styles.amountSuggestion}>
+              <small>Suggested</small>
+              <button
+                type="button"
+                disabled={disabled}
+                aria-label={`Use suggested amount ${suggestedDisplay} ${token.symbol}`}
+                onClick={() => setAmount(suggestedDisplay)}
+              >
+                {suggestedDisplay}
+              </button>
+            </span>
+          )}
+        </span>
         <input
           inputMode="decimal"
           name="basket-amount"
@@ -125,7 +197,7 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
       </label>
       <label className="form-field">
         <span>Maximum slippage per asset</span>
-        <select
+        <NativeSelect
           value={slippage}
           disabled={disabled}
           onChange={(e) => setSlippage(e.target.value)}
@@ -134,8 +206,9 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
           <option value="100">1%</option>
           <option value="200">2%</option>
           <option value="300">3%</option>
-        </select>
+        </NativeSelect>
       </label>
+      <RouteHealthReport input={routeInput} {...routeHealth} />
       {order && (
         <div className="stack" style={{ gap: 10 }}>
           <p className="eyebrow">Minimum received</p>
@@ -172,7 +245,12 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
             </div>
           ))}
           <p className="fineprint">
-            Pay {fromTokenAmount(order.inAmount, order.inputDecimals)}{" "}
+            Pay up to {fromTokenAmount(
+              order.inputMint === MAINNET_SOL_MINT
+                ? order.inAmount
+                : basketInputDebitBounds(BigInt(order.inAmount)).maximum.toString(),
+              order.inputDecimals,
+            )}{" "}
             {token.symbol}. Priority fee up to {order.priorityFeeLamports / 1e9}{" "}
             SOL, plus network fees and any new token-account rent. Review the
             total in your wallet.
@@ -206,14 +284,16 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
       ) : (
         <button
           className={`btn ${order ? "secondary" : ""} full`}
-          disabled={disabled || !auth.canSign || !amount}
+          disabled={disabled || routeHealth.loading || !auth.canSign || !amount}
           onClick={review}
         >
           {quoting
             ? "Building your complete basket…"
-            : order
-              ? "Refresh review"
-              : "Review basket purchase"}
+            : routeHealth.loading
+              ? "Waiting for route check…"
+              : order
+                ? "Refresh review"
+                : "Review basket purchase"}
         </button>
       )}
       {!auth.walletAddress && (
@@ -229,6 +309,11 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
       )}
       {balances.error && <p className="fineprint">{balances.error}</p>}
       <TransactionFeedback flow={flow} />
+      {flow.message?.startsWith("No Jupiter route from ") ? (
+        <Link href="/baskets" className="text-link">
+          Browse other baskets
+        </Link>
+      ) : null}
     </section>
   );
 }

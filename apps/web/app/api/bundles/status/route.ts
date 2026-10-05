@@ -74,6 +74,7 @@ export async function POST(request: NextRequest) {
         receipt,
         receipt.taker,
         receipt.signatures[0],
+        receipt.signatures,
       );
     return NextResponse.json(
       { ...result, statusAuthorization },

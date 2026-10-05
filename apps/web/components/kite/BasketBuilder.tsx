@@ -30,12 +30,16 @@ import {
   type BasketAllocation,
   type ProgrammableBasket,
   type PublishedCreatorBasket,
+  MAINNET_USDC_MINT, MAINNET_USDT_MINT, MAINNET_SOL_MINT, ROUTE_HEALTH_LABELS,
+  type BasketRouteHealthRequest,
 } from "@kite/sdk";
 import { useKite } from "./State";
-import { AssetAvatar, money } from "./MarketUI";
+import { AssetAvatar, money, compactMoney } from "./MarketUI";
 import { useTradingAuth } from "../trading/TradingAuth";
 import { WalletButton } from "../trading/WalletButton";
 import styles from "./Creator.module.css";
+import { useRouteHealth } from "./useRouteHealth";
+import { RouteHealthReport } from "./RouteHealth";
 
 export function BasketBuilder() {
   return (
@@ -92,6 +96,13 @@ function BasketStudio() {
     [assets, deferredQuery],
   );
   const total = allocations.reduce((sum, a) => sum + a.weightBps, 0);
+  const [routeFunding, setRouteFunding] = useState(MAINNET_USDC_MINT);
+  const [routeAmount, setRouteAmount] = useState("100");
+  const routeInput: BasketRouteHealthRequest | null = allocations.length > 0 && total === 10000 && allocations.every((value) => value.weightBps > 0) && Number(routeAmount) > 0 ? {
+    inputMint: routeFunding, amount: routeAmount, slippageBps: 100,
+    allocations: allocations.map(({ mint, weightBps }) => ({ mint, weightBps })),
+  } : null;
+  const routeHealth = useRouteHealth(routeInput);
   const seed = params.get("fork") ?? params.get("import") ?? "";
   useEffect(() => {
     if (!seed || !snapshot || loaded.current === seed) return;
@@ -344,10 +355,15 @@ function BasketStudio() {
                             {asset.underlyingSymbol || asset.symbol} ·{" "}
                             {asset.issuer}
                           </small>
+                          <small>{(() => {
+                            const health = routeHealth.value?.legs.find((leg) => leg.mint === asset.mint);
+                            return health ? `${ROUTE_HEALTH_LABELS[health.status]}${health.expiresAt <= Date.now() ? " · stale" : ""}` : selected && routeHealth.loading ? "Checking route…" : "Route not checked";
+                          })()}</small>
                         </span>
                         <span className={styles.price}>
                           {money(asset.priceUsd)}
                           <small>Token price</small>
+                          <small>{asset.liquidityUsd == null ? "Pool liquidity unknown" : `Reported liquidity ${compactMoney(asset.liquidityUsd)}`}</small>
                         </span>
                         <span
                           className={selected ? styles.selected : styles.add}
@@ -719,6 +735,19 @@ function BasketStudio() {
               </p>
             </div>
           )}
+          <div className={styles.form}>
+            <label>Check funding routes
+              <select value={routeFunding} onChange={(event) => { setRouteFunding(event.target.value); setRouteAmount(event.target.value === MAINNET_SOL_MINT ? "1" : "100"); }}>
+                <option value={MAINNET_USDC_MINT}>USDC</option>
+                <option value={MAINNET_USDT_MINT}>USDT</option>
+                <option value={MAINNET_SOL_MINT}>SOL</option>
+              </select>
+            </label>
+            <label>Basket probe amount
+              <input inputMode="decimal" value={routeAmount} onChange={(event) => setRouteAmount(event.target.value)} maxLength={40} />
+            </label>
+          </div>
+          {routeInput ? <RouteHealthReport input={routeInput} {...routeHealth} /> : <p className="fineprint">Select stocks and balance the allocation to 100% to check routes.</p>}
           <div className={styles.previewNote}>
             <strong>A basket is an allocation.</strong>
             <p>

@@ -1,6 +1,7 @@
 import { Buffer } from "buffer";
 import { Connection, PublicKey, VersionedTransaction } from "@solana/web3.js";
 import type { MainnetTradeOrder } from "./trading";
+import { describeSimulationFailure } from "./simulation-errors";
 
 class SimulationInputError extends Error {}
 
@@ -70,7 +71,7 @@ export async function simulateTradeOrder(
       error:
         result.value.err === null
           ? null
-          : "This quote did not pass on-chain simulation. Refresh the quote before signing.",
+          : describeSimulationFailure(result.value.err, result.value.logs),
     };
   } catch (error) {
     return {

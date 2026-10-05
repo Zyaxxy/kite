@@ -16,6 +16,7 @@ import { inspectMainnetWalletTransaction } from "./composed-transactions";
 export interface BasketReceipt {
   basketId: string;
   inputMint: string;
+  /** Authorized maximum funding debit; confirmed metadata supplies actual volume. */
   inAmount: string;
 }
 export interface BundleAuthorization extends BasketReceipt {

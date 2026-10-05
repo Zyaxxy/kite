@@ -10,6 +10,7 @@ import { PublicKey, VersionedTransaction } from "@solana/web3.js";
 import { getMainnetRpcUrl, MAINNET_GENESIS } from "./mainnet-connection";
 import {
   inspectWalletTransaction,
+  describeSimulationFailure,
   MAX_BASKET_TRANSACTION_BASE64_LENGTH,
   BASKET_MAX_ACCOUNTS,
   type WalletTransactionOrder,
@@ -144,6 +145,7 @@ export async function simulateComposed(
   const result = await mainnetRpc<{
     value: {
       err: unknown;
+      logs?: string[] | null;
       unitsConsumed?: number;
       loadedAccountsDataSize?: number;
       accounts?: RpcAccount[];
@@ -162,7 +164,7 @@ export async function simulateComposed(
   ]);
   if (result.value.err !== null)
     throw new Error(
-      "This transaction did not pass mainnet simulation. Check your balance, SOL for fees, and available routes before trying again.",
+      describeSimulationFailure(result.value.err, result.value.logs),
     );
   return result.value;
 }

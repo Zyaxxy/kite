@@ -1,14 +1,19 @@
 import { useMemo } from "react";
-import { resolveAllMarketBaskets, resolveProgrammableBasket } from "@kite/sdk";
+import {
+  resolveAllMarketBaskets,
+  resolveProgrammableBasket,
+} from "@kite/sdk";
 import { useKite } from "./State";
 import type { BasketDisplay } from "./MarketUI";
 import { usePublishedBaskets } from "./creator-client";
+import { useRouteCoverage } from "./useRouteHealth";
 
 export function useBaskets(id?: string): BasketDisplay[] {
   const { snapshot, customBaskets } = useKite();
   const { baskets: published } = usePublishedBaskets(id);
+  const coverage = useRouteCoverage();
   return useMemo(() => {
-    const curated = (snapshot?.baskets ?? resolveAllMarketBaskets([])).map(
+    const curated = resolveAllMarketBaskets(snapshot?.assets ?? []).map(
       (b) => ({
         id: b.id,
         name: b.name,
@@ -42,6 +47,8 @@ export function useBaskets(id?: string): BasketDisplay[] {
       };
     });
 
+    const featured = new Set(coverage.filter((value) => value.featured).map((value) => value.basketId));
+    curated.sort((a, b) => Number(featured.has(b.id)) - Number(featured.has(a.id)));
     return [...custom, ...curated];
-  }, [snapshot, customBaskets, published]);
+  }, [snapshot, customBaskets, published, coverage]);
 }

@@ -558,8 +558,8 @@ export const CANONICAL_BASKET_DEFINITIONS: BasketConstituentDefinition[] = [
     ticker: "SOL-BRANDS",
     category: "consumer",
     description:
-      "Apple, Amazon, Coca-Cola, McDonald's, Starbucks and Tesla, equally weighted. Familiar brands with distinct business models and consumer-demand risk.",
-    symbols: ["AAPL", "AMZN", "KO", "MCD", "SBUX", "TSLA"],
+      "Apple, Amazon, Coca-Cola, McDonald's and Tesla, equally weighted. Familiar brands with distinct business models and consumer-demand risk.",
+    symbols: ["AAPL", "AMZN", "KO", "MCD", "TSLA"],
     issuer: "xstocks",
   },
   {
@@ -568,8 +568,8 @@ export const CANONICAL_BASKET_DEFINITIONS: BasketConstituentDefinition[] = [
     ticker: "SOL-PHYS",
     category: "industrials",
     description:
-      "Equal allocations across industrial equipment, aerospace and energy: Caterpillar, Deere, GE, Honeywell, Exxon Mobil and Chevron. Sensitive to investment and commodity cycles.",
-    symbols: ["CAT", "DE", "GE", "HON", "XOM", "CVX"],
+      "Equal allocations across aerospace, equipment and energy: Honeywell, Exxon Mobil and Chevron. Sensitive to investment and commodity cycles.",
+    symbols: ["HON", "XOM", "CVX"],
     issuer: "xstocks",
   },
   {
@@ -608,8 +608,8 @@ export const CANONICAL_BASKET_DEFINITIONS: BasketConstituentDefinition[] = [
     ticker: "SOL-LIFE",
     category: "consumer",
     description:
-      "Devices, shopping, meals and drinks that connect companies to everyday spending. Five equal allocations.",
-    symbols: ["AAPL", "AMZN", "MCD", "SBUX", "KO"],
+      "Devices, shopping, meals and drinks that connect companies to everyday spending. Four equal allocations.",
+    symbols: ["AAPL", "AMZN", "MCD", "KO"],
     issuer: "xstocks",
   },
   {
@@ -638,8 +638,8 @@ export const CANONICAL_BASKET_DEFINITIONS: BasketConstituentDefinition[] = [
     ticker: "SOL-DEF",
     category: "industrials",
     description:
-      "Aerospace, defense systems and data software. Equal allocations across Lockheed Martin, RTX, Northrop Grumman and Palantir.",
-    symbols: ["LMT", "RTX", "NOC", "PLTR"],
+      "Aerospace, defense systems and data software. Equal allocations across Lockheed Martin, Northrop Grumman and Palantir.",
+    symbols: ["LMT", "NOC", "PLTR"],
     issuer: "xstocks",
   },
   {
@@ -648,8 +648,8 @@ export const CANONICAL_BASKET_DEFINITIONS: BasketConstituentDefinition[] = [
     ticker: "SOL-ENERGY",
     category: "energy",
     description:
-      "Three energy producers with equal allocations. A focused energy thesis with exposure to commodity cycles.",
-    symbols: ["XOM", "CVX", "COP"],
+      "Two energy producers with equal allocations. A focused energy thesis with exposure to commodity cycles.",
+    symbols: ["XOM", "CVX"],
     issuer: "xstocks",
   },
   {
@@ -658,8 +658,8 @@ export const CANONICAL_BASKET_DEFINITIONS: BasketConstituentDefinition[] = [
     ticker: "SOL-BUILD",
     category: "industrials",
     description:
-      "Machinery, agriculture, aerospace and industrial systems. Equal allocations to Caterpillar, Deere, GE Aerospace and Honeywell.",
-    symbols: ["CAT", "DE", "GE", "HON"],
+      "Aerospace, manufacturing and industrial systems. Equal allocations across Honeywell, Boeing and 3M.",
+    symbols: ["HON", "BA", "MMM"],
     issuer: "xstocks",
   },
   {

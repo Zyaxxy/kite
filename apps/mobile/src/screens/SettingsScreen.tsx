@@ -11,6 +11,7 @@ export function SettingsScreen({ onReset }: { onReset: () => void }) {
   const [showConnection, setShowConnection] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [socialError, setSocialError] = useState<string | null>(null);
   async function open(path: string) {
     if (!WEB_URL) return;
     try {
@@ -175,6 +176,20 @@ export function SettingsScreen({ onReset }: { onReset: () => void }) {
             void open("/terms");
           }}
         />
+        <Button
+          secondary
+          label="Follow Kite on X · @InvestonKite"
+          onPress={() => {
+            void Linking.openURL("https://x.com/InvestonKite").catch(() => {
+              setSocialError("Kite’s X profile could not be opened.");
+            });
+          }}
+        />
+        {socialError ? (
+          <Text accessibilityRole="alert" style={[ui.small, ui.negative]}>
+            {socialError}
+          </Text>
+        ) : null}
       </View>
     </ScrollView>
   );
