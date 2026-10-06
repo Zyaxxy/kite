@@ -4,11 +4,14 @@ Kite is a self-custody interface for tokenized equities on Solana. It combines l
 
 ## Start here
 
+- [Production upgrade](production-upgrade.md) — directive coverage, verification and rollout boundaries.
+- [Mainnet baskets](jito-basket-execution.md) — v0 transactions, Jito bundles, limits and recovery.
+- [Actions and collector](actions-and-collector.md) — devnet Blinks, authorized collection and configuration.
+- [Dependency security](dependency-security.md) — unresolved advisories and bounded reachability.
+
 - [Product overview](overview.md) — the problem Kite solves and the product in one page.
-- [Architecture diagrams](architecture-diagrams.md) — Mermaid visual diagrams detailing system architecture and execution flows.
 - [How Kite works](how-it-works.md) — the user journey and the system behind it.
 - [Kite Guard protocol specification](kite-guard-protocol.md) — on-chain execution guard, Anchor instructions, and account layout.
-- [V2 Roadmap & Architecture](v2-roadmap-and-architecture.md) — composable brokerage milestones and protocol architecture.
 - [Why Solana and tokenized equities](why-solana.md) — the product and protocol choices.
 - [Use cases](use-cases.md) — the people and investing workflows Kite supports.
 - [Trust, safety, and current scope](trust-and-scope.md) — custody, data quality, recurring permissions, and limitations.

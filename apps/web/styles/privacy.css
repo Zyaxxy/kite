@@ -78,6 +78,13 @@
   font-size: 12px;
   line-height: 1.6;
 }
+.footer-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 16px 28px;
+}
 .footer-links {
   display: flex;
   align-items: center;
@@ -175,6 +182,11 @@
   }
   .footer-links {
     gap: 4px 18px;
+  }
+  .footer-actions {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 12px 24px;
   }
   .footer-links a,
   .footer-links button {

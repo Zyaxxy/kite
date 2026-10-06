@@ -188,6 +188,13 @@
   color: var(--ink);
   font-size: 13px;
 }
+.form-field select {
+  appearance: none;
+  padding-right: 38px;
+}
+.form-field .ui-native-select {
+  padding: 12px 38px 12px 12px;
+}
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

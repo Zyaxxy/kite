@@ -51,7 +51,7 @@ export function isValidCatalog(
   return true;
 }
 
-async function executeRedisCommand<T = unknown>(
+export async function executeRedisCommand<T = unknown>(
   command: unknown[],
   timeoutMs = 5000,
 ): Promise<T | null> {

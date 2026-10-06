@@ -16,5 +16,21 @@
 @import "./navigation.css";
 @import "./discovery.css";
 @import "./theme-surfaces.css";
-@import "./builder.css";
 @import "./basket-performance.css";
+
+.skip-link {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 10000;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  background: var(--surface);
+  color: var(--ink);
+  transform: translateY(-200%);
+}
+.skip-link:focus-visible {
+  transform: translateY(0);
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}

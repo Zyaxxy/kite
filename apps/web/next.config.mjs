@@ -44,5 +44,15 @@ const config = {
       },
     ];
   },
+  webpack: (config) => {
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings || []),
+      {
+        module: /ox/,
+        message: /Critical dependency: the request of a dependency is an expression/,
+      },
+    ];
+    return config;
+  },
 };
 export default config;

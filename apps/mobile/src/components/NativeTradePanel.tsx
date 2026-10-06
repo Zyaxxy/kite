@@ -20,7 +20,7 @@ import {
 } from "@kite/sdk";
 import { Button, Chip, EmptyState } from "./Primitives";
 import { useMobileTrading } from "../state/MobileTradingProvider";
-import { kiteClient, WEB_URL } from "../lib/config";
+import { kiteClient } from "../lib/config";
 import { money, useTheme } from "../theme";
 
 export function NativeTradePanel({ asset }: { asset: MarketAsset }) {
@@ -45,11 +45,18 @@ export function NativeTradePanel({ asset }: { asset: MarketAsset }) {
       version.current += 1;
     };
   }, []);
+  const signingVersionsKey = wallet.supportedTransactionVersions.join(",");
   useEffect(() => {
     version.current += 1;
     setOrder(null);
     setError(null);
-  }, [amount, input?.mint, asset.mint, wallet.account?.address]);
+  }, [
+    amount,
+    input?.mint,
+    asset.mint,
+    wallet.account?.address,
+    signingVersionsKey,
+  ]);
   useEffect(() => {
     setPortfolio(null);
     setInput(null);
@@ -95,10 +102,8 @@ export function NativeTradePanel({ asset }: { asset: MarketAsset }) {
     setResult(null);
     setLoading(true);
     try {
-      if (!wallet.canSignV1)
-        throw new Error(
-          "Reconnect an updated wallet that supports V1 signing, or open Kite web.",
-        );
+      if (!(wallet.canSignV0 || wallet.canSignV1))
+        throw new Error("Reconnect a wallet that supports V0 or V1 signing.");
       if (input.decimals === undefined)
         throw new Error(
           "Token precision is unavailable. Refresh your wallet balances.",
@@ -175,17 +180,6 @@ export function NativeTradePanel({ asset }: { asset: MarketAsset }) {
       }
     }
   }
-  async function openWeb() {
-    try {
-      await Linking.openURL(
-        `${WEB_URL}/stock/${encodeURIComponent(asset.mint)}?mode=actual`,
-      );
-    } catch {
-      setError(
-        "Kite web could not be opened. Check the configured web address.",
-      );
-    }
-  }
   return (
     <View style={ui.card}>
       <View style={ui.between}>
@@ -196,10 +190,10 @@ export function NativeTradePanel({ asset }: { asset: MarketAsset }) {
         Spend tokens you already hold. Review the route, then approve it in your
         wallet.
       </Text>
-      {wallet.account && !wallet.canSignV1 && (
+      {wallet.account && !(wallet.canSignV0 || wallet.canSignV1) && (
         <>
           <Text style={ui.small}>
-            Reconnect a wallet that supports V1 signing to trade.
+            Reconnect a wallet that supports V0 or V1 signing to trade.
           </Text>
           <Button
             label="Check wallet compatibility"
@@ -450,7 +444,8 @@ export function NativeTradePanel({ asset }: { asset: MarketAsset }) {
       ) : (
         <Text style={ui.small}>
           Native signing is available in Kite’s Android development and release
-          builds. This device can use Privy on Kite web.
+          builds. This platform supports browsing and paper investing; native
+          wallet signing is unavailable here.
         </Text>
       )}
       {wallet.error || error ? (
@@ -458,15 +453,6 @@ export function NativeTradePanel({ asset }: { asset: MarketAsset }) {
           {error || wallet.error}
         </Text>
       ) : null}
-      <View style={ui.divider} />
-      <Button
-        secondary
-        label="Continue with Privy on web"
-        disabled={!WEB_URL || wallet.busy}
-        onPress={() => {
-          void openWeb();
-        }}
-      />
     </View>
   );
 }

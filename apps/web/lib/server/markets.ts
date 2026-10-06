@@ -30,6 +30,13 @@ let pending: Promise<MarketSnapshot> | null = null;
 let referencesExpireAt = 0;
 const fallbackQuotes = new Map<string, number>();
 
+/** Prices are observations; curated allocation definitions belong to this release. */
+function withCurrentBasketDefinitions(
+  snapshot: MarketSnapshot,
+): MarketSnapshot {
+  return { ...snapshot, baskets: resolveAllMarketBaskets(snapshot.assets) };
+}
+
 /** Identity and issuer trading status never wait for the whole price universe. */
 export async function getServerMarketCatalog(): Promise<MarketSnapshot> {
   if (catalog && catalog.expiresAt > Date.now()) return catalog.value;
@@ -45,8 +52,9 @@ export async function getServerMarketCatalog(): Promise<MarketSnapshot> {
           fromRedis.status !== "unavailable" &&
           fromRedis.assets.some((a) => a.issuer === "xstocks")
         ) {
-          catalog = { value: fromRedis, expiresAt: Date.now() + CATALOG_TTL };
-          return fromRedis;
+          const value = withCurrentBasketDefinitions(fromRedis);
+          catalog = { value, expiresAt: Date.now() + CATALOG_TTL };
+          return value;
         }
       } catch {
         // Non-blocking fallback
@@ -63,21 +71,25 @@ export async function getServerMarketCatalog(): Promise<MarketSnapshot> {
           fromDisk.status !== "unavailable" &&
           fromDisk.assets.some((a) => a.issuer === "xstocks")
         ) {
-          catalog = { value: fromDisk, expiresAt: Date.now() + CATALOG_TTL };
-          return fromDisk;
+          const value = withCurrentBasketDefinitions(fromDisk);
+          catalog = { value, expiresAt: Date.now() + CATALOG_TTL };
+          return value;
         }
       } catch {
         // Non-blocking fallback
       }
     }
 
-    const value = await getMainnetCatalog();
+    const value = withCurrentBasketDefinitions(await getMainnetCatalog());
     catalog = {
       value,
       expiresAt:
         Date.now() + (value.status === "unavailable" ? 5_000 : CATALOG_TTL),
     };
-    if (value.assets.length && value.assets.some((a) => a.issuer === "xstocks")) {
+    if (
+      value.assets.length &&
+      value.assets.some((a) => a.issuer === "xstocks")
+    ) {
       await Promise.allSettled([
         setRedisCatalog(value, 86400),
         setDiskCatalog(value),
@@ -148,7 +160,10 @@ function refresh(initial?: MarketSnapshot): Promise<MarketSnapshot> {
         value: retainReferences(value),
         expiresAt: Date.now() + PRICE_TTL,
       };
-      if (value.status !== "unavailable" && value.assets.some((a) => a.issuer === "xstocks")) {
+      if (
+        value.status !== "unavailable" &&
+        value.assets.some((a) => a.issuer === "xstocks")
+      ) {
         void setRedisMarketSnapshot(cached.value, 86400);
         void setDiskMarketSnapshot(cached.value);
       }
@@ -230,10 +245,13 @@ export async function getServerMarkets(
         fromRedis.status !== "unavailable" &&
         fromRedis.assets.some((a) => a.issuer === "xstocks")
       ) {
-        const age = Math.max(0, Date.now() - new Date(fromRedis.asOf).getTime());
+        const age = Math.max(
+          0,
+          Date.now() - new Date(fromRedis.asOf).getTime(),
+        );
         const remainingTtl = age < PRICE_TTL ? PRICE_TTL - age : 5_000;
         cached = {
-          value: fromRedis,
+          value: withCurrentBasketDefinitions(fromRedis),
           expiresAt: Date.now() + remainingTtl,
         };
       }
@@ -255,7 +273,7 @@ export async function getServerMarkets(
         const age = Math.max(0, Date.now() - new Date(fromDisk.asOf).getTime());
         const remainingTtl = age < PRICE_TTL ? PRICE_TTL - age : 5_000;
         cached = {
-          value: fromDisk,
+          value: withCurrentBasketDefinitions(fromDisk),
           expiresAt: Date.now() + remainingTtl,
         };
       }

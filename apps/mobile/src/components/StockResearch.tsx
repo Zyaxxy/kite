@@ -53,7 +53,7 @@ function fundamentalValue(fact: ResearchFundamental): string {
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
-  const { colors, ui } = useTheme();
+  const { ui } = useTheme();
   const styles = useStyles();
   return (
     <View style={styles.metric}>

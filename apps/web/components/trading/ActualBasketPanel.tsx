@@ -1,10 +1,13 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import {
   BASE_SWAP_TOKENS,
   MAINNET_USDC_MINT,
   fromTokenAmount,
-  type BasketOrder,
+  basketInputDebitBounds,
+  maxSwapAmount,
+  type BasketPurchaseOrder,
   type MarketBasket,
 } from "@kite/sdk";
 import { SwapTokenSelector } from "./SwapTokenSelector";
@@ -14,6 +17,11 @@ import {
   TransactionFeedback,
 } from "./useComposedTransaction";
 import { kiteClient } from "../kite/api-client";
+import { RouteHealthReport } from "../kite/RouteHealth";
+import { useRouteHealth } from "../kite/useRouteHealth";
+import { NativeSelect } from "../ui/native-select";
+import { MAINNET_SOL_MINT, MAINNET_USDT_MINT } from "@kite/sdk";
+import styles from "./swap-tokens.module.css";
 
 export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
   const flow = useComposedTransaction(),
@@ -24,21 +32,85 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
     ),
     [amount, setAmount] = useState(""),
     [slippage, setSlippage] = useState("100");
-  const [order, setOrder] = useState<BasketOrder | null>(null),
+  const [order, setOrder] = useState<BasketPurchaseOrder | null>(null),
     [quoting, setQuoting] = useState(false),
     [now, setNow] = useState(Date.now());
   const revision = useRef(0);
+  const allocationKey = basket.assets
+    .map(({ asset, weight }) => `${asset.mint}:${weight}`)
+    .join("|");
+  const signingVersionsKey = auth.supportedTransactionVersions.join(",");
   useEffect(() => {
     revision.current++;
     setOrder(null);
-  }, [basket.id, token.mint, amount, slippage, auth.walletAddress]);
+  }, [
+    basket.id,
+    allocationKey,
+    token.mint,
+    amount,
+    slippage,
+    auth.walletAddress,
+    signingVersionsKey,
+  ]);
+  useEffect(() => {
+    if (flow.confirmedBundleRevision > 0) balances.refresh();
+  }, [flow.confirmedBundleRevision, balances.refresh]);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
+  const routeInput =
+    Number(amount) > 0 &&
+    [MAINNET_USDC_MINT, MAINNET_USDT_MINT, MAINNET_SOL_MINT].includes(
+      token.mint,
+    )
+      ? {
+          inputMint: token.mint,
+          amount,
+          slippageBps: Number(slippage),
+          basketId: basket.id,
+          allocations:
+            basket.isCustom && !basket.id.startsWith("creator-")
+              ? basket.assets.map(({ asset, weight }) => ({
+                  mint: asset.mint,
+                  weightBps: Math.round(weight),
+                }))
+              : undefined,
+        }
+      : null;
+  const routeHealth = useRouteHealth(routeInput);
   const disabled = quoting || flow.busy || flow.pending;
+  const selectedHolding = balances.portfolio?.holdings.find(
+    (holding) => holding.mint === token.mint,
+  );
+  const availableAmount = selectedHolding
+    ? maxSwapAmount(selectedHolding)
+    : token.mint === MAINNET_USDC_MINT
+      ? balances.portfolio?.usdcBalance ?? "0"
+      : "0";
+  const tokenPriceUsd =
+    token.priceUsd ??
+    (token.mint === MAINNET_USDC_MINT || token.mint === MAINNET_USDT_MINT
+      ? 1
+      : null);
+  const availableUsd =
+    tokenPriceUsd === null ? null : Number(availableAmount) * tokenPriceUsd;
+  const suggestedUsd =
+    availableUsd !== null && Number.isFinite(availableUsd) && availableUsd > 0
+      ? Math.min(
+          Math.floor(availableUsd / 10) * 10,
+          Math.max(
+            basket.assets.length * 10,
+            Math.ceil((availableUsd * 0.1) / 10) * 10,
+          ),
+        )
+      : 0;
+  const suggestedAmount = suggestedUsd > 0 ? suggestedUsd / tokenPriceUsd! : null;
+  const suggestedDisplay = suggestedAmount
+    ? suggestedAmount.toFixed(6).replace(/0+$/, "").replace(/\.$/, "")
+    : null;
   async function review() {
-    if (disabled || !auth.walletAddress) return;
+    if (disabled || routeHealth.loading || !auth.walletAddress) return;
     const requestRevision = revision.current;
     setQuoting(true);
     setOrder(null);
@@ -51,12 +123,13 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
         taker: auth.walletAddress,
         slippageBps: Number(slippage),
         supportedTransactionVersions: auth.supportedTransactionVersions,
-        customAllocations: basket.isCustom
-          ? basket.assets.map((a) => ({
-              mint: a.asset.mint,
-              weightBps: Math.round(a.weight),
-            }))
-          : undefined,
+        customAllocations:
+          basket.isCustom && !basket.id.startsWith("creator-")
+            ? basket.assets.map((a) => ({
+                mint: a.asset.mint,
+                weightBps: Math.round(a.weight),
+              }))
+            : undefined,
       });
       if (requestRevision === revision.current) setOrder(value);
     } catch (e) {
@@ -74,13 +147,14 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
     <section
       className="stack"
       style={{ gap: 16 }}
-      aria-label="Buy basket with one approval"
+      aria-label="Review basket purchase"
     >
       <div>
-        <h3>One basket. One approval.</h3>
+        <h3>Your basket, in your wallet.</h3>
         <p className="fineprint">
-          All assets settle directly to your wallet in one transaction. If any
-          swap fails, the entire purchase reverts; network fees may still apply.
+          Review the complete allocation, fees and transaction count before
+          signing. The review selects a single transaction when it fits, or a
+          Jito bundle when more capacity is needed.
         </p>
       </div>
       <SwapTokenSelector
@@ -94,9 +168,26 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
         balancesLoading={balances.loading}
       />
       <label className="form-field">
-        <span>Amount in {token.symbol}</span>
+        <span className="flex-between">
+          <span>Amount in {token.symbol}</span>
+          {suggestedDisplay && (
+            <span className={styles.amountSuggestion}>
+              <small>Suggested</small>
+              <button
+                type="button"
+                disabled={disabled}
+                aria-label={`Use suggested amount ${suggestedDisplay} ${token.symbol}`}
+                onClick={() => setAmount(suggestedDisplay)}
+              >
+                {suggestedDisplay}
+              </button>
+            </span>
+          )}
+        </span>
         <input
           inputMode="decimal"
+          name="basket-amount"
+          autoComplete="off"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           maxLength={40}
@@ -106,7 +197,7 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
       </label>
       <label className="form-field">
         <span>Maximum slippage per asset</span>
-        <select
+        <NativeSelect
           value={slippage}
           disabled={disabled}
           onChange={(e) => setSlippage(e.target.value)}
@@ -115,11 +206,33 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
           <option value="100">1%</option>
           <option value="200">2%</option>
           <option value="300">3%</option>
-        </select>
+        </NativeSelect>
       </label>
+      <RouteHealthReport input={routeInput} {...routeHealth} />
       {order && (
         <div className="stack" style={{ gap: 10 }}>
           <p className="eyebrow">Minimum received</p>
+          {"kind" in order && order.kind === "bundle" ? (
+            <div className="notice" role="note">
+              <div>
+                <strong>
+                  {order.transactions.length} V{order.transactionVersion}{" "}
+                  transactions · Jito bundle
+                </strong>
+                <p>{order.atomicityWarning}</p>
+                <p>
+                  Jito tip: {order.tipLamports / 1e9} SOL. Your wallet may
+                  request each approval separately.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <p className="fineprint">
+              One atomic V{order.transactionVersion} transaction · no Jito tip.
+              If a swap fails, the purchase reverts; network fees may still
+              apply.
+            </p>
+          )}
           {order.outputs.map((output) => (
             <div className="flex-between" key={output.mint}>
               <span>
@@ -132,14 +245,25 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
             </div>
           ))}
           <p className="fineprint">
-            Pay {fromTokenAmount(order.inAmount, order.inputDecimals)}{" "}
+            Pay up to {fromTokenAmount(
+              order.inputMint === MAINNET_SOL_MINT
+                ? order.inAmount
+                : basketInputDebitBounds(BigInt(order.inAmount)).maximum.toString(),
+              order.inputDecimals,
+            )}{" "}
             {token.symbol}. Priority fee up to {order.priorityFeeLamports / 1e9}{" "}
             SOL, plus network fees and any new token-account rent. Review the
             total in your wallet.
           </p>
           <button
             className="btn full"
-            disabled={disabled || !auth.canSignV1 || order.expiresAt <= now}
+            disabled={
+              disabled ||
+              !auth.supportedTransactionVersions.includes(
+                order.transactionVersion,
+              ) ||
+              order.expiresAt <= now
+            }
             onClick={async () => {
               if (await flow.execute(order)) balances.refresh();
               setOrder(null);
@@ -160,14 +284,16 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
       ) : (
         <button
           className={`btn ${order ? "secondary" : ""} full`}
-          disabled={disabled || !auth.canSignV1 || !amount}
+          disabled={disabled || routeHealth.loading || !auth.canSign || !amount}
           onClick={review}
         >
           {quoting
             ? "Building your complete basket…"
-            : order
-              ? "Refresh review"
-              : "Review basket purchase"}
+            : routeHealth.loading
+              ? "Waiting for route check…"
+              : order
+                ? "Refresh review"
+                : "Review basket purchase"}
         </button>
       )}
       {!auth.walletAddress && (
@@ -175,14 +301,19 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
           Sign in or connect a wallet in the header to buy with your tokens.
         </p>
       )}
-      {auth.walletAddress && !auth.canSignV1 && (
+      {auth.walletAddress && !auth.canSign && (
         <p className="notice">
-          This wallet does not advertise V1 signing. Update it or connect a
-          compatible wallet to buy.
+          This wallet does not advertise compatible transaction signing. Update
+          it or connect a compatible wallet to buy.
         </p>
       )}
       {balances.error && <p className="fineprint">{balances.error}</p>}
       <TransactionFeedback flow={flow} />
+      {flow.message?.startsWith("No Jupiter route from ") ? (
+        <Link href="/baskets" className="text-link">
+          Browse other baskets
+        </Link>
+      ) : null}
     </section>
   );
 }

@@ -278,6 +278,34 @@
   background: var(--surface);
   cursor: pointer;
 }
+.amountSuggestion {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+  padding: 3px 5px 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1;
+}
+.amountSuggestion button {
+  min-width: 42px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--forest);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.amountSuggestion button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
 .receiveAmount {
   font-size: clamp(1.8rem, 5vw, 2.5rem);
   letter-spacing: -0.04em;

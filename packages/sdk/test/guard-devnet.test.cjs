@@ -275,14 +275,21 @@ test('cadence rejects early, replayed, expired, and completed installments witho
   assert.throws(() => guard.validateGuardPlanV2({ ...plan, lastExecutedPeriod: 0 }), /Inconsistent/);
 });
 
-test('all 11 public baskets compose atomic create and collect V1 messages within account and byte limits', async (t) => {
+test('canonical legacy CPMM fixtures compose only within V1 capacity and oversized collections fail closed', async () => {
   for (const basket of DEVNET_RECURRING_BASKETS) {
     const params = createParams(basket.underlyingSymbols);
     const { plan, instructions: create } = await guard.buildGuardCreateInstructions(params);
     const collect = guard.buildGuardCollectInstructions(plan, params.pools, feePayer, 0);
     for (const [action, payer, instructions] of [['create', owner, create], ['collect', feePayer, collect]]) {
       const accounts = new Set([payer, ...instructions.flatMap((ix) => [ix.programId.toBase58(), ...ix.keys.map((entry) => entry.pubkey.toBase58())])]);
-      assert.ok(accounts.size <= 64, `${basket.ticker} ${action}: ${accounts.size} accounts`);
+      if (accounts.size > 64) {
+        await assert.rejects(
+          composeV1Transaction({ payer, blockhash: fixtureKey('blockhash'), lastValidBlockHeight: 100, allowV1: true, instructions }),
+          /64-account/,
+          `${basket.ticker} ${action} must reject all ${accounts.size} accounts without splitting an installment`,
+        );
+        continue;
+      }
       const composed = await composeV1Transaction({ payer, blockhash: fixtureKey('blockhash'), lastValidBlockHeight: 100, allowV1: true, instructions });
       assert.ok(composed.serializedBytes <= 4096, `${basket.ticker} ${action}: ${composed.serializedBytes} bytes`);
       const decoded = await inspectWalletTransaction(composed.transaction);

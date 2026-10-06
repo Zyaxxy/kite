@@ -2,14 +2,22 @@ import React, { useEffect, useRef, useState } from "react";
 import { Linking, Pressable, Text, TextInput, View } from "react-native";
 import {
   fromTokenAmount,
+  basketInputDebitBounds,
   maxSwapAmount,
   type MarketBasket,
   type MainnetHolding,
-  type WalletTransactionOrder,
+  type BasketPurchaseOrder,
+  MAINNET_USDC_MINT,
+  MAINNET_USDT_MINT,
+  MAINNET_SOL_MINT,
 } from "@kite/sdk";
+import {
+  NativeRouteHealthReport,
+  useNativeRouteHealth,
+} from "./NativeRouteHealth";
 import { Button } from "./Primitives";
 import { useMobileTrading } from "../state/MobileTradingProvider";
-import { kiteClient, WEB_URL } from "../lib/config";
+import { kiteClient } from "../lib/config";
 import { useTheme } from "../theme";
 
 export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
@@ -19,7 +27,7 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
   const [holdings, setHoldings] = useState<MainnetHolding[]>([]),
     [mint, setMint] = useState(""),
     [amount, setAmount] = useState("");
-  const [order, setOrder] = useState<WalletTransactionOrder | null>(null),
+  const [order, setOrder] = useState<BasketPurchaseOrder | null>(null),
     [summary, setSummary] = useState<string[]>([]),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
@@ -27,10 +35,39 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
     [now, setNow] = useState(Date.now());
   const token = holdings.find((h) => h.mint === mint),
     disabled = busy || wallet.busy || Boolean(wallet.pending);
+  const signingVersionsKey = wallet.supportedTransactionVersions.join(",");
+  const allocationKey = basket.assets
+    .map(({ asset, weight }) => `${asset.mint}:${weight}`)
+    .join("|");
+  const routeInput =
+    Number(amount) > 0 &&
+    [MAINNET_USDC_MINT, MAINNET_USDT_MINT, MAINNET_SOL_MINT].includes(mint)
+      ? {
+          basketId: basket.id,
+          inputMint: mint,
+          amount,
+          slippageBps: 100,
+          allocations:
+            basket.isCustom && !basket.id.startsWith("creator-")
+              ? basket.assets.map(({ asset, weight }) => ({
+                  mint: asset.mint,
+                  weightBps: Math.round(weight),
+                }))
+              : undefined,
+        }
+      : null;
+  const routeHealth = useNativeRouteHealth(routeInput);
   useEffect(() => {
     version.current++;
     setOrder(null);
-  }, [mint, amount, basket.id, wallet.account?.address]);
+  }, [
+    mint,
+    amount,
+    basket.id,
+    allocationKey,
+    wallet.account?.address,
+    signingVersionsKey,
+  ]);
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
@@ -63,15 +100,15 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
     return () => controller.abort();
   }, [wallet.account?.address, refresh, basket.id]);
   async function prepare() {
-    if (!wallet.account || disabled) return;
+    if (!wallet.account || disabled || routeHealth.loading) return;
     const request = version.current;
     setBusy(true);
     setOrder(null);
     setMessage("");
     try {
-      if (!wallet.canSignV1)
+      if (!(wallet.canSignV0 || wallet.canSignV1))
         throw new Error(
-          "Reconnect an updated wallet that supports V1 signing, or open Kite web.",
+          "Reconnect a wallet that supports V0 or V1 transaction signing.",
         );
       const b = await kiteClient.requestBasketOrder({
         basketId: basket.id,
@@ -80,16 +117,31 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
         taker: wallet.account.address,
         slippageBps: 100,
         supportedTransactionVersions: wallet.supportedTransactionVersions,
+        customAllocations:
+          basket.isCustom && !basket.id.startsWith("creator-")
+            ? basket.assets.map(({ asset, weight }) => ({
+                mint: asset.mint,
+                weightBps: Math.round(weight),
+              }))
+            : undefined,
       });
       const result = b;
       const lines = [
-        `Pay ${fromTokenAmount(b.inAmount, b.inputDecimals)} ${token?.symbol}`,
+        `Pay up to ${fromTokenAmount(b.inputMint === MAINNET_SOL_MINT ? b.inAmount : basketInputDebitBounds(BigInt(b.inAmount)).maximum.toString(), b.inputDecimals)} ${token?.symbol}`,
         "Minimum received at 1% slippage:",
         ...b.outputs.map(
           (o) =>
             `${fromTokenAmount(o.minimumAmount, o.decimals)} ${o.symbol}${o.mint === b.inputMint ? " (retained)" : ""}`,
         ),
-        "Priority fee up to 0.00001 SOL, plus network fees and token-account rent.",
+        `Priority fee up to ${b.priorityFeeLamports / 1_000_000_000} SOL total, plus network fees and token-account rent.`,
+        ...("kind" in b && b.kind === "bundle"
+          ? [
+              `${b.transactions.length} V${b.transactionVersion} transactions · Jito bundle · tip ${b.tipLamports / 1_000_000_000} SOL.`,
+              b.atomicityWarning,
+            ]
+          : [
+              `All swaps settle in one atomic V${b.transactionVersion} transaction · no Jito tip.`,
+            ]),
       ];
       if (request === version.current) {
         setOrder(result);
@@ -109,26 +161,18 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
       <View style={ui.card}>
         <Text style={ui.heading}>Buy the whole basket</Text>
         <Text style={ui.body}>
-          Open Kite web with a wallet that supports V1 transaction signing.
+          Native basket signing requires an Android development or release build
+          with a compatible wallet. You can use paper baskets on this platform.
         </Text>
-        <Button
-          label="Continue in Kite web"
-          disabled={!WEB_URL}
-          onPress={() => {
-            void Linking.openURL(
-              `${WEB_URL}/basket/${basket.id}?mode=actual`,
-            ).catch(() => setMessage("Unable to open Kite web."));
-          }}
-        />
         {message ? <Text style={ui.small}>{message}</Text> : null}
       </View>
     );
   return (
     <View style={ui.card}>
-      <Text style={ui.heading}>One basket. One approval.</Text>
+      <Text style={ui.heading}>One basket. Your wallet.</Text>
       <Text style={ui.body}>
-        Every asset settles in one atomic transaction. If any swap fails, all
-        swaps revert; network fees may still apply.
+        Review every allocation before signing. The review selects a single
+        transaction when it fits, or a bundle, and shows all fees and limits.
       </Text>
       {!wallet.account ? (
         <Button
@@ -141,10 +185,10 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
         />
       ) : (
         <>
-          {!wallet.canSignV1 && (
+          {!(wallet.canSignV0 || wallet.canSignV1) && (
             <>
               <Text style={ui.small}>
-                Reconnect a wallet that supports V1 signing to continue.
+                Reconnect a wallet that supports V0 or V1 signing to continue.
               </Text>
               <Button
                 label="Check wallet compatibility"
@@ -192,10 +236,21 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
             placeholder="0.00"
             placeholderTextColor={colors.muted}
           />
+          <NativeRouteHealthReport input={routeInput} {...routeHealth} />
           <Button
-            label="Review transaction"
+            label={
+              routeHealth.loading
+                ? "Waiting for route check…"
+                : "Review transaction"
+            }
             loading={busy}
-            disabled={disabled || !wallet.canSignV1 || !token || !amount}
+            disabled={
+              disabled ||
+              routeHealth.loading ||
+              !(wallet.canSignV0 || wallet.canSignV1) ||
+              !token ||
+              !amount
+            }
             onPress={() => {
               void prepare();
             }}
@@ -214,10 +269,16 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
                     : "Approve in wallet"
                 }
                 loading={wallet.busy}
-                disabled={disabled || order.expiresAt <= now}
+                disabled={
+                  disabled ||
+                  !wallet.supportedTransactionVersions.includes(
+                    order.transactionVersion,
+                  ) ||
+                  order.expiresAt <= now
+                }
                 onPress={() => {
                   void wallet
-                    .execute(order)
+                    .executeBasket(order)
                     .then((result) => {
                       setMessage(
                         result.status === "Success"
@@ -259,6 +320,30 @@ export function NativeBasketPanel({ basket }: { basket: MarketBasket }) {
             Previous confirmation is unresolved. Check your wallet before
             repeating any transaction.
           </Text>
+          {wallet.pending.bundle ? (
+            <Button
+              label="Check bundle confirmation"
+              loading={wallet.busy}
+              onPress={() => {
+                void wallet
+                  .checkBundle()
+                  .then((result) =>
+                    setMessage(
+                      result.status === "Success"
+                        ? "Basket confirmed."
+                        : (result.error ?? `Bundle status: ${result.status}`),
+                    ),
+                  )
+                  .catch((error: unknown) =>
+                    setMessage(
+                      error instanceof Error
+                        ? error.message
+                        : "Confirmation unavailable.",
+                    ),
+                  );
+              }}
+            />
+          ) : null}
           <Button
             secondary
             label="Open wallet activity"

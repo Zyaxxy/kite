@@ -8,8 +8,10 @@ export * from "./research";
 export * from "./research-client";
 export * from "./market-pulse";
 export * from "./simulation";
+export * from "./simulation-errors";
 export * from "./basket/atomic-swap";
 export * from "./basket/liquidity";
+export * from "./basket/route-health";
 export * from "./basket/custom";
 export * from "./basket/liquidity-audit";
 export * from "./basket/performance";
@@ -25,6 +27,14 @@ export * from "./mobile-signer";
 export * from "./recurring-investing";
 export * from "./guard/client";
 export * from "./wallet-capabilities";
+export * from "./creator";
+export * from "./basket/transaction-limits";
+export * from "./client/recurring-client";
+export type {
+  BasketBundleOrder,
+  BasketPurchaseOrder,
+  BasketBundleExecution,
+} from "./basket/bundle";
 
 export type {
   WalletTransactionOrder,
@@ -33,3 +43,5 @@ export type {
   RecurringPayment,
   RecurringPaymentRequest,
 } from "./basket/mainnet";
+
+export * from "./portfolio/cache";

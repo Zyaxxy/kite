@@ -2,8 +2,62 @@ import {
   PublicKey,
   SystemProgram,
   TransactionInstruction,
+  TransactionMessage,
+  VersionedTransaction,
+  ComputeBudgetProgram,
   type AccountMeta,
 } from "@solana/web3.js";
+
+/** Atomic devnet setup for wallets/Actions supporting V0. No new lookup tables or extra signers. */
+export function composeDevnetV0Transaction(input: {
+  payer: string;
+  blockhash: string;
+  instructions: TransactionInstruction[];
+}): { transaction: string; transactionVersion: 0; serializedBytes: number } {
+  const payer = new PublicKey(input.payer);
+  if (input.instructions.length === 0)
+    throw new Error("A recurring transaction must contain instructions.");
+  for (const instruction of input.instructions) {
+    if (instruction.programId.equals(ComputeBudgetProgram.programId))
+      throw new Error("Unexpected recurring compute budget instruction.");
+    if (
+      instruction.keys.some(
+        (account) => account.isSigner && !account.pubkey.equals(payer),
+      )
+    ) {
+      throw new Error(
+        "The recurring transaction must have exactly one reviewed fee-payer signer.",
+      );
+    }
+  }
+  const message = new TransactionMessage({
+    payerKey: payer,
+    recentBlockhash: input.blockhash,
+    instructions: [
+      ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 }),
+      ...input.instructions,
+    ],
+  }).compileToV0Message();
+  if (message.staticAccountKeys.length > 64)
+    throw new Error("The recurring basket exceeds the 64-account limit.");
+  let bytes: Uint8Array;
+  try {
+    bytes = new VersionedTransaction(message).serialize();
+  } catch {
+    throw new Error(
+      "This recurring basket exceeds the V0 transaction size limit. Use a smaller basket or a V1-capable wallet.",
+    );
+  }
+  if (bytes.length > 1232)
+    throw new Error(
+      "This recurring basket exceeds the V0 transaction size limit. Use a smaller basket or a V1-capable wallet.",
+    );
+  return {
+    transaction: Buffer.from(bytes).toString("base64"),
+    transactionVersion: 0,
+    serializedBytes: bytes.length,
+  };
+}
 import {
   TOKEN_PROGRAM_ID,
   getAssociatedTokenAddressSync,
@@ -438,10 +492,7 @@ export function validateGuardPlan(plan: DevnetGuardPlan): void {
         throw new Error("Each output requires a distinct valid pool and mint.");
       pools.add(pool);
     }
-    if (
-      key(output.mint).equals(PublicKey.default) ||
-      pools.has(output.mint)
-    )
+    if (key(output.mint).equals(PublicKey.default) || pools.has(output.mint))
       throw new Error("Each output requires a distinct valid mint.");
     if (output.minimumAmountOut === 0n)
       throw new Error(
@@ -467,7 +518,10 @@ export function guardDuePeriod(
   return period;
 }
 
-function mockLegAccounts(owner: string, outputs: DevnetGuardOutput[]): AccountMeta[] {
+function mockLegAccounts(
+  owner: string,
+  outputs: DevnetGuardOutput[],
+): AccountMeta[] {
   return outputs.flatMap((output) => [
     meta(output.mint, true),
     meta(ata(output.mint, owner), true),

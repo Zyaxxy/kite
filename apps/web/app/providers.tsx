@@ -27,9 +27,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
       "/orders",
       "/watchlist",
       "/settings",
+      "/creators",
     ].includes(path) ||
     path.startsWith("/stock/") ||
-    path.startsWith("/basket/");
+    path.startsWith("/basket/") ||
+    path.startsWith("/creators/");
 
   return (
     <KiteProvider>

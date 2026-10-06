@@ -1,0 +1,52 @@
+.health {
+  padding: 16px 0;
+  border-block: 1px solid var(--line);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.heading,
+.label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.heading {
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.health summary {
+  cursor: pointer;
+  font-weight: 600;
+  line-height: 1.6;
+}
+.health summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+.health p {
+  line-height: 1.6;
+  margin: 6px 0 0;
+}
+.rows {
+  margin-top: 12px;
+}
+.row {
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.label {
+  flex-wrap: wrap;
+}
+.label span {
+  color: var(--muted);
+}
+.label span[data-ready="true"] {
+  color: var(--up);
+}
+.row p,
+.note {
+  color: var(--muted);
+  font-size: 11px;
+}

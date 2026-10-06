@@ -1,3 +1,4 @@
+// @ts-nocheck -- Retained legacy VM fixtures intentionally supply malformed wire values. New direct typed suites cover the production interfaces.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -137,13 +138,12 @@ test("plan creation accepts explicit stock/basket targets and bounds integer ter
       () => policy.parseCreateDevnetPlan({ ...create(), ...terms }),
       /one year/,
     );
-  assert.throws(
-    () =>
-      policy.parseCreateDevnetPlan({
-        ...create(),
-        supportedTransactionVersions: [0],
-      }),
-    /V1/,
+  assert.deepEqual(
+    policy.parseCreateDevnetPlan({
+      ...create(),
+      supportedTransactionVersions: [0],
+    }).supportedTransactionVersions,
+    [0],
   );
   assert.throws(
     () =>
@@ -161,6 +161,11 @@ function transport({ genesis = DEVNET, env = {}, inspect, rpcResult } = {}) {
   const exports = load(
     "../lib/server/recurring-devnet-transport.ts",
     {
+      "./devnet-connection": {
+        getDevnetRpcUrl: () =>
+          env.KITE_RECURRING_RPC_URL || "https://api.devnet.solana.com",
+        recurringRpcTimeout: () => 12000,
+      },
       "@kite/sdk": {
         DEVNET_GENESIS_HASH: DEVNET,
         walletTransactionSignature: async () => fixtureSignature,
@@ -493,7 +498,13 @@ async function fixturePlan() {
     })
   ).plan;
 }
-function backend({ plan, protocolFailure = false, delegation } = {}) {
+function backend({
+  plan,
+  protocolFailure = false,
+  delegation,
+  stateClosed = false,
+  tokenManifest = sdk.createUnprovisionedDevnetManifest(),
+} = {}) {
   const calls = [],
     composed = [];
   const programs = new Set([
@@ -524,6 +535,7 @@ function backend({ plan, protocolFailure = false, delegation } = {}) {
               data: [Buffer.alloc(1045).toString("base64"), "base64"],
             };
           if (address === plan?.recurringDelegation) return delegation ?? null;
+          if (stateClosed) return null;
           throw new Error(`Unexpected account lookup ${address}`);
         }),
       };
@@ -532,6 +544,14 @@ function backend({ plan, protocolFailure = false, delegation } = {}) {
   const exports = load(
     "../lib/server/recurring-devnet.ts",
     {
+      "./devnet-connection": require("../lib/server/devnet-connection"),
+      "./recurring-keeper": {},
+      "./creator-store": {
+        recordCreatorSubscription: async (receipt) => {
+          calls.push({ method: "creatorReceipt", receipt });
+        },
+      },
+      "./creator-reconciliation": require("../lib/server/creator-reconciliation"),
       "@kite/sdk": {
         ...sdk,
         decodeGuardPlan: () => plan,
@@ -542,9 +562,13 @@ function backend({ plan, protocolFailure = false, delegation } = {}) {
         },
       },
       "../../public/xstocks-devnet/xstocks.json": {
-        default: sdk.createUnprovisionedDevnetManifest(),
+        default: tokenManifest,
       },
       "./recurring-devnet-transport": {
+        recurringTransactionVersion: async () => {
+          calls.push({ method: "assertDevnetV1" });
+          return 1;
+        },
         assertRecurringDevnet: async () => {
           calls.push({ method: "assertDevnet" });
         },
@@ -580,8 +604,12 @@ test("unprovisioned catalog stays visibly blocked without inventing mints, pools
   assert.equal(config.status, "blocked");
   assert.equal(config.readyToPrepare, false);
   assert.equal(config.fundingToken, null);
-  assert.equal(config.stocks.length, 40);
-  assert.equal(config.baskets.length, 10);
+  assert.equal(config.stocks.length, sdk.DEVNET_XSTOCK_CATALOG.length);
+  assert.equal(config.baskets.length, sdk.DEVNET_RECURRING_BASKETS.length);
+  assert.equal(
+    config.baskets.some((basket) => basket.available),
+    false,
+  );
   assert.equal(
     config.stocks.some((stock) => stock.available),
     false,
@@ -590,6 +618,53 @@ test("unprovisioned catalog stays visibly blocked without inventing mints, pools
   await assert.rejects(
     () => api.createDevnetRecurringPlan(create()),
     /has not been provisioned/,
+  );
+});
+
+test("new mainnet basket themes cannot inherit devnet availability from an otherwise ready test catalog", async () => {
+  const tokenManifest = {
+    ...sdk.createUnprovisionedDevnetManifest(),
+    status: "ready",
+    tokens: sdk.DEVNET_XSTOCK_CATALOG.map((definition) => ({
+      ...definition,
+      mint: fixture(`catalog-${definition.underlyingSymbol}`),
+    })),
+    fundingToken: {
+      ...sdk.DEVNET_FUNDING_TOKEN_DEFINITION,
+      mint: fixture("catalog-KUSD"),
+    },
+  };
+  const api = backend({ tokenManifest });
+  const config = await api.getDevnetRecurringConfig();
+  assert.equal(config.status, "requires-wallet-verification");
+  assert.equal(
+    config.stocks.every((stock) => stock.available),
+    true,
+  );
+  for (const basket of config.baskets) {
+    const complete = basket.underlyingSymbols.every((symbol) =>
+      tokenManifest.tokens.some((token) => token.underlyingSymbol === symbol),
+    );
+    assert.equal(basket.available, complete, basket.id);
+    if (!complete)
+      assert.throws(
+        () => sdk.resolveDevnetBasketAssets(tokenManifest, basket.id),
+        /not provisioned/,
+      );
+  }
+  // A later explicit catalog expansion can make these themes available only by
+  // changing the provisioning manifest; their mainnet declaration cannot do so.
+  const unsupportedThemes = sdk.DEVNET_RECURRING_BASKETS.filter((basket) =>
+    basket.underlyingSymbols.some(
+      (symbol) =>
+        !sdk.DEVNET_XSTOCK_CATALOG.some(
+          (token) => token.underlyingSymbol === symbol,
+        ),
+    ),
+  );
+  assert.equal(
+    config.baskets.filter((basket) => !basket.available).length,
+    unsupportedThemes.length,
   );
 });
 
@@ -660,7 +735,7 @@ test("owner can close a plan after its delegation was revoked, without a manifes
     });
     assert.equal(result.operation, "close");
     assert.equal(result.plan, plan.address);
-    const close = api.composed.at(-1).instructions.at(-1);
+    const close = api.composed.at(-1).instructions.at(-2);
     assert.equal(
       close.keys[3].pubkey.toBase58(),
       wallet,
@@ -676,4 +751,96 @@ test("owner can close a plan after its delegation was revoked, without a manifes
       }),
     /Only the plan owner/,
   );
+});
+
+test("creator reconciliation excludes externally revoked permissions across batches and fails unavailable on RPC errors", async () => {
+  const plan = await fixturePlan();
+  const receipt = {
+    basketId: "creator-0123456789abcdef01234567",
+    owner: wallet,
+    plan: plan.address,
+    status: "active",
+    network: "devnet",
+    expiresAt: Number(plan.expiresAt) * 1000,
+  };
+  const closed = backend({ plan, stateClosed: true });
+  const verified = await closed.reconcileCreatorSubscriptions(
+    Array.from({ length: 201 }, () => receipt),
+  );
+  assert.equal(verified.length, 0);
+  const unavailable = backend({ plan });
+  await assert.rejects(
+    () => unavailable.reconcileCreatorSubscriptions([receipt]),
+    /Unexpected account lookup/,
+  );
+  assert.equal(
+    unavailable.calls.some((call) => call.method === "creatorReceipt"),
+    false,
+  );
+  const wrongOwner = backend({ plan, stateClosed: true });
+  await assert.rejects(
+    () =>
+      wrongOwner.reconcileCreatorSubscriptions([
+        { ...receipt, owner: fixture("other-owner") },
+      ]),
+    /owner does not match/,
+  );
+});
+
+test("both collector HTTP methods authorize before work and malformed JSON never starts a pass", async () => {
+  const previous = process.env.KITE_RECURRING_EXECUTOR_SECRET;
+  const secret = "http-collector-regression-secret-at-least-32";
+  process.env.KITE_RECURRING_EXECUTOR_SECRET = secret;
+  let runs = 0;
+  const route = load("../app/api/recurring/collect/route.ts", {
+    "@/lib/server/request-policy": require("../lib/server/request-policy.ts"),
+    "@/lib/server/recurring-keeper": require("../lib/server/recurring-keeper.ts"),
+    "@/lib/server/recurring-devnet-policy": policy,
+    "@/lib/server/recurring-devnet": {
+      runDevnetCollectorPass: async () => {
+        runs++;
+        return { collected: 0, failed: 0, scanned: 0 };
+      },
+      collectDevnetRecurringPlan: async () => {
+        runs++;
+        throw new Error("Unexpected single-plan request");
+      },
+    },
+  });
+  try {
+    const base = "https://kite.runs/api/recurring/collect";
+    assert.equal((await route.GET(new Request(base))).status, 401);
+    assert.equal(
+      (await route.POST(new Request(base, { method: "POST", body: "{}" })))
+        .status,
+      401,
+    );
+    assert.equal(runs, 0);
+    assert.equal(
+      (
+        await route.POST(
+          new Request(base, {
+            method: "POST",
+            body: "{bad",
+            headers: { Authorization: `Bearer ${secret}` },
+          }),
+        )
+      ).status,
+      422,
+    );
+    assert.equal(runs, 0);
+    assert.equal(
+      (
+        await route.GET(
+          new Request(base, { headers: { Authorization: `Bearer ${secret}` } }),
+        )
+      ).status,
+      200,
+    );
+    assert.equal(runs, 1);
+  } finally {
+    if (previous === undefined)
+      delete process.env.KITE_RECURRING_EXECUTOR_SECRET;
+    else process.env.KITE_RECURRING_EXECUTOR_SECRET = previous;
+  }
 });

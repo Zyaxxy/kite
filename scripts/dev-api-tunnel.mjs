@@ -41,15 +41,21 @@ const readPaths = new Set([
   "/api/tokens",
   "/api/portfolio",
   "/api/recurring",
+  "/api/recurring/config",
+  "/api/creators/baskets",
+  "/api/baskets/route-health",
 ]);
 const writePaths = new Set([
   "/api/trade/order",
   "/api/trade/execute",
   "/api/buy-basket",
+  "/api/baskets/route-health",
   "/api/transaction/execute",
   "/api/recurring",
   "/api/recurring/revoke",
-  "/api/recurring/collect",
+  "/api/recurring/execute",
+  "/api/bundles/execute",
+  "/api/bundles/status",
 ]);
 const allowedHeaders = [
   "content-type",
@@ -97,9 +103,14 @@ const server = createServer(async (request, response) => {
       return fail(response, 415, "A JSON request is required.");
     const chunks = [];
     let size = 0;
+    const bodyLimit = ["/api/bundles/execute", "/api/bundles/status"].includes(
+      url.pathname,
+    )
+      ? 32_768
+      : 16_384;
     for await (const chunk of request) {
       size += chunk.length;
-      if (size > 16_384)
+      if (size > bodyLimit)
         return fail(response, 413, "Request body is too large.");
       chunks.push(chunk);
     }

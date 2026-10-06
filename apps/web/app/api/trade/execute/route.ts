@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { classifyTradeExecution, UNKNOWN_TRADE_MESSAGE } from "@kite/sdk";
 import { verifyTradeAuthorization } from "@/lib/server/trade-authorization";
 import { readLimitedJson } from "@/lib/server/request-policy";
+import { assertMainnet } from "@/lib/server/composed-transactions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,6 +42,7 @@ export async function POST(request: NextRequest) {
       body.signedTransaction,
       tradeSecret,
     );
+    await assertMainnet();
     executionAttempted = true;
     const response = await fetch("https://api.jup.ag/swap/v2/execute", {
       method: "POST",

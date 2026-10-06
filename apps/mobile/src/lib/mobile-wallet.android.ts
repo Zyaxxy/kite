@@ -2,16 +2,19 @@ import { TurboModuleRegistry } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import { Buffer } from "buffer";
 import { PublicKey } from "@solana/web3.js";
-import {
-  advertisedSigningVersions,
-  canApproveTrade,
-  type SignableWalletOrder,
-} from "@kite/sdk";
+import { advertisedSigningVersions, type SignableWalletOrder } from "@kite/sdk";
 import type {
   AuthorizationResult,
   MobileWallet,
 } from "@solana-mobile/mobile-wallet-adapter-protocol";
 import { WEB_URL } from "./config";
+import {
+  assertNativeSigningReview,
+  assertSignedPayloads,
+  walletAuthorizationKey,
+  type NativeSigningReview,
+  type WalletNetwork,
+} from "./mobile-wallet-policy";
 
 export interface MobileWalletAccount {
   address: string;
@@ -22,8 +25,8 @@ interface StoredAuthorization {
   token: string;
   account: MobileWalletAccount;
   origin: string;
+  network: WalletNetwork;
 }
-const KEY = "kite.mainnet.wallet.authorization.v1";
 let sessionBusy = false;
 let sessionDeadline = 0;
 function assertSessionActive() {
@@ -37,8 +40,10 @@ export const supportsMobileWallet = Boolean(
 );
 const identity = () => ({ name: "Kite", uri: WEB_URL, icon: "icon.svg" });
 
-async function stored(): Promise<StoredAuthorization | null> {
-  const raw = await SecureStore.getItemAsync(KEY);
+async function stored(
+  network: WalletNetwork,
+): Promise<StoredAuthorization | null> {
+  const raw = await SecureStore.getItemAsync(walletAuthorizationKey(network));
   if (!raw) return null;
   try {
     const value = JSON.parse(raw) as StoredAuthorization;
@@ -46,6 +51,8 @@ async function stored(): Promise<StoredAuthorization | null> {
       typeof value.token !== "string" ||
       !value.token ||
       value.origin !== WEB_URL ||
+      (value.network !== network &&
+        !(network === "mainnet" && value.network === undefined)) ||
       !value.account?.address ||
       new PublicKey(value.account.address).toBase58() !== value.account.address
     )
@@ -67,9 +74,12 @@ function accountFromAuthorization(
       : Buffer.from(account.address, "base64");
   return { address: new PublicKey(bytes).toBase58(), label: account.label };
 }
-async function authorize(wallet: MobileWallet): Promise<MobileWalletAccount> {
+async function authorize(
+  wallet: MobileWallet,
+  network: WalletNetwork,
+): Promise<MobileWalletAccount> {
   assertSessionActive();
-  const previous = await stored();
+  const previous = await stored(network);
   let result: AuthorizationResult;
   if (previous) {
     try {
@@ -84,16 +94,16 @@ async function authorize(wallet: MobileWallet): Promise<MobileWalletAccount> {
         "code" in error &&
         error.code === -1
       ) {
-        await SecureStore.deleteItemAsync(KEY);
+        await SecureStore.deleteItemAsync(walletAuthorizationKey(network));
         result = await wallet.authorize({
-          chain: "solana:mainnet",
+          chain: `solana:${network}`,
           identity: identity(),
         });
       } else throw error;
     }
   } else
     result = await wallet.authorize({
-      chain: "solana:mainnet",
+      chain: `solana:${network}`,
       identity: identity(),
     });
   assertSessionActive();
@@ -110,8 +120,13 @@ async function authorize(wallet: MobileWallet): Promise<MobileWalletAccount> {
   }
   assertSessionActive();
   await SecureStore.setItemAsync(
-    KEY,
-    JSON.stringify({ token: result.auth_token, account, origin: WEB_URL }),
+    walletAuthorizationKey(network),
+    JSON.stringify({
+      token: result.auth_token,
+      account,
+      origin: WEB_URL,
+      network,
+    }),
     { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY },
   );
   return account;
@@ -171,51 +186,67 @@ async function session<T>(
     throw error;
   }
 }
-export async function restoreMobileWallet(): Promise<MobileWalletAccount | null> {
-  const account = (await stored())?.account;
+export async function restoreMobileWallet(
+  network: WalletNetwork = "mainnet",
+): Promise<MobileWalletAccount | null> {
+  const account = (await stored(network))?.account;
   // A saved session is not fresh evidence of installed wallet capabilities.
   return account ? { ...account, supportedTransactionVersions: [] } : null;
 }
-export async function connectMobileWallet(): Promise<MobileWalletAccount> {
-  return session(authorize);
+export async function connectMobileWallet(
+  network: WalletNetwork = "mainnet",
+): Promise<MobileWalletAccount> {
+  return session((wallet) => authorize(wallet, network));
 }
-export async function disconnectMobileWallet(): Promise<void> {
-  const previous = await stored();
+export async function disconnectMobileWallet(
+  network: WalletNetwork = "mainnet",
+): Promise<void> {
+  const previous = await stored(network);
   try {
     if (previous)
       await session((wallet) =>
         wallet.deauthorize({ auth_token: previous.token }),
       );
   } finally {
-    await SecureStore.deleteItemAsync(KEY);
+    await SecureStore.deleteItemAsync(walletAuthorizationKey(network));
   }
 }
 export async function signMobileTransaction(
   order: SignableWalletOrder,
 ): Promise<string> {
+  const signed = await signMobileTransactions({
+    signer: order.taker,
+    network: "mainnet",
+    transactionVersion: order.transactionVersion ?? 0,
+    transactions: [order.transaction],
+    expiresAt: order.expiresAt,
+  });
+  return signed[0]!;
+}
+
+/** MWA signs locally in a single session. Broadcasting is always an explicit server API step. */
+export async function signMobileTransactions(
+  review: NativeSigningReview,
+): Promise<string[]> {
   return session(async (wallet) => {
-    const account = await authorize(wallet);
-    if (!canApproveTrade(order, account.address))
-      throw new Error(
-        "The wallet changed or the quote expired. Request a new quote.",
-      );
+    const account = await authorize(wallet, review.network);
+    assertNativeSigningReview(review, account, review.network);
     assertSessionActive();
-    if (order.transactionVersion !== 1)
-      throw new Error("New trades require V1. Request a fresh review.");
-    if (!account.supportedTransactionVersions?.includes(1))
+    const capabilities = await wallet.getCapabilities();
+    if (
+      review.transactions.length > 1 &&
+      capabilities.max_transactions_per_request &&
+      capabilities.max_transactions_per_request < review.transactions.length
+    )
       throw new Error(
-        "This Android wallet does not advertise V1 transaction signing. Update or reconnect a compatible wallet, or open Kite web.",
+        "This wallet cannot approve the complete basket bundle in one request. Update your wallet or choose a smaller basket.",
       );
     const response = await wallet.signTransactions({
-      payloads: [order.transaction],
+      payloads: review.transactions,
     });
-    const signed = response.signed_payloads[0];
-    if (!signed)
-      throw new Error("The wallet did not return a signed transaction.");
-    if (!canApproveTrade(order, account.address))
-      throw new Error(
-        "This quote expired while the wallet was open. Nothing was submitted.",
-      );
-    return signed;
+    assertSessionActive();
+    assertNativeSigningReview(review, account, review.network);
+    assertSignedPayloads(response.signed_payloads, review.transactions.length);
+    return response.signed_payloads;
   });
 }

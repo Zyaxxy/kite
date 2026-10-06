@@ -9,9 +9,13 @@ const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const serverSecretName = (name) =>
   !name.startsWith("NEXT_PUBLIC_") &&
   !name.startsWith("EXPO_PUBLIC_") &&
-  /(?:^|_)(?:SECRET|TOKEN|PASSWORD|PRIVATE_KEY|API_KEY)(?:_|$)/.test(name);
+  /(?:^|_)(?:SECRET|TOKEN|PASSWORD|PRIVATE_KEY|API_KEY|API_KEYS|KEYPAIR|INVITE_CODES)(?:_|$)/.test(
+    name,
+  );
 
-/** Read configuration privately; callers must never print this map or its values. */
+/** Read configuration privately; callers must never print this map or its values.
+ * @param {{ environment?: NodeJS.ProcessEnv; envFiles?: string[] }} [options]
+ */
 export async function configuredServerSecrets({
   environment = process.env,
   envFiles,

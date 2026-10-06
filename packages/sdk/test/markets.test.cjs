@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { getMainnetMarkets, resolveMarketBaskets } = require('../dist/markets.js');
+const { CANONICAL_BASKET_DEFINITIONS, getMainnetMarkets, resolveMarketBaskets } = require('../dist/markets.js');
 
 // Provider fixtures are only used in tests, never shipped as fallback market data.
 const mintA = '11111111111111111111111111111111';
@@ -40,8 +40,8 @@ test('provider outages produce honest unavailable state with no seeded assets or
 });
 
 test('missing basket members do not cause silent weight renormalization', () => {
-  const assets = ['NVDA','MSFT','GOOGL','AMZN'].map(underlyingSymbol=>({underlyingSymbol,issuer:'xstocks',priceUsd:100,tradingHalted:false}));
-  const basket = resolveMarketBaskets(assets)[0];
+  const assets = ['NVDA','MSFT','GOOGL','AMZN'].map(underlyingSymbol=>({underlyingSymbol,issuer:'xstocks',priceUsd:100,tradingHalted:false,verified:true}));
+  const basket = resolveMarketBaskets(assets).find((basket) => basket.id === "sol-ai-infra");
   assert.equal(basket.available,false); assert.deepEqual(basket.missingSymbols,['ORCL']);
   assert.ok(basket.assets.reduce((sum,member)=>sum+member.weight,0)<10000);
 });
@@ -103,11 +103,11 @@ test('price requests respect 50-mint limit and retain Tokens V2 prices during a 
 });
 
 test('all complete thematic baskets have exactly 10000 basis points and original, issuer-resolved members', () => {
-  const symbols=['AAPL','MSFT','NVDA','AMZN','GOOGL','META','TSLA','ORCL','AMD','AVGO','TSM','ASML','CRM','NOW','MCD','SBUX','KO','LLY','JNJ','ABBV','UNH','MRK','JPM','GS','V','MA','LMT','RTX','NOC','PLTR','XOM','CVX','COP','CAT','DE','GE','HON','SPY','QQQ','GLD'];
-  const assets=symbols.map(underlyingSymbol=>({mint:underlyingSymbol,underlyingSymbol,issuer:'xstocks',priceUsd:100,tradingHalted:false}));
-  assets.push({mint:mintP,underlyingSymbol:'PRIVATE',issuer:'prestocks',priceUsd:20,tradingHalted:false});
+  const symbols = [...new Set(CANONICAL_BASKET_DEFINITIONS.filter((definition) => definition.issuer === 'xstocks').flatMap((definition) => definition.symbols))];
+  const assets=symbols.map(underlyingSymbol=>({mint:underlyingSymbol,underlyingSymbol,issuer:'xstocks',priceUsd:100,tradingHalted:false,verified:true}));
+  assets.push({mint:mintP,underlyingSymbol:'PRIVATE',issuer:'prestocks',priceUsd:20,tradingHalted:false,verified:true});
   const baskets=resolveMarketBaskets(assets);
-  assert.equal(baskets.length,11);
+  assert.deepEqual(baskets.map((basket) => basket.id), CANONICAL_BASKET_DEFINITIONS.map((definition) => definition.id));
   for(const basket of baskets){
     assert.equal(basket.available,true,basket.id);
     assert.equal(basket.assets.reduce((sum,member)=>sum+member.weight,0),10000,basket.id);

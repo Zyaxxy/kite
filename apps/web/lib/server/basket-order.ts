@@ -9,28 +9,51 @@ import {
   TOKEN_PROGRAM_ID,
   TOKEN_2022_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
+  createAssociatedTokenAccountIdempotentInstruction,
 } from "@solana/spl-token";
 import {
   allocateBasketInput,
+  basketInputDebitBounds,
+  validateBasketInputDebit,
   validateJupiterExactInInstruction,
-  composeMainnetTransaction,
+  getJupiterIntermediateMints,
+  validateJupiterIntermediateMint,
+  composeBasketV0Chunks,
+  composeBasketV1Chunks,
+  isTransactionCapacityError,
+  BUNDLE_ATOMICITY_WARNING,
   hasCompleteIssuerCatalogs,
   toTokenAmount,
+  fromTokenAmount,
+  classifyJupiterRouteError,
+  describeRouteFailure,
+  resolveAllMarketBaskets,
+  MAINNET_USDC_MINT,
+  MAINNET_USDT_MINT,
   MAINNET_SOL_MINT,
+  MAX_CUSTOM_BASKET_LEGS,
+  MIN_CUSTOM_BASKET_LEGS,
   type BasketOrderRequest,
   type BasketOrder,
+  type BasketPurchaseOrder,
+  type BasketSwapLeg,
+  type MarketAsset,
   type SwapToken,
 } from "@kite/sdk";
 import { getServerMarketCatalog } from "./markets";
 import { getTradeMintDecimals } from "./mint-precision";
 import {
-  assertMainnetV1Ready,
+  selectMainnetTransactionVersion,
   authorizeComposed,
   latestBlockhash,
   mainnetRpc,
   simulateComposed,
   type RpcAccount,
 } from "./composed-transactions";
+import { authorizeBundle } from "./bundle-authorization";
+import { prepareJitoTip } from "./jito-bundles";
+import { loadVerifiedLookupTables } from "./jupiter-lookup-tables";
+import { resolvePublishedCreatorBasket } from "./creator-store";
 
 type ApiInstruction = {
   programId: string;
@@ -45,6 +68,7 @@ type Route = {
   otherAmountThreshold: string;
   swapMode: string;
   slippageBps: number;
+  routePlan?: unknown;
   setupInstructions: ApiInstruction[];
   swapInstruction: ApiInstruction;
   cleanupInstruction: ApiInstruction | null;
@@ -141,7 +165,7 @@ function setupInstruction(
   return built;
 }
 function balance(account: RpcAccount, mint: string, owner: string): bigint {
-  if (!account) return BigInt(0);
+  if (!account || account.lamports === 0) return BigInt(0);
   if (
     ![TOKEN_PROGRAM_ID.toBase58(), TOKEN_2022_PROGRAM_ID.toBase58()].includes(
       account.owner,
@@ -157,9 +181,20 @@ function balance(account: RpcAccount, mint: string, owner: string): bigint {
     throw new Error("Basket assets must settle to your own token accounts.");
   return data.readBigUInt64LE(64);
 }
+function reviewedInputDebit(
+  allocations: readonly { mint: string; amount: bigint }[],
+  inputMint: string,
+): bigint {
+  // The funding amount is split with Hare-Niemeyer largest remainder. A leg
+  // already denominated in the funding mint stays in the wallet, so only the
+  // other legs contribute to the token-account debit.
+  return allocations
+    .filter((allocation) => allocation.mint !== inputMint)
+    .reduce((sum, allocation) => sum + allocation.amount, BigInt(0));
+}
 export async function prepareBasketOrder(
   input: BasketOrderRequest,
-): Promise<BasketOrder> {
+): Promise<BasketPurchaseOrder> {
   return prepareAllocationOrder(input);
 }
 
@@ -168,16 +203,70 @@ export async function prepareTokenSwapOrder(
   input: Omit<BasketOrderRequest, "basketId">,
   outputToken: SwapToken,
 ): Promise<BasketOrder> {
-  return prepareAllocationOrder(
+  const order = await prepareAllocationOrder(
     { ...input, basketId: outputToken.mint },
     outputToken,
   );
+  if ("kind" in order)
+    throw new Error("Single-token swaps cannot use bundles.");
+  return order;
+}
+
+/** Compose first; settlement simulation is deliberately outside capacity fallback. */
+export async function composeBasketExecution({
+  transactionVersion,
+  taker,
+  lifetime,
+  legs,
+  routeLookupTables,
+}: {
+  transactionVersion: 0 | 1;
+  taker: string;
+  lifetime: { blockhash: string; lastValidBlockHeight: number };
+  legs: BasketSwapLeg[];
+  routeLookupTables: Array<Record<string, string[]> | null>;
+}) {
+  // V1 inlines account addresses; referenced ALTs are fetched only for a V0 route.
+  const lookupTables =
+    transactionVersion === 0
+      ? await loadVerifiedLookupTables(routeLookupTables)
+      : [];
+  const composition = {
+    payer: taker,
+    blockhash: lifetime.blockhash,
+    lastValidBlockHeight: lifetime.lastValidBlockHeight,
+    legs,
+    lookupTables,
+  };
+  let tip: Awaited<ReturnType<typeof prepareJitoTip>> | undefined;
+  const compose = (finalTipInstruction?: TransactionInstruction) =>
+    transactionVersion === 1
+      ? composeBasketV1Chunks({
+          payer: taker,
+          blockhash: lifetime.blockhash,
+          lastValidBlockHeight: lifetime.lastValidBlockHeight,
+          legs,
+          allowV1: true,
+          finalTipInstruction,
+        })
+      : composeBasketV0Chunks({ ...composition, finalTipInstruction });
+  let chunks: Awaited<ReturnType<typeof compose>>;
+  try {
+    // Asset count is not a capacity heuristic: every basket first tries one atomic transaction.
+    chunks = await compose();
+  } catch (error) {
+    // Validation errors are never interpreted as a reason to change execution routes.
+    if (!isTransactionCapacityError(error) || legs.length === 1) throw error;
+    tip = await prepareJitoTip(taker);
+    chunks = await compose(tip.instruction);
+  }
+  return { chunks, tipLamports: tip?.lamports ?? 0 };
 }
 
 async function prepareAllocationOrder(
   input: BasketOrderRequest,
   outputToken?: SwapToken,
-): Promise<BasketOrder> {
+): Promise<BasketPurchaseOrder> {
   const apiKey = process.env.JUPITER_API_KEY;
   if (!apiKey) throw new Error("Jupiter routing is not configured.");
   const taker = new PublicKey(input.taker).toBase58();
@@ -194,7 +283,9 @@ async function prepareAllocationOrder(
     throw new Error(
       "Choose an amount and slippage from 1 to 300 basis points.",
     );
-  await assertMainnetV1Ready(input.supportedTransactionVersions);
+  const transactionVersion = await selectMainnetTransactionVersion(
+    input.supportedTransactionVersions,
+  );
   const market = await getServerMarketCatalog();
   if (
     market.backpackSecurities?.some(
@@ -209,12 +300,21 @@ async function prepareAllocationOrder(
     throw new Error(
       "This Backpack security is discovery-only until Solana transfers can be verified.",
     );
-  const customAllocations = input.customAllocations;
+  const published = outputToken
+    ? null
+    : await resolvePublishedCreatorBasket(input.basketId);
+  if (input.basketId.startsWith("creator-") && !published)
+    throw new Error("This published creator basket is unavailable.");
+  if (published && input.customAllocations !== undefined)
+    throw new Error(
+      "Published basket allocations are immutable. Remove client allocation overrides.",
+    );
+  const customAllocations = published?.allocations ?? input.customAllocations;
   let basket:
     | {
         id: string;
         missingSymbols: string[];
-        assets: Array<{ asset: any; weight: number }>;
+        assets: Array<{ asset: MarketAsset | SwapToken; weight: number }>;
       }
     | undefined;
 
@@ -224,15 +324,25 @@ async function prepareAllocationOrder(
       missingSymbols: [],
       assets: [{ asset: outputToken, weight: 10_000 }],
     };
-  } else if (customAllocations && Array.isArray(customAllocations) && customAllocations.length > 0) {
-    if (customAllocations.length < 2 || customAllocations.length > 4) {
-      throw new Error("Custom baskets must contain between 2 and 4 assets.");
+  } else if (
+    customAllocations &&
+    Array.isArray(customAllocations) &&
+    customAllocations.length > 0
+  ) {
+    if (
+      customAllocations.length < MIN_CUSTOM_BASKET_LEGS ||
+      customAllocations.length > MAX_CUSTOM_BASKET_LEGS
+    ) {
+      throw new Error(
+        `Custom baskets must contain between ${MIN_CUSTOM_BASKET_LEGS} and ${MAX_CUSTOM_BASKET_LEGS} assets, subject to route capacity.`,
+      );
     }
     const seen = new Set<string>();
     let totalBps = 0;
-    const resolvedAssets: Array<{ asset: any; weight: number }> = [];
+    const resolvedAssets: Array<{ asset: MarketAsset; weight: number }> = [];
     for (const alloc of customAllocations) {
-      if (seen.has(alloc.mint)) throw new Error("Duplicate mint in custom basket.");
+      if (seen.has(alloc.mint))
+        throw new Error("Duplicate mint in custom basket.");
       seen.add(alloc.mint);
       if (!Number.isInteger(alloc.weightBps) || alloc.weightBps <= 0) {
         throw new Error("Custom allocation weights must be positive integers.");
@@ -240,12 +350,16 @@ async function prepareAllocationOrder(
       totalBps += alloc.weightBps;
       const asset = market.assets.find((a) => a.mint === alloc.mint);
       if (!asset || !asset.verified || asset.tradingHalted) {
-        throw new Error(`Asset ${alloc.mint} is unavailable or halted for trading.`);
+        throw new Error(
+          `Asset ${alloc.mint} is unavailable or halted for trading.`,
+        );
       }
       resolvedAssets.push({ asset, weight: alloc.weightBps });
     }
     if (totalBps !== 10_000) {
-      throw new Error("Custom allocation weights must total exactly 10,000 basis points.");
+      throw new Error(
+        "Custom allocation weights must total exactly 10,000 basis points.",
+      );
     }
     basket = {
       id: input.basketId || "custom",
@@ -253,11 +367,15 @@ async function prepareAllocationOrder(
       assets: resolvedAssets,
     };
   } else {
-    basket = market.baskets.find((b) => b.id === input.basketId);
+    basket = resolveAllMarketBaskets(market.assets).find(
+      (b) => b.id === input.basketId,
+    );
   }
 
   if (
-    (!outputToken && !customAllocations && !hasCompleteIssuerCatalogs(market)) ||
+    (!outputToken &&
+      !customAllocations &&
+      !hasCompleteIssuerCatalogs(market)) ||
     !basket ||
     basket.missingSymbols.length ||
     !basket.assets.length ||
@@ -310,6 +428,15 @@ async function prepareAllocationOrder(
     false,
     programs[0],
   ).toBase58();
+  const fundingSymbol =
+    inputMint === MAINNET_USDC_MINT
+      ? "USDC"
+      : inputMint === MAINNET_USDT_MINT
+        ? "USDT"
+        : inputMint === MAINNET_SOL_MINT
+          ? "SOL"
+          : (market.assets.find((asset) => asset.mint === inputMint)?.symbol ??
+            "the selected funding token");
   const funds =
     inputMint === MAINNET_SOL_MINT
       ? BigInt(
@@ -330,12 +457,19 @@ async function prepareAllocationOrder(
           inputMint,
           taker,
         );
-  if (funds < BigInt(inAmount))
-    throw new Error("Your wallet balance is below the full basket amount.");
+  const fundingBudget = inputMint === MAINNET_SOL_MINT
+    ? BigInt(inAmount)
+    : basketInputDebitBounds(BigInt(inAmount)).maximum;
+  if (funds < fundingBudget)
+    throw new Error(
+      `Not enough ${fundingSymbol}: this basket requires up to ${fromTokenAmount(fundingBudget.toString(), decimals[0])} ${fundingSymbol}, but your wallet has ${fromTokenAmount(funds.toString(), decimals[0])}. Reduce the amount, add ${fundingSymbol}, or select another funding token.`,
+    );
   // No /order transaction concatenation: each route is built for its exact integer allocation.
   const routes = await Promise.all(
     allocations.map(async (a, i) => {
       if (a.mint === inputMint) return null;
+      const wrapAndUnwrapSol =
+        inputMint === MAINNET_SOL_MINT || a.mint === MAINNET_SOL_MINT;
       const params = new URLSearchParams({
         inputMint,
         outputMint: a.mint,
@@ -344,13 +478,34 @@ async function prepareAllocationOrder(
         slippageBps: String(input.slippageBps),
         maxAccounts: "32",
         destinationTokenAccount: destinations[i],
-        wrapAndUnwrapSol: "true",
+        wrapAndUnwrapSol: String(wrapAndUnwrapSol),
       });
       const response = await fetchJupiterBuild(params, apiKey);
-      if (!response.ok)
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403)
+          throw new Error(
+            "Kite’s Jupiter routing credentials were rejected. Route availability was not checked. Please try again later or contact Kite support.",
+          );
+        if (response.status >= 500)
+          throw new Error(
+            "Jupiter routing is temporarily unavailable. Route availability was not checked; please retry shortly.",
+          );
+        const providerError = (await response
+          .clone()
+          .json()
+          .catch(() => null)) as {
+          error?: unknown;
+          errorCode?: unknown;
+        } | null;
+        const outputSymbol = basket.assets[i].asset.symbol;
         throw new Error(
-          `No executable route for ${basket.assets[i].asset.symbol}. Try a different funding token or amount.`,
+          describeRouteFailure(
+            classifyJupiterRouteError(response.status, providerError),
+            fundingSymbol,
+            outputSymbol,
+          ),
         );
+      }
       const r = (await response.json()) as Route;
       if (
         r.inputMint !== inputMint ||
@@ -396,14 +551,18 @@ async function prepareAllocationOrder(
       return r;
     }),
   );
-  const instructions: TransactionInstruction[] = [];
-  const setupKeys = new Set<string>();
+  const legs: BasketSwapLeg[] = [];
+  const intermediateAccounts = new Map<
+    string,
+    { mint: string; tokenProgram: string; allocationIndexes: Set<number> }
+  >();
   for (let i = 0; i < routes.length; i++) {
     const r = routes[i];
     if (!r) continue;
+    const instructions: TransactionInstruction[] = [];
+    // Every leg is independently executable: ATA setup cannot depend on an earlier chunk.
+    const setupKeys = new Set<string>();
     // A destination override asks Jupiter not to create its ATA. Create it ourselves.
-    const { createAssociatedTokenAccountIdempotentInstruction } =
-      await import("@solana/spl-token");
     if (!setupKeys.has(destinations[i]))
       instructions.push(
         createAssociatedTokenAccountIdempotentInstruction(
@@ -415,6 +574,14 @@ async function prepareAllocationOrder(
         ),
       );
     setupKeys.add(destinations[i]);
+    if (!Array.isArray(r.setupInstructions) || r.setupInstructions.length > 64)
+      throw new Error("The route token-account setup exceeds its limits.");
+    let intermediateMints: ReadonlySet<string> | undefined;
+    const writableSwapAccounts = new Set(
+      r.swapInstruction.accounts
+        .filter((account) => account.isWritable && !account.isSigner)
+        .map((account) => account.pubkey),
+    );
     let funded = BigInt(0);
     for (const setup of r.setupInstructions ?? []) {
       const instruction = setupInstruction(
@@ -429,6 +596,42 @@ async function prepareAllocationOrder(
       }
       if (instruction.programId.equals(ASSOCIATED_TOKEN_PROGRAM_ID)) {
         const key = instruction.keys[1].pubkey.toBase58();
+        const mint = instruction.keys[3].pubkey.toBase58();
+        const tokenProgram = instruction.keys[5].pubkey.toBase58();
+        const endpointProgram =
+          mint === inputMint
+            ? programs[0].toBase58()
+            : mint === allocations[i].mint
+              ? programs[i + 1].toBase58()
+              : undefined;
+        if (endpointProgram) {
+          if (tokenProgram !== endpointProgram)
+            throw new Error(
+              "A route token account uses the wrong token program.",
+            );
+        } else {
+          intermediateMints ??= getJupiterIntermediateMints(
+            r.routePlan,
+            inputMint,
+            allocations[i].mint,
+          );
+          if (!intermediateMints.has(mint) || !writableSwapAccounts.has(key))
+            throw new Error(
+              "A route requested a token account outside its verified swap path.",
+            );
+          const account = intermediateAccounts.get(key);
+          if (account) account.allocationIndexes.add(i);
+          else
+            intermediateAccounts.set(key, {
+              mint,
+              tokenProgram,
+              allocationIndexes: new Set([i]),
+            });
+          if (intermediateAccounts.size > 64)
+            throw new Error(
+              "The route requires too many intermediate token accounts.",
+            );
+        }
         if (setupKeys.has(key)) continue;
         setupKeys.add(key);
       }
@@ -441,65 +644,156 @@ async function prepareAllocationOrder(
       );
     for (const other of r.otherInstructions ?? [])
       instructions.push(ix(other, taker));
+    legs.push({ allocationIndex: i, instructions });
   }
-  if (!instructions.length)
-    throw new Error("This allocation does not require a swap.");
-  // V1 encodes route accounts inline; provider lookup tables are not needed.
+  if (!legs.length) throw new Error("This allocation does not require a swap.");
+  // Route metadata is untrusted. Confirm every additional mint and its token
+  // program on the independently mainnet-verified RPC before composition.
+  const intermediateMints = [
+    ...new Set(
+      [...intermediateAccounts.values()].map((account) => account.mint),
+    ),
+  ];
+  if (intermediateMints.length) {
+    const result = await mainnetRpc<{ value: RpcAccount[] }>(
+      "getMultipleAccounts",
+      [intermediateMints, { encoding: "base64", commitment: "confirmed" }],
+    );
+    if (result.value.length !== intermediateMints.length)
+      throw new Error("Intermediate token mints could not be verified.");
+    const mintPrograms = new Map(
+      intermediateMints.map((mint, index) => {
+        const account = result.value[index];
+        return [
+          mint,
+          validateJupiterIntermediateMint(
+            mint,
+            account && {
+              owner: account.owner,
+              data: Buffer.from(account.data[0], "base64"),
+              executable: account.executable,
+            },
+          ),
+        ] as const;
+      }),
+    );
+    for (const account of intermediateAccounts.values())
+      if (mintPrograms.get(account.mint) !== account.tokenProgram)
+        throw new Error(
+          "An intermediate token account uses the wrong token program.",
+        );
+  }
   const lifetime = await latestBlockhash();
-  const built = await composeMainnetTransaction({
-    payer: taker,
-    ...lifetime,
-    instructions,
-    allowV1: true,
+  const { chunks, tipLamports } = await composeBasketExecution({
+    transactionVersion,
+    taker,
+    lifetime,
+    legs,
+    routeLookupTables: routes
+      .filter((route): route is Route => route !== null)
+      .map((route) => route.addressesByLookupTableAddress),
   });
   const addresses = [
     ...destinations,
     ...(inputMint !== MAINNET_SOL_MINT ? [inputAta] : []),
+    taker,
   ];
+  const walletIndex = addresses.length - 1;
+  for (const address of intermediateAccounts.keys())
+    if (!addresses.includes(address)) addresses.push(address);
   const before = await mainnetRpc<{ value: RpcAccount[] }>(
     "getMultipleAccounts",
     [addresses, { encoding: "base64", commitment: "confirmed" }],
   );
-  const simulation = await simulateComposed(built.transaction, addresses);
-  if (!simulation.accounts || simulation.accounts.length !== addresses.length)
-    throw new Error("Basket settlement could not be verified by simulation.");
-  for (let i = 0; i < routes.length; i++)
-    if (
-      routes[i] &&
-      balance(simulation.accounts[i], allocations[i].mint, taker) -
-        balance(before.value[i], allocations[i].mint, taker) <
+  if (before.value.length !== addresses.length)
+    throw new Error("Basket starting balances could not be verified.");
+  const walletBefore = before.value[walletIndex];
+  if (!walletBefore || !Number.isSafeInteger(walletBefore.lamports))
+    throw new Error("The fee payer balance is unavailable.");
+  let totalLamports = BigInt(0);
+  let totalInputDebit = BigInt(0);
+  // Chunks deliberately do not consume each other's outputs. Independent simulation validates
+  // every route's delivery. It does not prove sequential bundle execution or Jito V1 transport support.
+  for (const chunk of chunks) {
+    const simulation = await simulateComposed(chunk.transaction, addresses);
+    if (!simulation.accounts || simulation.accounts.length !== addresses.length)
+      throw new Error("Basket settlement could not be verified by simulation.");
+    for (const i of chunk.allocationIndexes) {
+      if (
+        balance(simulation.accounts[i], allocations[i].mint, taker) -
+          balance(before.value[i], allocations[i].mint, taker) <
         BigInt(routes[i]!.otherAmountThreshold)
-    )
-      throw new Error(
-        "A basket route did not deliver its minimum output to your wallet.",
-      );
-  if (inputMint !== MAINNET_SOL_MINT) {
-    const n = addresses.length - 1;
-    const spent =
-      balance(before.value[n], inputMint, taker) -
-      balance(simulation.accounts[n], inputMint, taker);
-    const swapAmount = allocations
-      .filter((a) => a.mint !== inputMint)
-      .reduce((s, a) => s + a.amount, BigInt(0));
-    if (spent > swapAmount || spent < BigInt(0))
-      throw new Error(
-        "The simulated input debit exceeds the reviewed allocation.",
-      );
+      )
+        throw new Error(
+          "A basket route did not deliver its minimum output to your wallet.",
+        );
+    }
+    const swapAmount = chunk.allocationIndexes.reduce(
+      (sum, index) => sum + allocations[index].amount,
+      BigInt(0),
+    );
+    if (inputMint !== MAINNET_SOL_MINT) {
+      const n = destinations.length;
+      const spent =
+        balance(before.value[n], inputMint, taker) -
+        balance(simulation.accounts[n], inputMint, taker);
+      // Every minimum output was verified above. The explicit allowance is
+      // checked per chunk and across the entire order, never multiplied by its size.
+      validateBasketInputDebit(swapAmount, spent);
+      totalInputDebit += spent;
+    }
+    // A multihop swap may use an existing owner ATA, but it must never spend
+    // that account's preexisting balance beyond the reviewed funding debit.
+    for (const [address, account] of intermediateAccounts) {
+      if (
+        !chunk.allocationIndexes.some((index) =>
+          account.allocationIndexes.has(index),
+        )
+      )
+        continue;
+      const index = addresses.indexOf(address);
+      const starting = before.value[index];
+      const ending = simulation.accounts[index];
+      if (
+        (starting &&
+          starting.lamports > 0 &&
+          starting.owner !== account.tokenProgram) ||
+        (ending &&
+          ending.lamports > 0 &&
+          ending.owner !== account.tokenProgram) ||
+        balance(ending, account.mint, taker) <
+          balance(starting, account.mint, taker)
+      )
+        throw new Error(
+          "A route would spend an existing intermediate token balance.",
+        );
+    }
+    const walletAfter = simulation.accounts[walletIndex];
+    if (!walletAfter || !Number.isSafeInteger(walletAfter.lamports))
+      throw new Error("The simulated SOL budget is unavailable.");
+    const debit = BigInt(walletBefore.lamports) - BigInt(walletAfter.lamports);
+    const minimumDebit =
+      inputMint === MAINNET_SOL_MINT ? swapAmount : BigInt(0);
+    totalLamports += debit > minimumDebit ? debit : minimumDebit;
   }
-  const order = await authorizeComposed({
-    ...built,
-    taker,
-    lastValidBlockHeight: lifetime.lastValidBlockHeight,
-    expiresAt: Date.now() + 45000,
-  });
-  return {
-    ...order,
+  const reviewedDebit = reviewedInputDebit(allocations, inputMint);
+  if (inputMint !== MAINNET_SOL_MINT)
+    validateBasketInputDebit(reviewedDebit, totalInputDebit);
+  // Reserve all chunks together, including fees if the RPC simulation does not deduct them.
+  if (
+    BigInt(walletBefore.lamports) <
+    totalLamports + BigInt(chunks.length * 15_000)
+  )
+    throw new Error(
+      "Your wallet needs more SOL for all basket transactions, account rent and the reviewed tip.",
+    );
+  const metadata = {
     basketId: basket.id,
     inputMint,
     inputDecimals: decimals[0],
     inAmount,
     slippageBps: input.slippageBps,
-    priorityFeeLamports: 10000,
+    priorityFeeLamports: 10_000 * chunks.length,
     outputs: allocations.map((a, i) => ({
       mint: a.mint,
       symbol: basket.assets[i].asset.symbol,
@@ -509,5 +803,51 @@ async function prepareAllocationOrder(
       minimumAmount: routes[i]?.otherAmountThreshold ?? a.amount.toString(),
       weightBps: Math.round(basket.assets[i].weight),
     })),
+  };
+  const expiresAt = Date.now() + 60_000;
+  const basketReceipt = {
+    basketId: basket.id,
+    inputMint,
+    // Bind the maximum permitted debit so confirmed analytics never use the
+    // nominal allocation as a ceiling when the reviewed allowance is consumed.
+    inAmount: (inputMint === MAINNET_SOL_MINT
+      ? reviewedDebit
+      : basketInputDebitBounds(reviewedDebit).maximum).toString(),
+  };
+  if (chunks.length === 1) {
+    const order = await authorizeComposed(
+      {
+        transaction: chunks[0].transaction,
+        serializedBytes: chunks[0].serializedBytes,
+        transactionVersion,
+        taker,
+        lastValidBlockHeight: lifetime.lastValidBlockHeight,
+        expiresAt,
+      },
+      undefined,
+      undefined,
+      basketReceipt,
+    );
+    return { ...order, ...metadata };
+  }
+  const transactions = chunks.map((chunk) => chunk.transaction);
+  return {
+    kind: "bundle",
+    ...metadata,
+    ...(await authorizeBundle({
+      transactions,
+      taker,
+      expiresAt,
+      lastValidBlockHeight: lifetime.lastValidBlockHeight,
+      ...basketReceipt,
+    })),
+    transactions,
+    taker,
+    expiresAt,
+    lastValidBlockHeight: lifetime.lastValidBlockHeight,
+    transactionVersion,
+    serializedBytes: chunks.map((chunk) => chunk.serializedBytes),
+    tipLamports,
+    atomicityWarning: BUNDLE_ATOMICITY_WARNING,
   };
 }

@@ -112,11 +112,15 @@ export function DevnetPlansList({
   const [config, setConfig] = useState<DevnetConfig | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [confirmRevokePlan, setConfirmRevokePlan] = useState<string | null>(null);
+  const [confirmRevokePlan, setConfirmRevokePlan] = useState<string | null>(
+    null,
+  );
   const [revokingPlan, setRevokingPlan] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
-  const [actionExplorerUrl, setActionExplorerUrl] = useState<string | null>(null);
+  const [actionExplorerUrl, setActionExplorerUrl] = useState<string | null>(
+    null,
+  );
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
 
   // Load devnet token catalog/config
@@ -180,7 +184,7 @@ export function DevnetPlansList({
           schemaVersion: 1,
           plan: planAddress,
           owner: auth.walletAddress,
-          supportedTransactionVersions: [1],
+          supportedTransactionVersions: auth.supportedTransactionVersions,
         }),
       });
       const order = await res.json();
@@ -191,7 +195,7 @@ export function DevnetPlansList({
       // 2. Request wallet signature
       const signedTransaction = await auth.signTransaction(
         order.transaction,
-        1,
+        order.transactionVersion,
         "solana:devnet",
       );
 
@@ -208,16 +212,25 @@ export function DevnetPlansList({
       const execResult = await execRes.json();
       if (!execRes.ok || execResult.status === "failed") {
         throw new Error(
-          execResult.error || "The devnet revocation transaction failed on-chain.",
+          execResult.error ||
+            "The devnet revocation transaction failed on-chain.",
         );
       }
 
-      setActionSuccess(
-        "Recurring plan revoked! Subscription delegation cancelled and account rent reclaimed to your wallet.",
-      );
       if (execResult.explorerUrl) {
         setActionExplorerUrl(execResult.explorerUrl);
       }
+      if (execResult.status !== "confirmed") {
+        setActionSuccess(
+          execResult.status === "expired"
+            ? "The revocation transaction expired before confirmation. Refresh the plan before trying again."
+            : "Revocation was submitted and is awaiting confirmation. Check the devnet explorer and refresh the plan status.",
+        );
+        return;
+      }
+      setActionSuccess(
+        "Recurring plan revoked. Subscription delegation cancelled and account rent reclaimed to your wallet.",
+      );
       setConfirmRevokePlan(null);
 
       // Refresh list
@@ -281,7 +294,11 @@ export function DevnetPlansList({
 
       // Generic multi-asset basket
       const symbols = plan.outputs
-        .map((o) => config.assets.find((a) => a.mint === o.mint)?.symbol || shorten(o.mint))
+        .map(
+          (o) =>
+            config.assets.find((a) => a.mint === o.mint)?.symbol ||
+            shorten(o.mint),
+        )
         .filter(Boolean);
 
       return {
@@ -306,7 +323,8 @@ export function DevnetPlansList({
     return (
       <div className="panel" style={{ padding: 24, textAlign: "center" }}>
         <p className="fineprint" style={{ margin: 0 }}>
-          Connect your Solana wallet to view and manage your active devnet recurring plans.
+          Connect your Solana wallet to view and manage your active devnet
+          recurring plans.
         </p>
       </div>
     );
@@ -321,7 +339,9 @@ export function DevnetPlansList({
     <div className="stack" style={{ gap: 20 }}>
       <div className="flex-between" style={{ alignItems: "center" }}>
         <div className="flex-start" style={{ gap: 10, alignItems: "center" }}>
-          <h2 style={{ fontSize: "1.25rem", margin: 0 }}>Your devnet recurring plans</h2>
+          <h2 style={{ fontSize: "1.25rem", margin: 0 }}>
+            Your devnet recurring plans
+          </h2>
           <span className={`badge ${activePlans.length > 0 ? "lime" : ""}`}>
             {activePlans.length} ACTIVE
           </span>
@@ -363,7 +383,8 @@ export function DevnetPlansList({
                   marginTop: 4,
                 }}
               >
-                View closing transaction on Solana Explorer <ExternalLink size={11} />
+                View closing transaction on Solana Explorer{" "}
+                <ExternalLink size={11} />
               </a>
             )}
           </div>
@@ -388,11 +409,17 @@ export function DevnetPlansList({
 
       {plans.length === 0 && !loading && (
         <div className="panel" style={{ padding: 24 }}>
-          <div className="flex-between" style={{ alignItems: "center", flexWrap: "wrap", gap: 14 }}>
+          <div
+            className="flex-between"
+            style={{ alignItems: "center", flexWrap: "wrap", gap: 14 }}
+          >
             <div>
-              <h3 style={{ fontSize: 16, margin: "0 0 4px" }}>No devnet plans yet</h3>
+              <h3 style={{ fontSize: 16, margin: "0 0 4px" }}>
+                No devnet plans yet
+              </h3>
               <p className="fineprint" style={{ margin: 0 }}>
-                You don’t have any active recurring plans on Solana devnet. Use the builder below to start your first plan.
+                You don’t have any active recurring plans on Solana devnet. Use
+                the builder below to start your first plan.
               </p>
             </div>
             <a href="#new-plan" className="btn secondary small">
@@ -423,8 +450,14 @@ export function DevnetPlansList({
 
         return (
           <div key={plan.address} className="panel plan-card">
-            <div className="flex-between" style={{ alignItems: "flex-start", gap: 12 }}>
-              <div className="flex-start" style={{ gap: 12, alignItems: "center" }}>
+            <div
+              className="flex-between"
+              style={{ alignItems: "flex-start", gap: 12 }}
+            >
+              <div
+                className="flex-start"
+                style={{ gap: 12, alignItems: "center" }}
+              >
                 {target.logo ? (
                   <img
                     src={target.logo}
@@ -547,7 +580,13 @@ export function DevnetPlansList({
               </div>
             )}
 
-            <div className="plan-stats" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 14 }}>
+            <div
+              className="plan-stats"
+              style={{
+                gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
+                gap: 14,
+              }}
+            >
               <div>
                 <small>Amount</small>
                 <strong>{amountKusd} KUSD</strong>
@@ -559,7 +598,8 @@ export function DevnetPlansList({
               <div>
                 <small>Progress</small>
                 <span>
-                  {plan.executedPeriods} of {plan.periods} ({Math.round((plan.executedPeriods / plan.periods) * 100)}%)
+                  {plan.executedPeriods} of {plan.periods} (
+                  {Math.round((plan.executedPeriods / plan.periods) * 100)}%)
                 </span>
               </div>
               <div>
@@ -572,7 +612,9 @@ export function DevnetPlansList({
               </div>
               <div>
                 <small>Account rent</small>
-                <span style={{ color: "var(--up)" }}>~0.007 SOL (Reclaimable)</span>
+                <span style={{ color: "var(--up)" }}>
+                  ~0.007 SOL (Reclaimable)
+                </span>
               </div>
             </div>
 
@@ -588,18 +630,42 @@ export function DevnetPlansList({
                   gap: 12,
                 }}
               >
-                <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                  <AlertCircle size={18} style={{ color: "var(--down, #ef4444)", flexShrink: 0, marginTop: 2 }} />
+                <div
+                  style={{ display: "flex", gap: 10, alignItems: "flex-start" }}
+                >
+                  <AlertCircle
+                    size={18}
+                    style={{
+                      color: "var(--down, #ef4444)",
+                      flexShrink: 0,
+                      marginTop: 2,
+                    }}
+                  />
                   <div>
                     <strong style={{ fontSize: 13, color: "var(--ink)" }}>
                       Revoke this recurring plan and reclaim rent?
                     </strong>
-                    <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--muted)", lineHeight: 1.6 }}>
-                      This will cancel the subscription delegation in the Solana Subscriptions program and reclaim ~0.007 SOL of account rent back to your wallet.
+                    <p
+                      style={{
+                        margin: "4px 0 0",
+                        fontSize: 12,
+                        color: "var(--muted)",
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      This will cancel the subscription delegation in the Solana
+                      Subscriptions program and reclaim ~0.007 SOL of account
+                      rent back to your wallet.
                     </p>
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    justifyContent: "flex-end",
+                  }}
+                >
                   <button
                     type="button"
                     className="btn ghost small"
@@ -626,20 +692,31 @@ export function DevnetPlansList({
               <div className="notice">
                 <Loader2 size={16} className="spin" />
                 <p style={{ margin: 0, fontSize: 12 }}>
-                  Submitting revocation transaction… Please approve in your wallet to reclaim rent.
+                  Submitting revocation transaction… Please approve in your
+                  wallet to reclaim rent.
                 </p>
               </div>
             )}
 
             {!isConfirming && !isRevoking && (
-              <div className="plan-actions" style={{ justifyContent: "space-between", alignItems: "center" }}>
+              <div
+                className="plan-actions"
+                style={{
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
                 <div style={{ display: "flex", gap: 10 }}>
                   <button
                     type="button"
                     className="btn secondary small"
                     onClick={() => setConfirmRevokePlan(plan.address)}
                     title="Cancel subscription delegation and reclaim account rent"
-                    style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
                   >
                     <Pause size={12} />
                     Revoke / Cancel plan
@@ -650,7 +727,11 @@ export function DevnetPlansList({
                   target="_blank"
                   rel="noreferrer"
                   className="btn ghost small"
-                  style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
                 >
                   Explorer <ExternalLink size={11} />
                 </a>
@@ -663,7 +744,12 @@ export function DevnetPlansList({
       <div className="notice" style={{ marginTop: 4 }}>
         <CircleHelp size={16} style={{ flexShrink: 0 }} />
         <p style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>
-          <strong>Autonomous on-chain subscriptions:</strong> Devnet plans run without custody via official Solana Subscriptions and the <code>kite_guard</code> program. Kite never holds user funds. To pause or cancel recurring investments at any time, click <strong>Revoke plan</strong> to cancel the delegation and immediately reclaim all account rent to your wallet.
+          <strong>Autonomous on-chain subscriptions:</strong> Devnet plans run
+          without custody via official Solana Subscriptions and the{" "}
+          <code>kite_guard</code> program. Kite never holds user funds. To pause
+          or cancel recurring investments at any time, click{" "}
+          <strong>Revoke plan</strong> to cancel the delegation and immediately
+          reclaim all account rent to your wallet.
         </p>
       </div>
     </div>

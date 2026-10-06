@@ -5,6 +5,7 @@ const {
   BASKET_QUOTE_REVIEW_POLICY,
 } = require("../dist/basket/liquidity");
 const {
+  CANONICAL_BASKET_DEFINITIONS,
   resolveMarketBaskets,
   resolveReviewedMarketBaskets,
 } = require("../dist/markets");
@@ -43,6 +44,7 @@ test("published mainnet baskets use reviewed definitions without mutating canoni
     issuer: "xstocks",
     priceUsd: 10,
     tradingHalted: false,
+    verified: true,
   }));
   const reviewed = resolveReviewedMarketBaskets(assets);
   assert.deepEqual(
@@ -57,8 +59,8 @@ test("published mainnet baskets use reviewed definitions without mutating canoni
   const canonical = resolveMarketBaskets([]);
   assert.equal(
     canonical.some((b) => b.id === "sol-mag7"),
-    false,
-    "mag7 basket is completely removed",
+    true,
+    "canonical thematic baskets remain discoverable independently of the focused reviewed subset",
   );
   for (const basket of reviewed) {
     assert.equal(basket.assets.length, 3);
@@ -68,7 +70,7 @@ test("published mainnet baskets use reviewed definitions without mutating canoni
     );
     assert.equal(basket.available, true);
   }
-  assert.equal(canonical.length, 11);
+  assert.deepEqual(canonical.map((basket) => basket.id), CANONICAL_BASKET_DEFINITIONS.map((definition) => definition.id));
   assert.deepEqual(canonical.find((b) => b.id === "sol-ai-infra").missingSymbols, [
     "NVDA",
     "MSFT",

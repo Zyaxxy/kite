@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   BackHandler,
   Modal,
+  Platform,
   SafeAreaView,
   StatusBar,
   StyleSheet,
@@ -20,6 +21,9 @@ import { SettingsScreen } from "./src/screens/SettingsScreen";
 import { ThemeProvider, useTheme } from "./src/theme";
 import { AppErrorBoundary } from "./src/components/AppErrorBoundary";
 import { MobileTradingProvider } from "./src/state/MobileTradingProvider";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { ActivityScreen } from "./src/screens/ActivityScreen";
+import { NativeNavigator } from "./src/navigation/NativeNavigator";
 
 function KiteApp() {
   const { colors, mode } = useTheme();
@@ -113,6 +117,7 @@ function KiteApp() {
         {screen === "settings" ? (
           <SettingsScreen onReset={resetAccount} />
         ) : null}
+        {screen === "activity" ? <ActivityScreen /> : null}
       </View>
       <BottomNav current={screen} onNavigate={navigate} />
       <Modal
@@ -140,7 +145,9 @@ export default function App() {
       <AppErrorBoundary>
         <KiteProvider>
           <MobileTradingProvider>
-            <KiteApp />
+            <SafeAreaProvider>
+              {Platform.OS === "web" ? <KiteApp /> : <NativeNavigator />}
+            </SafeAreaProvider>
           </MobileTradingProvider>
         </KiteProvider>
       </AppErrorBoundary>

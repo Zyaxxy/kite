@@ -8,15 +8,18 @@ import { siteUrl } from "../lib/site";
 import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: siteUrl(),
-  title: { default: "Kite — Your ideas. Onchain.", template: "%s | Kite" },
+  title: {
+    default: "Kite — Good ideas deserve a routine.",
+    template: "%s | Kite",
+  },
   description:
-    "Discover companies, follow market news, and bring your tokenized investments together on Solana.",
+    "Build thematic stock baskets and an investing routine on Solana. Explore mainnet purchases, devnet subscriptions and paper practice with Kite.",
   openGraph: {
     type: "website",
     siteName: "Kite",
-    title: "Kite — Your ideas. Onchain.",
+    title: "Kite — Good ideas deserve a routine.",
     description:
-      "Your ideas. Your next move. Your Kite. Explore tokenized equities, baskets, and recurring investments on Solana.",
+      "Choose a basket, set your rhythm and keep control. Mainnet tokenized assets, devnet recurring plans and invited creator collections.",
   },
   twitter: { card: "summary_large_image" },
 };
@@ -55,6 +58,9 @@ export default function RootLayout({
         />
       </head>
       <body>
+        <a className="skip-link" href="#main-content">
+          Skip to content
+        </a>
         <ThemeProvider>
           <Providers>{children}</Providers>
           <PrivacyChoices />
