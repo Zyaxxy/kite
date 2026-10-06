@@ -4,6 +4,7 @@ import { ArrowUpRight, ShieldCheck, SlidersHorizontal } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useReportWebVitals } from "next/web-vitals";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { SocialLinks } from "./SocialLinks";
 
 const KEY = "kite.privacy.v1";
 const DOMAIN = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN ?? "";
@@ -143,16 +144,22 @@ export function PrivacyChoices() {
             <p>Your wallet stays yours. You decide what to share.</p>
           </div>
         </div>
-        <nav className="footer-links" aria-label="Privacy and account links">
-          <Link href="/privacy">Privacy policy</Link>
-          <Link href="/terms">Terms</Link>
-          <Link href="/settings">
-            Data controls <ArrowUpRight size={13} aria-hidden="true" />
-          </Link>
-          <button type="button" onClick={() => setVisible(true)}>
-            <SlidersHorizontal size={14} aria-hidden="true" /> Privacy choices
-          </button>
-        </nav>
+        <div className="footer-actions">
+          {pathname !== "/" && pathname !== "/landing" && <SocialLinks />}
+          <nav
+            className="footer-links"
+            aria-label="Terms, privacy and data controls"
+          >
+            <Link href="/terms">Terms</Link>
+            <Link href="/privacy">Privacy</Link>
+            <Link href="/settings">
+              Data controls <ArrowUpRight size={13} aria-hidden="true" />
+            </Link>
+            <button type="button" onClick={() => setVisible(true)}>
+              <SlidersHorizontal size={14} aria-hidden="true" /> Privacy choices
+            </button>
+          </nav>
+        </div>
         {saveError && (
           <p className="privacy-save-error" role="status">
             Your choice applies for this visit; device storage is unavailable.

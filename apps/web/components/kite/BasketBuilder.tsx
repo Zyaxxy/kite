@@ -65,7 +65,8 @@ function BasketStudio() {
   const [name, setName] = useState(""),
     [ticker, setTicker] = useState(""),
     [description, setDescription] = useState(""),
-    [creatorName, setCreatorName] = useState("");
+    [creatorName, setCreatorName] = useState(""),
+    [creatorSocial, setCreatorSocial] = useState("");
   const [invite, setInvite] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -119,6 +120,7 @@ function BasketStudio() {
     setTicker(basket.ticker);
     setDescription(basket.description);
     setCreatorName(basket.creatorName ?? "");
+    setCreatorSocial(basket.creatorSocial ?? "");
     setDirty(true);
   }, [seed, snapshot, params]);
   useEffect(() => {
@@ -153,6 +155,11 @@ function BasketStudio() {
     });
   }
   function basket(): ProgrammableBasket {
+    if (!creatorName.trim()) {
+      throw new Error(
+        "Enter a creator name before saving or publishing your basket.",
+      );
+    }
     if (!draftId.current) draftId.current = `custom-${crypto.randomUUID()}`;
     const now = new Date().toISOString();
     return validateProgrammableBasket({
@@ -161,6 +168,7 @@ function BasketStudio() {
       ticker,
       description,
       creatorName,
+      creatorSocial,
       allocations,
       category: "custom",
       createdAt: now,
@@ -555,21 +563,21 @@ function BasketStudio() {
           ) : null}
           {step === 2 ? (
             <div className={styles.form}>
-              <label>
-                Basket name
-                <input
-                  name="basket-name"
-                  autoComplete="off"
-                  value={name}
-                  maxLength={50}
-                  placeholder="Give your idea a name…"
-                  onChange={(e) => {
-                    setName(e.target.value);
-                    setDirty(true);
-                  }}
-                />
-              </label>
               <div className={styles.formPair}>
+                <label>
+                  Basket name
+                  <input
+                    name="basket-name"
+                    autoComplete="off"
+                    value={name}
+                    maxLength={50}
+                    placeholder="Give your idea a name…"
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      setDirty(true);
+                    }}
+                  />
+                </label>
                 <label>
                   Ticker
                   <input
@@ -584,16 +592,38 @@ function BasketStudio() {
                     }}
                   />
                 </label>
+              </div>
+              <div className={styles.formPair}>
                 <label>
-                  Creator name <span className="muted">optional</span>
+                  Creator name
                   <input
                     name="creator-name"
+                    required
                     autoComplete="nickname"
                     value={creatorName}
                     maxLength={50}
                     placeholder="Your name…"
                     onChange={(e) => {
                       setCreatorName(e.target.value);
+                      setDirty(true);
+                    }}
+                  />
+                </label>
+                <label>
+                  <span>
+                    Creator social link <span className="muted">optional</span>
+                  </span>
+                  <input
+                    name="creator-social"
+                    type="text"
+                    autoComplete="url"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    value={creatorSocial}
+                    maxLength={200}
+                    placeholder="@handle or https://…"
+                    onChange={(e) => {
+                      setCreatorSocial(e.target.value);
                       setDirty(true);
                     }}
                   />

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import type { PaperFrequency } from "@kite/sdk";
 import { useKite } from "./State";
+import { SocialLinks } from "./SocialLinks";
 import planStyles from "./Plans.module.css";
 import { PageIntro } from "./Shell";
 import { MarketStatus } from "./Discover";
@@ -931,15 +932,7 @@ export function Settings() {
         </section>
         <section className="panel panel-pad">
           <h2>About Kite</h2>
-          <a
-            href="https://x.com/InvestonKite"
-            className="text-link"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Follow Kite on X, @InvestonKite"
-          >
-            X · @InvestonKite <ExternalLink size={13} aria-hidden="true" />
-          </a>
+          <SocialLinks />
         </section>
         <p className="fineprint">
           Paper data and watchlists are saved locally on this device. They are

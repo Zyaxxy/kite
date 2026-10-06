@@ -1,0 +1,27 @@
+.links {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+.links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+  transition: color 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.links a:hover {
+  color: var(--ink);
+}
+.links a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+.links svg {
+  flex-shrink: 0;
+}
