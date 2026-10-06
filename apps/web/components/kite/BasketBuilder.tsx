@@ -648,7 +648,7 @@ function BasketStudio() {
                   <h3>Share your point of view.</h3>
                   <p>
                     Invited creators can publish to the collection and share a
-                    subscription Blink. Signing approves only this allocation.
+                    buy Blink. Signing approves only this allocation.
                   </p>
                 </div>
                 <label>

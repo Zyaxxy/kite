@@ -17,9 +17,11 @@ export const ACTION_CADENCES = {
   monthly: { seconds: 2_592_000, label: "Every 30 days" },
 } as const;
 
-export function actionHeaders(): Record<string, string> {
+export function actionHeaders(
+  network: "devnet" | "mainnet" = "devnet",
+): Record<string, string> {
   return {
-    ...createActionHeaders({ chainId: "devnet", actionVersion: "2.4" }),
+    ...createActionHeaders({ chainId: network, actionVersion: "2.4" }),
     "Access-Control-Expose-Headers":
       "X-Blockchain-Ids, X-Action-Version, Retry-After",
     "Cache-Control": "no-store",
