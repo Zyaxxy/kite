@@ -7,8 +7,8 @@ export function GET() {
     {
       rules: [
         { pathPattern: "/api/actions/**", apiPath: "/api/actions/**" },
-        { pathPattern: "/basket/*", apiPath: "/api/actions/baskets/*" },
-        { pathPattern: "/baskets/*", apiPath: "/api/actions/baskets/*" },
+        { pathPattern: "/basket/*", apiPath: "/api/actions/buy-baskets/*" },
+        { pathPattern: "/baskets/*", apiPath: "/api/actions/buy-baskets/*" },
       ],
     },
     { headers: { ...actionHeaders(), "Cache-Control": "public, max-age=300" } },

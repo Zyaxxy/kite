@@ -134,7 +134,9 @@ export function middleware(request: NextRequest) {
     response.headers.set("Access-Control-Allow-Origin", "*");
     response.headers.set(
       "X-Blockchain-Ids",
-      "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+      request.nextUrl.pathname.startsWith("/api/actions/buy-baskets/")
+        ? "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+        : "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
     );
     response.headers.set("X-Action-Version", "2.4");
   } else if (origin) {

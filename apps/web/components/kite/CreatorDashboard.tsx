@@ -64,12 +64,12 @@ export function CreatorDashboard() {
   }, [auth.walletAddress, revision]);
   async function copyBlink(id: string) {
     try {
-      const action = `${window.location.origin}/api/actions/baskets/${id}`;
+      const action = `${window.location.origin}/api/actions/buy-baskets/${id}`;
       await navigator.clipboard.writeText(
         `https://dial.to/?action=solana-action:${encodeURIComponent(action)}`,
       );
       setMessage(
-        "Subscription Blink copied. This opens the devnet subscription flow in compatible clients.",
+        "Purchase Blink copied. This opens a one-time mainnet USDC purchase in compatible clients.",
       );
     } catch {
       setMessage(
@@ -171,7 +171,7 @@ export function CreatorDashboard() {
                     onClick={() => void copyBlink(basket.id)}
                   >
                     <Copy size={15} aria-hidden="true" />
-                    Copy subscription Blink
+                    Copy buy Blink
                   </button>
                   <Link
                     className="btn secondary small"
@@ -199,8 +199,8 @@ export function CreatorDashboard() {
           </p>
           <p className="fineprint">
             Points are engagement measurements, with no promised cash or token
-            value. Subscription Blinks currently prepare devnet test-token
-            transactions.
+            value. Buy Blinks prepare one-time mainnet USDC purchases when the
+            complete basket fits one transaction.
           </p>
         </>
       )}

@@ -4,7 +4,19 @@ Kite's recurring backend in this checkout uses **devnet test KUSD and test stock
 
 ## Shareable subscriptions
 
-`GET /actions.json` maps `/basket/*` (plus the plural compatibility path `/baskets/*`) and `/api/actions/**` to the Actions API. `GET /api/actions/baskets/{id}` describes a curated or published creator basket. The POST action accepts `{ "account": "<owner wallet>" }` and the declared `amount`, `cadence`, and `periods` query parameters. It returns an unsigned serialized V0 transaction for the client to approve and broadcast on **devnet**.
+`GET /api/actions/baskets/{id}` remains the explicit devnet subscription Action. The POST action accepts `{ "account": "<owner wallet>" }` and the declared `amount`, `cadence`, and `periods` query parameters. It returns an unsigned serialized V0 transaction for the client to approve and broadcast on **devnet**.
+
+## One-time mainnet purchase Blinks
+
+`GET /actions.json` maps `/basket/*` and `/baskets/*` to `/api/actions/buy-baskets/*`; `/api/actions/**` maps directly to itself. Existing explicit subscription Action URLs remain devnet. Creator studio now copies the purchase Blink.
+
+`GET /api/actions/buy-baskets/{id}` describes a one-time mainnet USDC purchase. `POST /api/actions/buy-baskets/{id}?amount=1` accepts only `{ "account": "<wallet public key>" }` (an empty standard `data` object is also allowed). It resolves immutable published allocations or curated baskets on the server and uses the existing mainnet basket preparation checks with V0 and 100 basis points slippage. No new contract is needed. All responses, including middleware errors and OPTIONS, advertise mainnet. Metadata does not guarantee live route availability; POST verifies the actual wallet and routes.
+
+Only a complete single-transaction purchase is returned. Bundle-required routes return an error linking to the basket checkout; no bundle leg is returned or broadcast. The Action client signs and broadcasts on mainnet. Generating an unsigned Action does not credit creator activity; client-managed submissions are not automatically recorded by Kite's app execution receipt path. No signed payload or keeper secret is sent to this public endpoint.
+
+Manual verification after deployment: inspect GET and OPTIONS headers, then POST with a funded mainnet wallet public key to prepare without signing. Confirm mainnet chain ID, a V0 transaction, and the reviewed minimum outputs. Wallet signing and funded execution require a separate explicitly approved test. Example share URL: `https://dial.to/?action=solana-action%3Ahttps%3A%2F%2Finvest.onkite.xyz%2Fapi%2Factions%2Fbuy-baskets%2F<id>`.
+
+## Devnet subscription behavior
 
 - Cadences are daily, weekly, every two weeks, or a fixed 30-day interval. Total permission duration is at most one year. The metadata explicitly distinguishes the 30-day schedule from calendar-month billing.
 - The same Guard and official Subscriptions instruction builder is used by the app, native mobile and Actions. Owner, funding authority generation, provisioned mint ownership/authority, exact allocation, signer count and devnet genesis are checked. A protocol-version simulation must pass before any transaction is returned.

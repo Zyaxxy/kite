@@ -7,7 +7,7 @@
 .discover-primary {
   display: flex;
   flex-direction: column;
-  gap: 31px;
+  gap: var(--space-8);
   min-width: 0;
 }
 .discovery-hero {
@@ -43,7 +43,7 @@
 }
 .hero-copy p:not(.eyebrow) {
   color: color-mix(in srgb, var(--muted) 80%, var(--ink));
-  font-size: 12px;
+  font-size: var(--text-small);
   max-width: 280px;
   margin: 12px 0 22px;
   line-height: 1.7;
@@ -81,7 +81,7 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 18px;
+  margin-bottom: var(--space-6);
   flex-wrap: wrap;
 }
 .baskets-header-copy {
@@ -95,13 +95,13 @@
   gap: 10px;
 }
 .baskets-title-row h1 {
-  font: 600 24px/1.2 var(--font-nav);
+  font: 500 var(--text-page)/1.2 var(--font-sans);
   letter-spacing: -0.03em;
   margin: 0;
   color: var(--ink);
 }
 .baskets-count-pill {
-  font-size: 11px;
+  font-size: var(--text-caption);
   font-weight: 600;
   color: var(--muted);
   background: var(--raised);
@@ -112,7 +112,7 @@
 }
 .baskets-subtitle {
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--text-small);
   line-height: 1.5;
   margin: 0;
   max-width: 600px;
@@ -122,7 +122,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 18px;
+  margin-bottom: var(--space-6);
   flex-wrap: wrap;
 }
 .baskets-toolbar .filter-tabs {
@@ -136,10 +136,21 @@
   align-items: center;
   gap: 8px;
 }
-.baskets-toolbar-right .ui-native-select-wrapper {
+.baskets-toolbar-right .basket-select {
   min-width: 140px;
+  max-width: 224px;
 }
 @media (max-width: 640px) {
+  .basket-recurring-notice {
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+  .basket-recurring-notice .btn {
+    width: 100%;
+  }
+  .baskets-title-row h1 {
+    font-size: var(--text-page-mobile);
+  }
   .baskets-page-header {
     flex-direction: column;
     align-items: flex-start;
@@ -157,7 +168,9 @@
   .baskets-toolbar-right {
     width: 100%;
   }
-  .baskets-toolbar-right .ui-native-select-wrapper {
+  .baskets-toolbar-right .basket-select {
+    flex: 1;
+    min-width: 0;
     width: 100%;
   }
 }
@@ -173,7 +186,7 @@
   position: relative;
   border: 1px solid var(--line);
   background: var(--surface);
-  border-radius: 17px;
+  border-radius: var(--radius-panel);
   transition:
     border 0.2s,
     transform 0.2s;
@@ -236,7 +249,7 @@
   letter-spacing: -0.02em;
 }
 .basket-card p {
-  font-size: 11px;
+  font-size: var(--text-caption);
   line-height: 1.6;
   color: var(--muted);
   margin-top: 7px;
@@ -246,7 +259,7 @@
   border-top: 1px solid var(--line);
   margin-top: 16px;
   padding-top: 12px;
-  font-size: 10px;
+  font-size: var(--text-micro);
   color: var(--muted);
   display: flex;
   justify-content: space-between;
@@ -270,7 +283,7 @@
 }
 .mini-asset-count {
   margin-left: 12px;
-  font-size: 10px;
+  font-size: var(--text-micro);
   color: var(--muted);
   white-space: nowrap;
 }
@@ -287,7 +300,8 @@
   flex-wrap: wrap;
 }
 .filter-tabs button {
-  font-size: 11px;
+  min-height: var(--control-height-compact);
+  font-size: var(--text-caption);
   padding: 7px 12px;
   border-radius: 8px;
   background: transparent;
@@ -300,12 +314,13 @@
   border-color: var(--line);
 }
 .market-input {
+  min-height: var(--control-height);
   display: flex;
   align-items: center;
   gap: 8px;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: var(--radius-control);
   padding: 8px 12px;
   max-width: 220px;
   color: var(--muted);
@@ -315,8 +330,12 @@
   background: transparent;
   border: 0;
   color: var(--ink);
-  font-size: 11px;
+  font-size: var(--text-caption);
   outline: none;
+}
+.market-input:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 .assets-table {
   width: 100%;
@@ -335,7 +354,7 @@
 }
 .assets-table td {
   padding: 15px 10px;
-  font-size: 12px;
+  font-size: var(--text-small);
   border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent);
   font-variant-numeric: tabular-nums;
 }
@@ -372,7 +391,7 @@
   border-radius: 12px;
   background: var(--raised);
   color: var(--ink);
-  font-size: 10px;
+  font-size: var(--text-micro);
   font-weight: 600;
   overflow: hidden;
 }
@@ -385,18 +404,18 @@
 .asset-avatar.large {
   width: 59px;
   height: 59px;
-  border-radius: 17px;
+  border-radius: var(--radius-panel);
   font-size: 17px;
 }
 .asset-name strong {
   display: block;
   font-weight: 500;
-  font-size: 12px;
+  font-size: var(--text-small);
 }
 .asset-name small {
   display: block;
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-micro);
   margin-top: 4px;
 }
 .asset-name:hover strong {
@@ -413,11 +432,11 @@
   align-items: center;
   justify-content: space-between;
   padding-top: 16px;
-  font-size: 10px;
+  font-size: var(--text-micro);
   color: var(--muted);
 }
 .market-count .btn {
-  font-size: 10px;
+  font-size: var(--text-micro);
 }
 .right-column {
   display: flex;
@@ -433,7 +452,7 @@
   font-variant-numeric: tabular-nums;
 }
 .account-card > p {
-  font-size: 11px;
+  font-size: var(--text-caption);
   color: var(--muted);
 }
 .account-card .balance-breakdown {
@@ -447,16 +466,16 @@
 .balance-breakdown small {
   display: block;
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-micro);
   margin-bottom: 5px;
 }
 .balance-breakdown strong {
-  font-size: 13px;
+  font-size: var(--text-small);
   font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
 .account-card .caption {
-  font-size: 10px;
+  font-size: var(--text-micro);
   margin-top: 11px;
   line-height: 1.6;
 }
@@ -469,7 +488,7 @@
 }
 .step-card p {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-caption);
   line-height: 1.8;
   margin-bottom: 17px;
 }
@@ -491,7 +510,7 @@
   padding: 14px 0;
 }
 .watch-card .empty p {
-  font-size: 10px;
+  font-size: var(--text-micro);
 }
 .watch-row {
   display: flex;
@@ -507,20 +526,20 @@
 .watch-row .asset-avatar {
   width: 30px;
   height: 30px;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
 }
 .watch-row .asset-name {
   gap: 9px;
 }
 .watch-row .asset-name strong {
-  font-size: 11px;
+  font-size: var(--text-caption);
 }
 .watch-row .asset-name small {
   font-size: 9px;
 }
 .watch-price {
   text-align: right;
-  font-size: 11px;
+  font-size: var(--text-caption);
 }
 .watch-price small {
   display: block;
@@ -531,7 +550,7 @@
   display: flex;
   gap: 9px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-micro);
   line-height: 1.7;
   padding: 1px 8px;
 }

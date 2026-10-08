@@ -11,7 +11,7 @@ import {
 import { money } from "./MarketUI";
 import { TokenAvatar } from "../trading/SwapTokenSelector";
 import { TradeTransfer } from "../trading/TradeTransfer";
-import { NativeSelect } from "../ui/native-select";
+import GlideSelect from "../ui/GlideSelect";
 import styles from "../trading/swap-tokens.module.css";
 
 function decimal(value: number): string {
@@ -201,27 +201,23 @@ export function PaperSwap({
               </label>
               <div className={styles.paperToken}>
                 <TokenAvatar token={input} fetchMissing />
-                <NativeSelect
+                <GlideSelect
                   id={`${id}-pay`}
+                  ariaLabel="You pay"
                   value={input.mint}
                   disabled={disabled || Boolean(review)}
-                  onChange={(event) => {
-                    setInputMint(event.target.value);
+                  onChange={(value) => {
+                    setInputMint(value);
                     setAmount("");
                     setSuccess(null);
                   }}
-                >
-                  {held.map((item) => (
-                    <option
-                      key={item.mint}
-                      value={item.mint}
-                      disabled={!canPrice(item)}
-                    >
-                      {item.symbol} · {item.name}
-                      {!canPrice(item) ? " · Unavailable" : ""}
-                    </option>
-                  ))}
-                </NativeSelect>
+                  menuWidth={280}
+                  options={held.map((item) => ({
+                    value: item.mint,
+                    label: `${item.symbol} · ${item.name}${!canPrice(item) ? " · Unavailable" : ""}`,
+                    disabled: !canPrice(item),
+                  }))}
+                />
               </div>
               <label className={styles.amountField} htmlFor={`${id}-quantity`}>
                 <span className={styles.label}>Paper units to swap</span>
@@ -270,24 +266,24 @@ export function PaperSwap({
               </label>
               <div className={styles.paperToken}>
                 {output && <TokenAvatar token={output} fetchMissing />}
-                <NativeSelect
+                <GlideSelect
                   id={`${id}-receive`}
+                  ariaLabel="You receive"
                   value={output?.mint ?? ""}
                   disabled={disabled || Boolean(review)}
-                  onChange={(event) => {
-                    setOutputMint(event.target.value);
+                  onChange={(value) => {
+                    setOutputMint(value);
                     setSuccess(null);
                   }}
-                >
-                  {!output && (
-                    <option value="">No priced market asset available</option>
-                  )}
-                  {availableOutputs.map((item) => (
-                    <option key={item.mint} value={item.mint}>
-                      {item.symbol} · {item.name}
-                    </option>
-                  ))}
-                </NativeSelect>
+                  menuWidth={280}
+                  options={[
+                    ...(!output ? [{ value: "", label: "No priced market asset available" }] : []),
+                    ...availableOutputs.map((item) => ({
+                      value: item.mint,
+                      label: `${item.symbol} · ${item.name}`,
+                    })),
+                  ]}
+                />
               </div>
               <div className={styles.receiveAmount}>
                 <Units

@@ -8,6 +8,20 @@ import { SocialLinks } from "./SocialLinks";
 
 const KEY = "kite.privacy.v1";
 const DOMAIN = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN ?? "";
+const OPEN_PRIVACY = "kite:privacy-open";
+
+/** Landing owns its footer; the global component still owns consent state. */
+export function PrivacyChoicesButton({ className }: { className?: string }) {
+  return (
+    <button
+      type="button"
+      className={className}
+      onClick={() => window.dispatchEvent(new Event(OPEN_PRIVACY))}
+    >
+      <SlidersHorizontal size={14} aria-hidden="true" /> Privacy choices
+    </button>
+  );
+}
 const knownPaths = new Set([
   "/",
   "/landing",
@@ -44,6 +58,7 @@ function privacySignal() {
 
 export function PrivacyChoices() {
   const pathname = usePathname();
+  const landing = pathname === "/" || pathname === "/landing";
   const [choice, setChoice] = useState<boolean | null>(null);
   const [visible, setVisible] = useState(false);
   const [saveError, setSaveError] = useState(false);
@@ -73,8 +88,13 @@ export function PrivacyChoices() {
       }
     };
     restore();
+    const open = () => setVisible(true);
+    window.addEventListener(OPEN_PRIVACY, open);
     window.addEventListener("storage", restore);
-    return () => window.removeEventListener("storage", restore);
+    return () => {
+      window.removeEventListener(OPEN_PRIVACY, open);
+      window.removeEventListener("storage", restore);
+    };
   }, []);
   const record = useCallback(
     (name: string, props?: Record<string, string | number>) => {
@@ -134,38 +154,54 @@ export function PrivacyChoices() {
   };
   return (
     <>
-      <footer className="site-footer" aria-label="Data and security">
-        <div className="footer-security">
-          <span className="footer-security-icon">
-            <ShieldCheck size={20} strokeWidth={1.5} aria-hidden="true" />
-          </span>
-          <div>
-            <h2>Data & security</h2>
-            <p>Your wallet stays yours. You decide what to share.</p>
+      {!landing && (
+        <footer className="site-footer" aria-label="Data and security">
+          <div className="footer-security">
+            <span className="footer-security-icon">
+              <ShieldCheck size={20} strokeWidth={1.5} aria-hidden="true" />
+            </span>
+            <div>
+              <h2>Data & security</h2>
+              <p>Your wallet stays yours. You decide what to share.</p>
+            </div>
           </div>
-        </div>
-        <div className="footer-actions">
-          {pathname !== "/" && pathname !== "/landing" && <SocialLinks />}
-          <nav
-            className="footer-links"
-            aria-label="Terms, privacy and data controls"
-          >
-            <Link href="/terms">Terms</Link>
-            <Link href="/privacy">Privacy</Link>
-            <Link href="/settings">
-              Data controls <ArrowUpRight size={13} aria-hidden="true" />
-            </Link>
-            <button type="button" onClick={() => setVisible(true)}>
-              <SlidersHorizontal size={14} aria-hidden="true" /> Privacy choices
-            </button>
-          </nav>
-        </div>
-        {saveError && (
+          <div className="footer-actions">
+            <SocialLinks />
+            <nav
+              className="footer-links"
+              aria-label="Terms, privacy and data controls"
+            >
+              <Link href="/terms">Terms</Link>
+              <Link href="/privacy">Privacy</Link>
+              <Link href="/settings">
+                Data controls <ArrowUpRight size={13} aria-hidden="true" />
+              </Link>
+              <button type="button" onClick={() => setVisible(true)}>
+                <SlidersHorizontal size={14} aria-hidden="true" /> Privacy
+                choices
+              </button>
+            </nav>
+          </div>
+          {saveError && (
+            <p className="privacy-save-error" role="status">
+              Your choice applies for this visit; device storage is unavailable.
+            </p>
+          )}
+        </footer>
+      )}
+      {landing && saveError && !visible && (
+        <section className="privacy-banner" aria-label="Privacy storage notice">
           <p className="privacy-save-error" role="status">
             Your choice applies for this visit; device storage is unavailable.
           </p>
-        )}
-      </footer>
+          <button
+            className="btn small secondary"
+            onClick={() => setSaveError(false)}
+          >
+            Dismiss
+          </button>
+        </section>
+      )}
       {visible && (
         <section className="privacy-banner" aria-labelledby="privacy-title">
           <div>

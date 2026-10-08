@@ -6,14 +6,14 @@
   margin: 12px 0 26px;
 }
 .intro h1 {
-  font: 600 clamp(30px, 3vw, 42px) / 1.16 var(--font-nav);
-  letter-spacing: -0.045em;
+  font: 500 var(--text-page) / 1.2 var(--font-sans);
+  letter-spacing: -0.03em;
   margin: 12px 0;
 }
 .intro p:not(:first-child) {
   color: var(--muted);
   max-width: 560px;
-  font-size: 14px;
+  font-size: var(--text-body);
   line-height: 1.75;
 }
 .mode {
@@ -21,17 +21,17 @@
   padding: 4px;
   gap: 3px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-control);
   background: var(--surface);
   flex-shrink: 0;
 }
 .mode button {
   padding: 11px 14px;
-  min-height: 42px;
+  min-height: var(--control-height);
   background: transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-small);
   font-weight: 600;
 }
 .mode button[aria-pressed="true"] {
@@ -43,28 +43,28 @@
   align-items: center;
   gap: 14px;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-panel);
   background: var(--surface);
   padding: 17px 20px;
-  margin-bottom: 26px;
+  margin-bottom: var(--space-6);
 }
 .network > svg {
   flex-shrink: 0;
   color: var(--up);
 }
 .network strong {
-  font-size: 13px;
+  font-size: var(--text-small);
   font-weight: 600;
 }
 .network p {
-  font-size: 12px;
+  font-size: var(--text-small);
   color: var(--muted);
   margin-top: 4px;
   line-height: 1.6;
 }
 .network > span {
   margin-left: auto;
-  font-size: 10px;
+  font-size: var(--text-micro);
   font-weight: 700;
   letter-spacing: 0.08em;
   border: 1px solid var(--line);
@@ -74,7 +74,7 @@
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr);
-  gap: 28px;
+  gap: var(--space-6);
   align-items: start;
 }
 .aside {
@@ -83,8 +83,8 @@
 }
 .guide {
   background: var(--raised);
-  border-radius: 20px;
-  padding: 28px;
+  border-radius: var(--radius-panel);
+  padding: var(--space-6);
 }
 .guideIcon {
   display: flex;
@@ -93,8 +93,8 @@
   border: 1px solid var(--line);
   align-items: center;
   justify-content: center;
-  border-radius: 14px;
-  margin-bottom: 26px;
+  border-radius: var(--radius-panel);
+  margin-bottom: var(--space-6);
   color: var(--accent);
 }
 .guide h2 {
@@ -114,18 +114,18 @@
   gap: 15px;
 }
 .guide li > span {
-  font-size: 11px;
+  font-size: var(--text-caption);
   color: var(--muted);
   margin-top: 2px;
   font-variant-numeric: tabular-nums;
 }
 .guide strong {
-  font-size: 13px;
+  font-size: var(--text-small);
   font-weight: 600;
 }
 .guide p:not(:global(.eyebrow)),
 .details p {
-  font-size: 12px;
+  font-size: var(--text-small);
   line-height: 1.75;
   color: var(--muted);
   margin-top: 6px;
@@ -159,6 +159,9 @@
   }
 }
 @media (max-width: 600px) {
+  .intro h1 {
+    font-size: var(--text-page-mobile);
+  }
   .network {
     padding: 15px;
     align-items: flex-start;

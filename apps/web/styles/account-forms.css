@@ -3,14 +3,17 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 11px;
+  font-size: var(--text-caption);
   color: var(--muted);
   margin-bottom: 28px;
 }
 .detail-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 330px;
-  gap: 26px;
+  gap: var(--space-6);
+}
+.detail-grid > * {
+  min-width: 0;
 }
 .detail-title {
   display: flex;
@@ -19,10 +22,10 @@
   margin: 0 0 24px;
 }
 .detail-title h1 {
-  font-size: 35px;
+  font-size: var(--text-page);
 }
 .detail-title p {
-  font-size: 12px;
+  font-size: var(--text-small);
   color: var(--muted);
   margin-top: 4px;
 }
@@ -37,12 +40,12 @@
   display: flex;
   gap: 10px;
   align-items: center;
-  font-size: 11px;
+  font-size: var(--text-caption);
   margin-top: 8px;
 }
 .quote-space {
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: var(--radius-panel);
   background: var(--surface);
   padding: 28px;
   min-height: 260px;
@@ -65,13 +68,13 @@
 .quote-space .quote-note {
   margin-top: 25px;
   max-width: 330px;
-  font-size: 11px;
+  font-size: var(--text-caption);
   color: var(--muted);
   position: relative;
   line-height: 1.8;
 }
 .quote-live {
-  font-size: 10px;
+  font-size: var(--text-micro);
   color: var(--up);
   display: flex;
   align-items: center;
@@ -85,7 +88,7 @@
   padding: 24px 0;
 }
 .stats-grid dt {
-  font-size: 10px;
+  font-size: var(--text-micro);
   color: var(--muted);
   margin-bottom: 8px;
 }
@@ -95,12 +98,12 @@
   font-variant-numeric: tabular-nums;
 }
 .trade-panel {
-  padding: 24px;
+  padding: var(--space-6);
   position: sticky;
   top: 24px;
 }
 .trade-panel h2 {
-  font-size: 22px;
+  font-size: var(--text-section);
   margin-bottom: 5px;
 }
 .trade-panel > p.muted {
@@ -109,8 +112,8 @@
 .trade-panel .field-label {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 9px;
-  font-size: 10px;
+  margin-bottom: var(--space-2);
+  font-size: var(--text-micro);
   color: var(--muted);
 }
 .amount-field {
@@ -118,7 +121,7 @@
   align-items: center;
   gap: 12px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-control);
   padding: 17px;
   background: var(--bg);
   margin-bottom: 10px;
@@ -131,9 +134,14 @@
   font-size: 28px;
   letter-spacing: -0.035em;
   outline: none;
+  font-variant-numeric: tabular-nums;
+}
+.amount-field:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 .amount-field span {
-  font-size: 11px;
+  font-size: var(--text-caption);
   color: var(--muted);
 }
 .amount-presets {
@@ -143,18 +151,19 @@
 }
 .amount-presets button {
   flex: 1;
-  padding: 6px;
+  padding: 8px;
+  min-height: var(--control-height-compact);
   background: var(--raised);
   border: 1px solid var(--line);
   border-radius: 7px;
-  font-size: 10px;
+  font-size: var(--text-micro);
   color: var(--muted);
 }
 .trade-summary {
   display: flex;
   flex-direction: column;
   gap: 11px;
-  font-size: 11px;
+  font-size: var(--text-caption);
   margin: 18px 0;
 }
 .trade-summary > div {
@@ -166,7 +175,7 @@
   color: var(--muted);
 }
 .fineprint {
-  font-size: 10px;
+  font-size: var(--text-micro);
   line-height: 1.8;
   color: var(--muted);
   margin-top: 13px;
@@ -175,25 +184,19 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  font-size: 11px;
+  font-size: var(--text-caption);
   color: var(--muted);
 }
-.form-field input,
-.form-field select {
+.form-field input {
   width: 100%;
   border: 1px solid var(--line);
   background: var(--bg);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   padding: 12px;
   color: var(--ink);
-  font-size: 13px;
-}
-.form-field select {
-  appearance: none;
-  padding-right: 38px;
-}
-.form-field .ui-native-select {
-  padding: 12px 38px 12px 12px;
+  font-size: var(--text-small);
+  min-height: var(--control-height);
+  line-height: 1.4;
 }
 .form-grid {
   display: grid;
@@ -229,13 +232,13 @@
 .portfolio-metrics {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 25px;
-  padding: 25px;
+  gap: var(--space-6);
+  padding: var(--space-6);
 }
 .portfolio-metrics dt {
-  font-size: 10px;
+  font-size: var(--text-micro);
   color: var(--muted);
-  margin-bottom: 9px;
+  margin-bottom: var(--space-2);
 }
 .portfolio-metrics dd {
   margin: 0;
@@ -246,10 +249,10 @@
 .plan-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
-  gap: 25px;
+  gap: var(--space-6);
 }
 .plan-card {
-  padding: 21px;
+  padding: var(--space-6);
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -257,11 +260,11 @@
 .plan-stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  font-size: 12px;
+  font-size: var(--text-small);
 }
 .plan-stats small {
   display: block;
-  font-size: 10px;
+  font-size: var(--text-micro);
   color: var(--muted);
   margin-bottom: 5px;
 }
@@ -290,7 +293,7 @@
   letter-spacing: -0.01em;
 }
 .settings-row p {
-  font-size: 11px;
+  font-size: var(--text-caption);
   color: var(--muted);
   margin-top: 5px;
   max-width: 450px;
@@ -298,7 +301,7 @@
 }
 .address {
   font-family: monospace;
-  font-size: 11px;
+  font-size: var(--text-caption);
   overflow-wrap: anywhere;
   color: var(--muted);
 }
@@ -327,4 +330,16 @@
   display: block;
   height: 100%;
   background: var(--accent);
+}
+@media (max-width: 760px) {
+  .composition li {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .composition li > .asset-name {
+    flex-basis: 100%;
+  }
+  .composition li > div {
+    margin-inline-start: auto;
+  }
 }

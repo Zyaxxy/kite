@@ -85,7 +85,7 @@ Creator statistics come from confirmed, deduplicated execution receipts; self-re
 
 Users choose a stock or basket, installment amount, daily/weekly/biweekly/fixed 30-day cadence and a bounded number of installments. A reviewed wallet transaction creates a Guard plan and Solana Subscriptions delegation. The current devnet program collects test KUSD and mints test stock outputs; it does not execute real equity purchases or AMM swaps. Creation, collection and closing validate the configured devnet network and current contract accounts. Preparation fails closed if the deployed program or mint setup does not match.
 
-The web app, Android app and `/api/actions/baskets/{id}` share the checked recurring preparation path. Actions return unsigned V0 devnet transactions and reject oversized setup instead of splitting the delegation. `actions.json` maps basket links to the Action endpoint. Rendering in external clients depends on their registry, protocol and devnet support; publishing the endpoint alone does not guarantee a social preview.
+The web app, Android app and `/api/actions/baskets/{id}` share the checked recurring preparation path. Subscription Actions return unsigned V0 devnet transactions and reject oversized setup instead of splitting the delegation. One-time purchase Blinks at `/api/actions/buy-baskets/{id}` prepare complete single V0 mainnet transactions funded with USDC, at 1% slippage; bundle-required purchases must use Kite checkout. `actions.json` maps basket pages to the purchase Action. Rendering in external clients depends on their registry, protocol and network support; publishing the endpoint alone does not guarantee a social preview.
 
 The collector's GET and POST endpoints require a bearer secret. `scripts/bot.ts` and the scheduled workflow trigger it; fee-payer keys remain server-side. Production uses shared Redis leases, bounded plan scans and a signed-transaction journal to recover unknown submissions without creating a second installment. A failed plan does not stop processing unrelated plans. The Guard PDA, not the scheduler wallet, is the Subscriptions delegate. See [Actions and collector operations](docs/actions-and-collector.md).
 
@@ -108,6 +108,7 @@ The collector's GET and POST endpoints require a bearer secret. `scripts/bot.ts`
 | `/api/recurring/revoke`, `/api/recurring/execute`   | POST               | Prepare closing; verify and submit signed devnet transactions   |
 | `/api/recurring/collect`                            | GET, POST          | Authenticated, server-run devnet collector                      |
 | `/api/actions/baskets/{id}`                         | GET, POST, OPTIONS | Devnet recurring Solana Action                                  |
+| `/api/actions/buy-baskets/{id}`                     | GET, POST, OPTIONS | One-time mainnet USDC basket purchase Action                     |
 | `/api/research`, `/api/news`                        | GET                | Stock research and news                                         |
 | `/api/faucet`                                       | GET, POST          | Configured devnet test-funding availability and claims          |
 | `/api/health`                                       | GET                | Service health                                                  |

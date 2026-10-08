@@ -28,7 +28,7 @@ import {
 import { useBaskets } from "./useBaskets";
 import { useRouteCoverage } from "./useRouteHealth";
 import { MarketPulse, MarketHeadlines, MarketBreadth } from "./MarketPulse";
-import { NativeSelect, NativeSelectOption } from "../ui/native-select";
+import GlideSelect from "../ui/GlideSelect";
 import { calculateBasket24hGrowth, MAX_CUSTOM_BASKET_LEGS } from "@kite/sdk";
 import { BasketPerformancePanel } from "./BasketPerformancePanel";
 import { basketPerformanceClient } from "./basket-performance-client";
@@ -377,17 +377,12 @@ function DiscoverContent() {
 export function Markets() {
   return <Discover />;
 }
+type BasketSort = "default" | "gainers-1m" | "losers-1m" | "gainers-24h" | "losers-24h" | "name";
+
 export function Baskets() {
   const baskets = useBaskets();
   const [filter, setFilter] = useState<string>("all");
-  const [sortBy, setSortBy] = useState<
-    | "default"
-    | "gainers-1m"
-    | "losers-1m"
-    | "gainers-24h"
-    | "losers-24h"
-    | "name"
-  >("default");
+  const [sortBy, setSortBy] = useState<BasketSort>("default");
   const [inspectingBasket, setInspectingBasket] =
     useState<BasketDisplay | null>(null);
   const [perfMapVersion, setPerfMapVersion] = useState(0);
@@ -480,7 +475,7 @@ export function Baskets() {
         </Link>
       </div>
       <div
-        className="notice"
+        className="notice basket-recurring-notice"
         style={{ justifyContent: "space-between", marginBottom: 24 }}
       >
         <div>
@@ -529,47 +524,34 @@ export function Baskets() {
           className="baskets-toolbar-right"
           style={{ display: "flex", gap: 10, alignItems: "center" }}
         >
-          <NativeSelect
-            aria-label="Sort baskets by performance or name"
+          <GlideSelect<BasketSort>
+            className="basket-select"
+            ariaLabel="Sort baskets by performance or name"
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-          >
-            <NativeSelectOption value="default">
-              Default Order
-            </NativeSelectOption>
-            <NativeSelectOption value="gainers-1m">
-              Top Gainers (1 Month)
-            </NativeSelectOption>
-            <NativeSelectOption value="losers-1m">
-              Top Losers (1 Month)
-            </NativeSelectOption>
-            <NativeSelectOption value="gainers-24h">
-              Top Gainers (24h)
-            </NativeSelectOption>
-            <NativeSelectOption value="losers-24h">
-              Top Losers (24h)
-            </NativeSelectOption>
-            <NativeSelectOption value="name">Theme A–Z</NativeSelectOption>
-          </NativeSelect>
-          <NativeSelect
-            aria-label="Filter by sector category"
-            value={
-              (categories as string[]).includes(filter) ? filter : "all-sectors"
-            }
-            onChange={(e) => {
-              const val = e.target.value;
-              setFilter(val === "all-sectors" ? "all" : val);
-            }}
-          >
-            <NativeSelectOption value="all-sectors">
-              All Sectors
-            </NativeSelectOption>
-            {categories.map((item) => (
-              <NativeSelectOption key={item} value={item}>
-                {item.charAt(0).toUpperCase() + item.slice(1)}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
+            onChange={setSortBy}
+            menuWidth={224}
+            options={[
+              { value: "default", label: "Default Order" },
+              { value: "gainers-1m", label: "Top Gainers (1 Month)" },
+              { value: "losers-1m", label: "Top Losers (1 Month)" },
+              { value: "gainers-24h", label: "Top Gainers (24h)" },
+              { value: "losers-24h", label: "Top Losers (24h)" },
+              { value: "name", label: "Theme A–Z" },
+            ]}
+          />
+          <GlideSelect
+            className="basket-select"
+            ariaLabel="Filter by sector category"
+            value={categories.some((item) => item === filter) ? filter : "all-sectors"}
+            onChange={(next) => setFilter(next === "all-sectors" ? "all" : next)}
+            options={[
+              { value: "all-sectors", label: "All Sectors" },
+              ...categories.map((item) => ({
+                value: item,
+                label: item.charAt(0).toUpperCase() + item.slice(1),
+              })),
+            ]}
+          />
         </div>
       </div>
       {sorted.length === 0 ? (

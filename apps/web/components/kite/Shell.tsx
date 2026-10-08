@@ -381,8 +381,8 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
         <div className="modal-body">
           {results.length ? (
             results.map((asset) => (
-              <div key={asset.mint} className="search-result" onClick={onClose}>
-                <AssetName asset={asset} />
+              <div key={asset.mint} className="search-result">
+                <AssetName asset={asset} onClick={onClose} />
                 <span className="muted">{money(asset.priceUsd)}</span>
               </div>
             ))

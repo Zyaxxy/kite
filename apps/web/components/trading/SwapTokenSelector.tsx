@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   BASE_SWAP_TOKENS,
   MAINNET_SOL_MINT,
@@ -12,7 +12,7 @@ import {
 } from "@kite/sdk";
 import styles from "./swap-tokens.module.css";
 import { getCompanyLogo } from "../../lib/company-logos";
-import { Check, ChevronDown, Search, X } from "lucide-react";
+import GlideSelect from "../ui/GlideSelect";
 
 const logoRequests = new Map<string, Promise<string | null>>();
 const networkLogos = new Map([
@@ -121,19 +121,18 @@ export function SwapTokenSelector({
   walletConnected?: boolean;
   balancesLoading?: boolean;
 }) {
-  const id = useId();
-  const trigger = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const [scope, setScope] = useState<"wallet" | "all">("wallet");
   const [query, setQuery] = useState("");
   const [tokens, setTokens] = useState<SwapToken[]>([...BASE_SWAP_TOKENS]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const close = () => {
-    setOpen(false);
-    setQuery("");
-    trigger.current?.focus();
-  };
+  useEffect(() => {
+    if (disabled) {
+      setOpen(false);
+      setQuery("");
+    }
+  }, [disabled]);
   useEffect(() => {
     if (!open || scope !== "all") return;
     const controller = new AbortController();
@@ -190,32 +189,147 @@ export function SwapTokenSelector({
   return (
     <div className={styles.selector}>
       <span className={styles.label}>{label}</span>
-      <button
-        ref={trigger}
-        type="button"
-        className={styles.trigger}
+      <GlideSelect
+        ariaLabel={`${label}: ${token.symbol}`}
+        value={token.mint}
         disabled={disabled}
-        aria-expanded={open}
-        aria-controls={id}
-        aria-label={`${label}: ${token.symbol}`}
-        onClick={() => {
-          setScope(walletConnected ? "wallet" : "all");
-          setOpen(!open);
+        className={styles.trigger}
+        menuWidth={320}
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (next) setScope(walletConnected ? "wallet" : "all");
+          else setQuery("");
         }}
-      >
-        <TokenAvatar token={token} fetchMissing />
-        <span className={styles.identity}>
-          <strong>{token.symbol}</strong>
-          <small>{token.name}</small>
-        </span>
-        {selectedBalance && (
-          <span className={styles.balance}>
-            <strong>{units(selectedBalance.amount)}</strong>
-            <small>In wallet</small>
-          </span>
-        )}
-        <ChevronDown size={16} aria-hidden="true" className={styles.chevron} />
-      </button>
+        onChange={(mint) => {
+          const selected = visible.find((item) => item.mint === mint);
+          if (selected) onChange(selected);
+        }}
+        search={{
+          value: query,
+          onChange: setQuery,
+          ariaLabel: `Search ${label.toLowerCase()} tokens`,
+          placeholder: "Name or mint address",
+        }}
+        triggerContent={
+          <>
+            <TokenAvatar token={token} fetchMissing />
+            <span className={styles.identity}>
+              <strong>{token.symbol}</strong>
+              <small>{token.name}</small>
+            </span>
+            {selectedBalance && (
+              <span className={styles.balance}>
+                <strong>{units(selectedBalance.amount)}</strong>
+                <small>In wallet</small>
+              </span>
+            )}
+          </>
+        }
+        menuHeader={
+          <div className={styles.tabs} role="group" aria-label="Token source">
+            <button
+              type="button"
+              aria-pressed={scope === "wallet"}
+              onClick={() => setScope("wallet")}
+            >
+              Your tokens <span>{holdings.length}</span>
+            </button>
+            <button
+              type="button"
+              aria-pressed={scope === "all"}
+              onClick={() => setScope("all")}
+            >
+              All tokens
+            </button>
+          </div>
+        }
+        loading={scope === "wallet" ? balancesLoading : loading}
+        menuStatus={
+          <>
+            {scope === "all" && error && <p role="status">{error}</p>}
+            {(scope === "wallet"
+              ? balancesLoading && holdings.length === 0
+              : loading) && (
+              <p role="status">
+                {scope === "wallet"
+                  ? "Reading wallet balances…"
+                  : "Searching mainnet tokens…"}
+              </p>
+            )}
+          </>
+        }
+        emptyMessage={
+          scope === "all" && loading
+            ? null
+            : scope === "wallet"
+              ? !walletConnected
+                ? "Connect a wallet to see your tokens."
+                : balancesLoading
+                  ? "Your tokens will appear here."
+                  : query
+                    ? "No wallet token matches. Try All tokens."
+                    : "No funded tokens in this wallet."
+              : "No matching token. Try its full mint address."
+        }
+        menuFooter="Balances are token units. A live route confirms what can be swapped."
+        options={visible.map((item) => {
+          const holding = owned.get(item.mint);
+          const frozen = holding?.spendableAmount === "0";
+          const unsupported =
+            holding?.decimals !== undefined && holding.decimals > 18;
+          return {
+            value: item.mint,
+            label: `${item.symbol} · ${item.name} · ${item.mint}`,
+            disabled:
+              disabled ||
+              item.mint === otherMint ||
+              item.tradingHalted ||
+              frozen ||
+              unsupported ||
+              (scope === "all" && loading),
+            content: (
+              <>
+                <TokenAvatar token={item} />
+                <span className={styles.identity}>
+                  <strong>{item.symbol}</strong>
+                  <small>{item.name}</small>
+                  <small>
+                    {item.mint.slice(0, 5)}…{item.mint.slice(-4)}
+                    {!item.verified ? " · Unverified" : ""}
+                  </small>
+                </span>
+                {holding ? (
+                  <span className={styles.balance}>
+                    <strong>{units(holding.amount)}</strong>
+                    <small>
+                      {item.tradingHalted
+                        ? "Paused"
+                        : frozen
+                          ? "Frozen"
+                          : unsupported
+                            ? "Unsupported precision"
+                            : holding.valueUsd === null
+                              ? "Price unavailable"
+                              : usd(holding.valueUsd)}
+                    </small>
+                  </span>
+                ) : (
+                  <span className={styles.badge}>
+                    {item.tradingHalted
+                      ? "Paused"
+                      : item.source === "issuer"
+                        ? "Stock"
+                        : item.verified
+                          ? "Verified"
+                          : "Unverified"}
+                  </span>
+                )}
+              </>
+            ),
+          };
+        })}
+      />
       <div className={styles.address}>
         <span>
           {token.source === "issuer"
@@ -233,161 +347,6 @@ export function SwapTokenSelector({
           {token.mint.slice(0, 5)}…{token.mint.slice(-4)}
         </a>
       </div>
-      {open && (
-        <div
-          id={id}
-          className={styles.picker}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              event.stopPropagation();
-              close();
-            }
-          }}
-        >
-          <div className={styles.pickerHeading}>
-            <strong>Select a token</strong>
-            <button
-              type="button"
-              className={styles.close}
-              onClick={close}
-              aria-label="Close token selector"
-            >
-              <X size={16} aria-hidden="true" />
-            </button>
-          </div>
-          <label className={`form-field ${styles.search}`}>
-            <span className={styles.label}>Search tokens</span>
-            <input
-              autoFocus
-              type="search"
-              placeholder="Name or mint address"
-              value={query}
-              maxLength={100}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-            <Search size={16} aria-hidden="true" />
-          </label>
-          <div className={styles.tabs} role="group" aria-label="Token source">
-            <button
-              type="button"
-              aria-pressed={scope === "wallet"}
-              onClick={() => setScope("wallet")}
-            >
-              Your tokens <span>{holdings.length}</span>
-            </button>
-            <button
-              type="button"
-              aria-pressed={scope === "all"}
-              onClick={() => setScope("all")}
-            >
-              All tokens
-            </button>
-          </div>
-          {scope === "all" && error && (
-            <p className="fineprint" role="status">
-              {error}
-            </p>
-          )}
-          {(scope === "wallet"
-            ? balancesLoading && holdings.length === 0
-            : loading) && (
-            <p className="fineprint" role="status">
-              {scope === "wallet"
-                ? "Reading wallet balances…"
-                : "Searching mainnet tokens…"}
-            </p>
-          )}
-          <div
-            className={styles.results}
-            aria-label={`${label} token results`}
-            aria-busy={scope === "wallet" ? balancesLoading : loading}
-          >
-            {visible.length === 0 && !(scope === "all" && loading) && (
-              <p className={styles.empty}>
-                {scope === "wallet"
-                  ? !walletConnected
-                    ? "Connect a wallet to see your tokens."
-                    : balancesLoading
-                      ? "Your tokens will appear here."
-                      : query
-                        ? "No wallet token matches. Try All tokens."
-                        : "No funded tokens in this wallet."
-                  : "No matching token. Try its full mint address."}
-              </p>
-            )}
-            {visible.map((item) => {
-              const holding = owned.get(item.mint);
-              const frozen = holding?.spendableAmount === "0";
-              const unsupported =
-                holding?.decimals !== undefined && holding.decimals > 18;
-              return (
-                <button
-                  key={item.mint}
-                  type="button"
-                  className={styles.result}
-                  aria-pressed={item.mint === token.mint}
-                  disabled={
-                    disabled ||
-                    item.mint === otherMint ||
-                    item.tradingHalted ||
-                    frozen ||
-                    unsupported ||
-                    (scope === "all" && loading)
-                  }
-                  onClick={() => {
-                    onChange(item);
-                    close();
-                  }}
-                >
-                  <TokenAvatar token={item} />
-                  <span className={styles.identity}>
-                    <strong>
-                      {item.symbol}
-                      {item.mint === token.mint && (
-                        <Check size={13} aria-label="Selected" />
-                      )}
-                    </strong>
-                    <small>{item.name}</small>
-                    <small>
-                      {item.mint.slice(0, 5)}…{item.mint.slice(-4)}
-                      {!item.verified ? " · Unverified" : ""}
-                    </small>
-                  </span>
-                  {holding ? (
-                    <span className={styles.balance}>
-                      <strong>{units(holding.amount)}</strong>
-                      <small>
-                        {item.tradingHalted
-                          ? "Paused"
-                          : frozen
-                            ? "Frozen"
-                            : unsupported
-                              ? "Unsupported precision"
-                              : holding.valueUsd === null
-                                ? "Price unavailable"
-                                : usd(holding.valueUsd)}
-                      </small>
-                    </span>
-                  ) : (
-                    <span className={styles.badge}>
-                      {item.tradingHalted
-                        ? "Paused"
-                        : item.source === "issuer"
-                          ? "Stock"
-                          : item.verified
-                            ? "Verified"
-                            : "Unverified"}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-          <p className="fineprint">
-            Balances are token units. A live route confirms what can be swapped.
-          </p>
-        </div>
-      )}
     </div>
   );
 }

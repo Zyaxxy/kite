@@ -14,14 +14,14 @@
   margin-top: 24px;
 }
 .heading h1 {
-  font: 500 clamp(30px, 3.7vw, 46px)/1.12 var(--font-nav);
-  letter-spacing: -0.045em;
+  font: 500 var(--text-page)/1.2 var(--font-sans);
+  letter-spacing: -0.03em;
   margin: 12px 0;
   text-wrap: balance;
 }
 .heading p {
   color: var(--muted);
-  font-size: 14px;
+  font-size: var(--text-body);
   line-height: 1.7;
 }
 .steps {
@@ -36,7 +36,7 @@
   gap: 10px;
   min-height: 60px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--text-small);
   border-bottom: 2px solid transparent;
 }
 .steps button[aria-current] {
@@ -46,7 +46,7 @@
 .steps button > span {
   display: grid;
   place-items: center;
-  font-size: 11px;
+  font-size: var(--text-caption);
   width: 26px;
   height: 26px;
   border: 1px solid var(--line);
@@ -62,15 +62,15 @@
   min-width: 0;
   border: 1px solid var(--line);
   background: var(--surface);
-  border-radius: 16px;
+  border-radius: var(--radius-panel);
   padding: clamp(20px, 3vw, 32px);
 }
 .sectionTitle h2 {
-  font: 500 23px/1.3 var(--font-nav);
+  font: 500 var(--text-section)/1.25 var(--font-sans);
   letter-spacing: -0.03em;
 }
 .sectionTitle p {
-  font-size: 13px;
+  font-size: var(--text-small);
   line-height: 1.7;
   color: var(--muted);
   margin: 9px 0 24px;
@@ -80,7 +80,7 @@
   gap: 12px;
   align-items: center;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   padding: 0 14px;
   margin-bottom: 16px;
 }
@@ -94,7 +94,7 @@
   outline: 0;
   border: 0;
   background: transparent;
-  font-size: 14px;
+  font-size: var(--text-body);
 }
 .assetList {
   max-height: 440px;
@@ -119,7 +119,7 @@
 }
 .asset strong,
 .weightRow strong {
-  font-size: 13px;
+  font-size: var(--text-small);
   font-weight: 600;
   display: block;
   overflow-wrap: anywhere;
@@ -128,13 +128,13 @@
 .weightRow small {
   display: block;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-caption);
   margin-top: 5px;
 }
 .price {
   margin-left: auto;
   text-align: right;
-  font-size: 13px;
+  font-size: var(--text-small);
   font-variant-numeric: tabular-nums;
 }
 .add,
@@ -157,7 +157,7 @@
   top: 100px;
   padding: 28px;
   background: var(--raised);
-  border-radius: 16px;
+  border-radius: var(--radius-panel);
 }
 .preview h2 {
   font: 500 25px/1.2 var(--font-nav);
@@ -166,7 +166,7 @@
   overflow-wrap: anywhere;
 }
 .preview > p:not(:first-child) {
-  font-size: 12px;
+  font-size: var(--text-small);
   line-height: 1.8;
   color: var(--muted);
   overflow-wrap: anywhere;
@@ -187,7 +187,7 @@
   justify-content: space-between;
   padding: 12px 0;
   border-bottom: 1px solid var(--line);
-  font-size: 12px;
+  font-size: var(--text-small);
 }
 .previewRow strong {
   font-weight: 500;
@@ -197,7 +197,7 @@
   border-top: 1px solid var(--line);
   margin-top: 26px;
   padding-top: 20px;
-  font-size: 12px;
+  font-size: var(--text-small);
   line-height: 1.8;
 }
 .previewNote p {
@@ -208,7 +208,7 @@
   padding: 36px 12px;
   text-align: center;
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--text-small);
   line-height: 1.7;
 }
 .empty svg {
@@ -240,7 +240,7 @@
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  font-size: 13px;
+  font-size: var(--text-small);
   padding: 16px 0;
 }
 .weightHeading {
@@ -259,11 +259,14 @@
   border: 1px solid var(--line);
   border-radius: 9999px;
   padding: 4px 12px;
-  font-size: 12px;
+  font-size: var(--text-small);
   font-weight: 500;
   color: var(--ink);
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
 }
 .autoBalanceActionBtn:hover {
   background: var(--surface);
@@ -313,7 +316,9 @@
   border: 2px solid var(--bg);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
   cursor: grab;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
 }
 .rangeSlider::-webkit-slider-thumb:hover {
   transform: scale(1.15);
@@ -355,18 +360,18 @@
   min-height: 32px;
   text-align: right;
   font-variant-numeric: tabular-nums;
-  font-size: 13px;
+  font-size: var(--text-small);
   color: var(--ink);
 }
 .weightInput input:focus {
   outline: none;
 }
 .weightInput span {
-  font-size: 12px;
+  font-size: var(--text-small);
   color: var(--muted);
 }
 .bpsBadge {
-  font-size: 11px;
+  font-size: var(--text-caption);
   color: var(--muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -382,7 +387,7 @@
 }
 .totalDiff {
   display: block;
-  font-size: 11px;
+  font-size: var(--text-caption);
   color: var(--down);
   margin-top: 2px;
 }
@@ -395,12 +400,14 @@
   background: color-mix(in srgb, var(--accent) 15%, transparent);
   border: 1px solid var(--accent);
   color: var(--accent);
-  font-size: 12px;
+  font-size: var(--text-small);
   font-weight: 600;
   padding: 4px 10px;
   border-radius: 6px;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.1s ease;
+  transition:
+    background 0.15s ease,
+    transform 0.1s ease;
 }
 .autoBalanceBtn:hover {
   background: color-mix(in srgb, var(--accent) 25%, transparent);
@@ -416,7 +423,7 @@
 .invite label {
   display: grid;
   gap: 9px;
-  font-size: 12px;
+  font-size: var(--text-small);
 }
 .form input,
 .form textarea,
@@ -427,7 +434,7 @@
   border-radius: 7px;
   padding: 12px 14px;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--text-body);
   color: var(--ink);
   min-height: 46px;
 }
@@ -452,7 +459,7 @@
   font-weight: 500;
 }
 .invite p {
-  font-size: 12px;
+  font-size: var(--text-small);
   color: var(--muted);
   line-height: 1.8;
   margin-top: 8px;
@@ -474,7 +481,7 @@
   border-right: 0;
 }
 .metrics small {
-  font-size: 11px;
+  font-size: var(--text-caption);
   color: var(--muted);
 }
 .metrics strong {
@@ -485,7 +492,7 @@
   margin: 12px 0;
 }
 .metrics p {
-  font-size: 11px;
+  font-size: var(--text-caption);
   color: var(--muted);
   line-height: 1.7;
 }
@@ -502,7 +509,7 @@
   font-weight: 500;
 }
 .published p {
-  font-size: 12px;
+  font-size: var(--text-small);
   color: var(--muted);
   margin-top: 7px;
 }
@@ -540,7 +547,7 @@
     flex-direction: column;
   }
   .heading h1 {
-    font-size: 34px;
+    font-size: var(--text-page-mobile);
   }
   .layout {
     grid-template-columns: 1fr;
@@ -552,7 +559,7 @@
     gap: 12px;
   }
   .steps button {
-    font-size: 11px;
+    font-size: var(--text-caption);
     gap: 6px;
     flex: 1;
   }

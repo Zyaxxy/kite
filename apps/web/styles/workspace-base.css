@@ -50,7 +50,7 @@
   padding: 12px 14px;
   border-radius: 11px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-small);
 }
 .nav-item svg {
   width: 18px;
@@ -82,7 +82,7 @@
   border-radius: 14px;
 }
 .sidebar-note p {
-  font-size: 11px;
+  font-size: var(--text-caption);
   color: var(--muted);
   margin: 9px 0 13px;
   line-height: 1.7;
@@ -101,7 +101,7 @@
 }
 .breadcrumb {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-caption);
   display: flex;
   align-items: center;
   gap: 12px;
@@ -124,13 +124,13 @@
   padding: 9px 12px;
   color: var(--muted);
   border-radius: 10px;
-  font-size: 11px;
+  font-size: var(--text-caption);
   min-width: 200px;
   text-align: left;
 }
 .search-trigger kbd {
   font-family: inherit;
-  font-size: 10px;
+  font-size: var(--text-micro);
   margin-left: auto;
   border: 1px solid var(--line);
   border-radius: 4px;
@@ -150,17 +150,17 @@
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 25px;
-  margin-bottom: 28px;
+  gap: var(--space-6);
+  margin-bottom: var(--space-8);
 }
 .page-intro .eyebrow {
   margin-bottom: 11px;
 }
 .page-intro p:not(.eyebrow) {
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--text-small);
   line-height: 1.7;
-  margin-top: 11px;
+  margin-top: var(--space-2);
   max-width: 540px;
 }
 .page-intro h1 em {
@@ -176,7 +176,7 @@
 .header-mode-caption {
   display: none;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-caption);
 }
 .trading-mode {
   position: relative;
@@ -212,7 +212,7 @@
   border-radius: 999px;
   cursor: pointer;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-small);
   font-weight: 600;
 }
 .trading-mode-option input {

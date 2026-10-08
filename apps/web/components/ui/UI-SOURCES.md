@@ -1,6 +1,13 @@
 # Kite interface sources
 
-- [shadcn/ui Table](https://ui.shadcn.com/docs/components/table) and [Native Select](https://ui.shadcn.com/docs/components/native-select): table and select primitives adapted to Kite’s existing CSS tokens. MIT license in SHADCN-LICENSE.md.
+- `GlideSelect.tsx`: local implementation of the user's GlideSelect API example,
+  using the installed Base UI Select and Combobox for listbox semantics, focus
+  return, typeahead and searchable asset selection. It supports grouped options,
+  form validation, disabled entries and wallet token metadata. Its colors default to Kite tokens; the
+  moving option highlight and popup respect reduced motion. No external
+  GlideSelect implementation or additional dependency was imported.
+
+- [shadcn/ui Table](https://ui.shadcn.com/docs/components/table): table primitive adapted to Kite’s existing CSS tokens. MIT license in SHADCN-LICENSE.md. Selection dropdowns use GlideSelect throughout the web app.
 - [shadcn/ui Dropdown Menu](https://ui.shadcn.com/docs/components/dropdown-menu): grouped, portaled menu composition adapted to the already-installed Base UI Menu primitive. Base UI 1.8.0 is now explicitly declared by the web package; no global tools were installed.
 - [coss Menu](https://coss.com/ui/docs/components/menu): interaction reference for menu grouping and link items; no coss implementation is redistributed.
 - [Consensys](https://consensys.io/): reference for the compact rounded navigation group, four destinations, dropdown hierarchy, and separate action on the right.

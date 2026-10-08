@@ -40,6 +40,7 @@ import { WalletButton } from "../trading/WalletButton";
 import styles from "./Creator.module.css";
 import { useRouteHealth } from "./useRouteHealth";
 import { RouteHealthReport } from "./RouteHealth";
+import GlideSelect from "../ui/GlideSelect";
 
 export function BasketBuilder() {
   return (
@@ -648,7 +649,7 @@ function BasketStudio() {
                   <h3>Share your point of view.</h3>
                   <p>
                     Invited creators can publish to the collection and share a
-                    subscription Blink. Signing approves only this allocation.
+                    buy Blink. Signing approves only this allocation.
                   </p>
                 </div>
                 <label>
@@ -767,11 +768,19 @@ function BasketStudio() {
           )}
           <div className={styles.form}>
             <label>Check funding routes
-              <select value={routeFunding} onChange={(event) => { setRouteFunding(event.target.value); setRouteAmount(event.target.value === MAINNET_SOL_MINT ? "1" : "100"); }}>
-                <option value={MAINNET_USDC_MINT}>USDC</option>
-                <option value={MAINNET_USDT_MINT}>USDT</option>
-                <option value={MAINNET_SOL_MINT}>SOL</option>
-              </select>
+              <GlideSelect
+                ariaLabel="Check funding routes"
+                value={routeFunding}
+                onChange={(value) => {
+                  setRouteFunding(value);
+                  setRouteAmount(value === MAINNET_SOL_MINT ? "1" : "100");
+                }}
+                options={[
+                  { value: MAINNET_USDC_MINT, label: "USDC" },
+                  { value: MAINNET_USDT_MINT, label: "USDT" },
+                  { value: MAINNET_SOL_MINT, label: "SOL" },
+                ]}
+              />
             </label>
             <label>Basket probe amount
               <input inputMode="decimal" value={routeAmount} onChange={(event) => setRouteAmount(event.target.value)} maxLength={40} />

@@ -1,0 +1,5 @@
+{
+  "jupiter.png": { "page": "https://jup.ag/", "asset": "https://jup.ag/svg/jupiter-logo.png", "role": "Swap routing" },
+  "pyth.png": { "page": "https://www.pyth.network/", "asset": "https://framerusercontent.com/images/wbVGNRExoWHr9jEjGPdn4Bn8ZA.png", "role": "Reference feeds where available" },
+  "note": "Source identification, not a partnership or endorsement claim."
+}

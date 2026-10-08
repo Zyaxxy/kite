@@ -4,7 +4,7 @@
   gap: 16px;
   padding: 18px;
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: var(--radius-panel);
   background: var(--raised);
   min-width: 0;
 }
@@ -19,12 +19,12 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.83rem;
+  font-size: var(--text-small);
   font-weight: 600;
 }
 .scheduleHeading > span:last-child:not(:first-child) {
   color: var(--muted);
-  font-size: 0.7rem;
+  font-size: var(--text-caption);
 }
 .scheduleSummary {
   display: flex;
@@ -33,7 +33,7 @@
   padding-top: 14px;
   border-top: 1px solid var(--line);
   color: var(--ink);
-  font-size: 0.73rem;
+  font-size: var(--text-caption);
   line-height: 1.6;
 }
 .scheduleSummary svg {
@@ -45,8 +45,8 @@
   background-color: var(--surface);
 }
 .panel {
-  padding: 30px;
-  border-radius: 20px;
+  padding: var(--space-6);
+  border-radius: var(--radius-panel);
 }
 .header {
   display: flex;
@@ -54,7 +54,7 @@
   gap: 10px;
 }
 .header h2 {
-  font: 600 25px/1.25 var(--font-nav);
+  font: 500 var(--text-section)/1.25 var(--font-sans);
   letter-spacing: -0.04em;
 }
 .availability {
@@ -64,7 +64,7 @@
   padding: 14px 16px;
   background: var(--raised);
   border-radius: 0 10px 10px 0;
-  font-size: 12px;
+  font-size: var(--text-small);
 }
 .availability p {
   color: var(--muted);
@@ -87,7 +87,7 @@
   align-items: start;
   justify-content: space-between;
   gap: 24px;
-  font-size: 12px;
+  font-size: var(--text-small);
 }
 .overview span,
 .overview small {
@@ -98,7 +98,7 @@
   text-align: right;
 }
 .overview small {
-  font-size: 11px;
+  font-size: var(--text-caption);
   line-height: 1.6;
 }
 .networkChip {
@@ -111,7 +111,7 @@
   border-radius: 999px;
   padding: 8px 11px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-caption);
   line-height: 1.2;
 }
 .networkChip strong {
@@ -141,16 +141,18 @@
   flex-direction: column;
   gap: 12px;
   padding: 16px 18px;
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
-  border: 1px solid rgba(16, 185, 129, 0.22);
-  border-radius: 16px;
-  backdrop-filter: blur(8px);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  background: var(--raised);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  border-radius: var(--radius-panel);
+
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .faucetCard:hover {
-  border-color: rgba(16, 185, 129, 0.35);
-  box-shadow: 0 4px 20px rgba(16, 185, 129, 0.06);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--accent) 6%, transparent);
 }
 
 .faucetCardRow {
@@ -176,9 +178,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
   flex-shrink: 0;
 }
 
@@ -196,7 +198,7 @@
 }
 
 .faucetTitle {
-  font-size: 13px;
+  font-size: var(--text-small);
   font-weight: 600;
   color: var(--ink);
   letter-spacing: -0.01em;
@@ -209,13 +211,13 @@
   text-transform: uppercase;
   padding: 1px 7px;
   border-radius: 999px;
-  background: rgba(16, 185, 129, 0.18);
-  color: #10b981;
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 .faucetSubtitle {
-  font-size: 12px;
+  font-size: var(--text-small);
   color: var(--muted);
   line-height: 1.4;
   margin: 0;
@@ -226,24 +228,27 @@
   align-items: center;
   justify-content: center;
   gap: 7px;
-  background: #10b981;
-  color: #032014;
+  background: var(--accent);
+  color: var(--accent-ink);
   font-weight: 600;
-  font-size: 12px;
-  padding: 9px 16px;
+  font-size: var(--text-small);
+  padding: 10px 16px;
+  min-height: var(--control-height);
   border-radius: 10px;
   border: none;
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 2px 10px rgba(16, 185, 129, 0.25);
+  transition:
+    background-color 160ms var(--ease-ui),
+    transform 160ms var(--ease-ui);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--accent) 25%, transparent);
   flex-shrink: 0;
 }
 
 .faucetButton:hover:not(:disabled) {
-  background: #34d399;
+  background: var(--ink);
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .faucetButton:active:not(:disabled) {
@@ -263,12 +268,12 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
-  color: #10b981;
-  background: rgba(16, 185, 129, 0.1);
+  font-size: var(--text-small);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
   padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid rgba(16, 185, 129, 0.22);
+  border-radius: var(--radius-control);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
   flex-wrap: wrap;
 }
 
@@ -276,19 +281,19 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
-  color: #ef4444;
-  background: rgba(239, 68, 68, 0.1);
+  font-size: var(--text-small);
+  color: var(--down);
+  background: color-mix(in srgb, var(--down) 10%, transparent);
   padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid rgba(239, 68, 68, 0.22);
+  border-radius: var(--radius-control);
+  border: 1px solid color-mix(in srgb, var(--down) 22%, transparent);
 }
 
 .faucetExplorerLink {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: #10b981;
+  color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 2px;
   font-weight: 500;
@@ -296,7 +301,7 @@
 }
 
 .faucetExplorerLink:hover {
-  color: #34d399;
+  color: var(--ink);
 }
 
 .fieldLabelRow {
@@ -311,22 +316,26 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  background: rgba(16, 185, 129, 0.12);
-  border: 1px solid rgba(16, 185, 129, 0.28);
-  color: #10b981;
-  font-size: 11px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  color: var(--accent);
+  font-size: var(--text-caption);
   font-weight: 600;
-  padding: 3px 9px;
+  padding: 8px 12px;
+  min-height: var(--control-height-compact);
   border-radius: 6px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition:
+    background-color 160ms var(--ease-ui),
+    border-color 160ms var(--ease-ui),
+    color 160ms var(--ease-ui);
   white-space: nowrap;
 }
 
 .inlineFaucetBtn:hover:not(:disabled) {
-  background: rgba(16, 185, 129, 0.22);
-  border-color: rgba(16, 185, 129, 0.45);
-  color: #34d399;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--ink);
 }
 
 .inlineFaucetBtn:disabled {

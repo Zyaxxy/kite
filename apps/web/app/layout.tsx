@@ -9,17 +9,17 @@ import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: siteUrl(),
   title: {
-    default: "Kite — Good ideas deserve a routine.",
+    default: "Kite — Tokenized stocks. Your own wallet.",
     template: "%s | Kite",
   },
   description:
-    "Build thematic stock baskets and an investing routine on Solana. Explore mainnet purchases, devnet subscriptions and paper practice with Kite.",
+    "Research tokenized stocks, build a basket and invest from your own wallet on Solana. Mainnet spot purchases, a vaultless devnet SIP/DCA demo and paper practice.",
   openGraph: {
     type: "website",
     siteName: "Kite",
-    title: "Kite — Good ideas deserve a routine.",
+    title: "Kite — Tokenized stocks. Your own wallet.",
     description:
-      "Choose a basket, set your rhythm and keep control. Mainnet tokenized assets, devnet recurring plans and invited creator collections.",
+      "Research companies. Invest in stock baskets. Keep custody in your wallet. Explore mainnet purchases and Kite’s vaultless recurring test-token demo.",
   },
   twitter: { card: "summary_large_image" },
 };
