@@ -1,500 +1,556 @@
 "use client";
+
+import Image from "next/image";
 import Link from "next/link";
+import { useRef } from "react";
 import {
+  ArrowDown,
   ArrowRight,
   ArrowUpRight,
   BookOpen,
-  CalendarDays,
-  Repeat2,
   Check,
-  ChartNoAxesCombined,
+  ChevronDown,
   Layers3,
-  ListOrdered,
   ShieldCheck,
   Wallet2,
 } from "lucide-react";
+import { resolveAllMarketBaskets, type MarketSnapshot } from "@kite/sdk";
 import { Brand } from "./Brand";
 import { useKite } from "./State";
-import { resolveAllMarketBaskets, type MarketSnapshot } from "@kite/sdk";
-import { AssetAvatar, Change, money } from "./MarketUI";
-import { PrimaryNavigation } from "./Shell";
-import { ThemeToggle } from "./ThemeMode";
+import { AssetAvatar } from "./MarketUI";
 import { SocialLinks } from "./SocialLinks";
+import { LandingRecurring } from "./LandingRecurring";
+import { LandingResearch } from "./LandingResearch";
+import { LandingNavigation } from "./LandingNavigation";
+import { LandingMarket } from "./LandingMarket";
+import { LandingSources } from "./LandingSources";
+import { PrivacyChoicesButton } from "./PrivacyChoices";
+import { useLandingMotion } from "./landing-motion";
 import styles from "./Landing.module.css";
+
+const questions = [
+  [
+    "What am I investing in?",
+    "Tokenized securities represent issuer-defined exposure to stocks and other assets. They are not a direct brokerage share purchase. Check the issuer, eligibility, underlying asset and token details before investing. Kite brings that research and the available Solana tokens into one interface.",
+  ],
+  [
+    "What does vaultless mean?",
+    "Kite does not use a custodial vault for mainnet stock or basket purchases. You approve transactions with your wallet, and purchased tokens settle to your wallet accounts. Token issuers, trading venues and the network still carry risks.",
+  ],
+  [
+    "Can I automate real-money investments today?",
+    "Mainnet recurring investing is not yet available. Wallet SIP/DCA is a separate devnet demonstration: a bounded plan collects test KUSD and mints test stock outputs to your wallet. You can also practice recurring investing in paper mode.",
+  ],
+  [
+    "How does a basket purchase work?",
+    "A basket is a set of individual assets with defined allocation weights. Review the constituents, minimum outputs, fees and transaction count before signing. Kite attempts a complete transaction first; larger routes may require an ordered Jito bundle. Availability depends on the full route, and bundle execution is not unconditionally atomic.",
+  ],
+  [
+    "Can I try Kite before connecting a wallet?",
+    "Yes. Browse the markets and research, or start with $10,000 in virtual cash and no seeded holdings in paper mode. Paper recurring runs due installments only while the app is open and does not backfill missed intervals. Paper results are not a forecast of real execution.",
+  ],
+] as const;
 
 export function Landing({
   initialSnapshot,
-}: {
-  initialSnapshot?: MarketSnapshot | null;
-} = {}) {
+}: { initialSnapshot?: MarketSnapshot | null } = {}) {
   const { snapshot, loading } = useKite();
-  const currentSnapshot = snapshot ?? initialSnapshot ?? null;
-  const assets = (currentSnapshot?.assets ?? [])
-    .filter(
-      (asset) =>
-        asset.verified && asset.priceUsd != null && !asset.tradingHalted,
-    )
-    .slice(0, 4);
-  const featured = assets[0];
-  const baskets = resolveAllMarketBaskets(currentSnapshot?.assets ?? []).map(
-    (b) => ({
-      id: b.id,
-      name: b.name,
-      description: b.description,
-      assets: b.assets.map((a) => a.asset),
-      available: b.available,
-      source: b,
-    }),
+  const current = snapshot ?? initialSnapshot ?? null;
+  const observedAssets = (current?.assets ?? []).filter(
+    (asset) =>
+      asset.verified &&
+      !asset.tradingHalted &&
+      asset.priceUsd != null &&
+      Number.isFinite(asset.priceUsd),
   );
+  const assets = [...observedAssets]
+    .sort((left, right) => {
+      const preferred = ["NVDA", "AAPL", "MSFT", "TSLA"];
+      const rank = (symbol: string) => {
+        const index = preferred.indexOf(symbol);
+        return index === -1 ? preferred.length : index;
+      };
+      return rank(left.underlyingSymbol) - rank(right.underlyingSymbol);
+    })
+    .slice(0, 4);
+  const featured =
+    assets.find((asset) => asset.underlyingSymbol === "NVDA") ?? assets[0];
+  const baskets = resolveAllMarketBaskets(current?.assets ?? []);
   const basket =
-    baskets.find(
-      (item) => item.id === "sol-digital-leaders" && item.available,
-    ) ?? baskets.find((item) => item.available);
+    baskets.find((item) => item.id === "sol-digital-leaders") ?? baskets[0];
+  const root = useRef<HTMLDivElement>(null);
+
+  useLandingMotion(root);
+
   return (
-    <>
-      <header className="workspace-header landing-nav-header">
-        <div className="workspace-header-inner">
-          <div className="navigation-core">
-            <Brand />
-            <div className="navigation-pill">
-              <PrimaryNavigation landing />
+    <div className={styles.site} ref={root}>
+      <div className={styles.pageProgress} aria-hidden="true">
+        <span data-page-progress />
+      </div>
+      <LandingNavigation />
+
+      <main id="main-content">
+        <section
+          className={styles.hero}
+          aria-labelledby="landing-title"
+          data-hero
+        >
+          <div className={styles.heroVisual} data-hero-frame>
+            <div className={styles.heroMedia} data-hero-media>
+              <Image
+                src="/images/landing/dollar-abstract.webp"
+                alt="Dollar engraving with geometric green lines on a forest-green background"
+                fill
+                priority
+                sizes="(max-width: 760px) 100vw, 68vw"
+                className={styles.heroImage}
+                data-hero-image
+              />
             </div>
+            <div className={styles.heroShade} aria-hidden="true" />
           </div>
-          <div className="landing-nav-actions">
-            <ThemeToggle />
-            <Link href="/app" className="btn small landing-open">
-              Open Kite <ArrowUpRight size={17} />
+          <div className={[styles.container, styles.heroContent].join(" ")}>
+            <div className={styles.heroCopy}>
+              <h1 id="landing-title">
+                <span className={styles.heroLine}>
+                  <span data-hero-line>The world’s stocks.</span>
+                </span>
+                <span className={styles.heroLine}>
+                  <em data-hero-line>Your own wallet.</em>
+                </span>
+              </h1>
+              <p className={styles.intro} data-hero-intro>
+                Research tokenized securities. Invest in stock baskets. Explore
+                vaultless automated SIP/DCA—all in one workspace, with your
+                investments in your wallet.
+              </p>
+              <div className={styles.actions}>
+                <Link href="/app" className={styles.button}>
+                  Explore the markets{" "}
+                  <ArrowUpRight size={17} aria-hidden="true" />
+                </Link>
+                <Link href="#automate" className={styles.textLink}>
+                  Discover vaultless SIP/DCA{" "}
+                  <ArrowDown size={16} aria-hidden="true" />
+                </Link>
+              </div>
+              <div className={styles.heroStatus}>
+                <span>
+                  <span className={styles.dot} /> Mainnet stock & basket
+                  purchases
+                </span>
+                <span>Automated SIP / DCA · Devnet demo</span>
+              </div>
+              <p className={styles.heroDetail} data-hero-detail>
+                <Wallet2 size={17} strokeWidth={1.5} />
+                Your assets. In your wallet. No Kite custodial vault.
+              </p>
+            </div>
+            <Link href="#research" className={styles.heroScroll}>
+              <span>Explore the workspace</span>
+              <ArrowDown size={17} />
             </Link>
           </div>
-        </div>
-      </header>
-      <main id="main-content" className={styles.page}>
-        <section className={styles.hero}>
-          <div className={styles.heroCopy}>
-            <p className={styles.kicker}>
-              <span /> YOUR WORLD, ONCHAIN
-            </p>
-            <h1>
-              Your ideas.
-              <br />
-              Your next move.
-              <br />
-              <em>Your Kite.</em>
-            </h1>
-            <p>
-              Research a company. Put a basket together. Make your next move
-              from your own wallet. Explore tokenized stocks, follow your
-              portfolio, and practice an investing routine in one place.
-            </p>
-            <div className={styles.actions}>
-              <Link href="/app" className="btn">
-                Find your next investment{" "}
-                <ArrowUpRight size={16} aria-hidden="true" />
-              </Link>
-              <Link href="/baskets" className="text-link">
-                Explore baskets <ArrowRight size={15} aria-hidden="true" />
+        </section>
+
+        <section
+          className={`${styles.container} ${styles.researchSection}`}
+          id="research"
+          aria-labelledby="research-title"
+        >
+          <div className={styles.research} data-scroll-lock="research">
+            <div className={`${styles.sectionCopy} ${styles.storyCopy}`}>
+              <h2 id="research-title">
+                Conviction starts
+                <br />
+                with <em>the full picture.</em>
+              </h2>
+              <p>
+                Know the business behind the ticker. Company fundamentals, price
+                history, technical indicators, news and events—together in one
+                research workspace.
+              </p>
+              <ul className={styles.checkList}>
+                <li>
+                  <Check size={16} />
+                  Token prices and underlying shares, clearly distinguished
+                </li>
+                <li>
+                  <Check size={16} />
+                  Source-backed data, with observation dates
+                </li>
+                <li>
+                  <Check size={16} />
+                  Unavailable data stays unavailable
+                </li>
+              </ul>
+              <Link href="/markets" className={styles.textLink}>
+                Find your next investment <ArrowRight size={17} />
               </Link>
             </div>
-            <div className={styles.heroNote}>
-              <ShieldCheck size={16} aria-hidden="true" /> Mainnet spot
-              purchases. Self-custody by design.
+            <div className={styles.storyTrack} data-scroll-track="research">
+              <LandingResearch asset={featured} loading={loading} />
             </div>
           </div>
-          <div
-            className={styles.product}
-            aria-label="Preview of current Kite market data"
-          >
-            <div className={styles.productTop}>
-              <Brand />
-              <span>
-                <span className="status-dot" /> MARKET SNAPSHOT
-              </span>
-            </div>
-            <div className={styles.productHeading}>
-              <div>
-                <small>YOUR NEXT IDEA</small>
-                <h2>A world to explore.</h2>
-              </div>
-              <BookOpen size={22} />
-            </div>
-            {featured ? (
-              <Link
-                href={`/stock/${featured.mint}`}
-                className={styles.featured}
-              >
-                <div className={styles.featuredName}>
-                  <AssetAvatar asset={featured} />
-                  <div>
-                    <strong>{featured.name.replace(/ xStock$/i, "")}</strong>
-                    <small>{featured.symbol} · Token price</small>
-                  </div>
-                  <ArrowUpRight size={18} />
+          <LandingMarket assets={assets} snapshot={current} loading={loading} />
+        </section>
+
+        <section
+          className={styles.basketSection}
+          id="baskets"
+          aria-labelledby="basket-title"
+        >
+          <div className={styles.container}>
+            <div data-section-sequence="allocation">
+              <div className={styles.sectionHeading} data-motion-group>
+                <div>
+                  <h2 id="basket-title">
+                    Several companies.
+                    <br />
+                    <em>One considered allocation.</em>
+                  </h2>
                 </div>
-                <div className={styles.featuredPrice}>
-                  <strong>{money(featured.priceUsd)}</strong>
-                  <span>
-                    <Change value={featured.change24hPct} /> <small>24h</small>
-                  </span>
-                </div>
-                <div className={styles.priceCaption}>
-                  Latest available market price <ArrowRight size={15} />
-                </div>
-              </Link>
-            ) : (
-              <div className={styles.unavailable} role="status">
-                <BookOpen size={28} />
-                <strong>
-                  {loading
-                    ? "Connecting to the markets…"
-                    : "Your research starts here."}
-                </strong>
                 <p>
-                  {loading
-                    ? "Loading issuer-listed companies and observed prices."
-                    : "Live prices are temporarily unavailable. Explore the issuer catalog in Kite."}
+                  Choose a theme or build your own basket. Review each company
+                  and its weight. The individual tokens arrive directly in your
+                  wallet.
                 </p>
               </div>
-            )}
-            <div className={styles.marketList}>
-              {assets.slice(1).map((asset) => (
-                <Link key={asset.mint} href={`/stock/${asset.mint}`}>
-                  <AssetAvatar asset={asset} small />
-                  <div>
-                    <strong>{asset.name.replace(/ xStock$/i, "")}</strong>
-                    <small>{asset.symbol}</small>
+              <div className={styles.basketFeature}>
+                <div
+                  className={styles.allocationPanel}
+                  data-sequence-stage
+                  data-motion-panel
+                  data-motion-layout
+                >
+                  <div className={styles.panelTop}>
+                    <span className={styles.eyebrow}>
+                      INSIDE THE ALLOCATION
+                    </span>
+                    <Layers3 size={19} />
                   </div>
-                  <span>
-                    {money(asset.priceUsd)}
-                    <small>
-                      <Change value={asset.change24hPct} />
-                    </small>
-                  </span>
+                  <h3>{basket?.name ?? "Kite-curated baskets"}</h3>
+                  <p>
+                    {basket?.description ??
+                      "Explore the complete allocation before investing."}
+                  </p>
+                  {basket &&
+                  basket.assets.length > 0 &&
+                  !basket.missingSymbols.length ? (
+                    <>
+                      <div
+                        className={styles.allocationBar}
+                        aria-hidden="true"
+                        data-allocation-bar
+                      >
+                        {basket.assets.map((item, index) => (
+                          <span
+                            key={item.asset.mint}
+                            style={{
+                              flex: item.weight,
+                              opacity: 1 - (index % 5) * 0.15,
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <div className={styles.allocations} data-motion-group>
+                        {basket.assets.map((item) => (
+                          <div key={item.asset.mint}>
+                            <AssetAvatar asset={item.asset} small />
+                            <span>
+                              {item.asset.name.replace(/ xStock$/i, "")}
+                              <small>{item.asset.symbol}</small>
+                            </span>
+                            <strong>{(item.weight / 100).toFixed(2)}%</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <div className={styles.emptyAllocation}>
+                      <Layers3 size={30} />
+                      <p>
+                        {loading
+                          ? "Loading constituent allocations…"
+                          : "Complete constituent data is unavailable. View the basket to check availability."}
+                      </p>
+                    </div>
+                  )}
+                  <div className={styles.panelFoot} data-text-reveal-block>
+                    <Wallet2 size={15} />
+                    Individual tokens. Direct wallet settlement.
+                  </div>
+                </div>
+                <div
+                  className={styles.basketExplanation}
+                  data-motion-group="copy"
+                >
+                  <span className={styles.bigNumber}>2–12</span>
+                  <h3>Assets in your custom basket.</h3>
+                  <p>
+                    You choose the companies and allocation weights. Kite
+                    prepares the route and shows you the costs before you sign.
+                  </p>
+                  <Link href="/basket/builder" className={styles.button}>
+                    Build your own basket <ArrowUpRight size={17} />
+                  </Link>
+                  <small>
+                    The asset range is a builder limit. Live execution depends
+                    on the complete route.
+                  </small>
+                </div>
+              </div>
+            </div>
+            <div className={styles.basketGrid} data-motion-group="cards">
+              {baskets.slice(0, 3).map((item, index) => (
+                <Link
+                  href={`/basket/${item.id}`}
+                  className={styles.basketTile}
+                  key={item.id}
+                >
+                  <div className={styles.tileTop}>
+                    <span>
+                      0{index + 1} / {item.category ?? "CURATED"}
+                    </span>
+                    <ArrowUpRight size={19} />
+                  </div>
+                  <h3>{item.name}</h3>
+                  <p>{item.description}</p>
+                  <div className={styles.tileBottom}>
+                    <div>
+                      {item.assets.slice(0, 4).map(({ asset }) => (
+                        <AssetAvatar key={asset.mint} asset={asset} small />
+                      ))}
+                    </div>
+                    <span>
+                      View allocation <ArrowRight size={14} />
+                    </span>
+                  </div>
                 </Link>
               ))}
             </div>
-            <div className={styles.productBottom}>
-              <ShieldCheck size={14} /> Issuer-listed assets. Observed prices.
+            <div className={styles.basketBottom}>
+              <p>
+                A basket is an allocation of individual assets. It is not a
+                synthetic basket token.
+              </p>
+              <Link href="/baskets" className={styles.textLink}>
+                Explore all baskets <ArrowRight size={16} />
+              </Link>
             </div>
           </div>
         </section>
-        <div className={styles.strip}>
-          <span>
-            <Wallet2 /> Self-custody on Solana
-          </span>
-          <span>
-            <BookOpen /> Research before you invest
-          </span>
-          <span>
-            <Layers3 aria-hidden="true" /> Stocks and thematic baskets
-          </span>
-        </div>
-        <section className={styles.research}>
-          <div>
-            <p className={styles.kicker}>01 / GET THE FULL PICTURE</p>
-            <h2>
-              Go beyond
-              <br />
-              the ticker.
-            </h2>
-            <p>
-              Get to know the company behind your next idea. Bring price
-              history, fundamentals, headlines, and corporate events into one
-              view.
-            </p>
-            <Link href="/app" className="text-link">
-              Find a company <ArrowRight size={16} />
-            </Link>
-          </div>
-          <div className={styles.researchTools}>
-            {[
-              {
-                icon: BookOpen,
-                title: "Understand the business",
-                text: "Company profiles, revenue, earnings, and financial history.",
-              },
-              {
-                icon: CalendarDays,
-                title: "Follow what matters",
-                text: "Company news, dividends, splits, and upcoming events.",
-              },
-              {
-                icon: Layers3,
-                title: "See more of the market",
-                text: "Explore xStocks, PreStocks, and Backpack’s securities catalog.",
-              },
-            ].map(({ icon: Icon, title, text }) => (
-              <div key={title}>
-                <span>
-                  <Icon size={22} />
-                </span>
-                <div>
-                  <h3>{title}</h3>
-                  <p>{text}</p>
-                </div>
-                <ArrowUpRight size={16} />
-              </div>
-            ))}
-          </div>
-        </section>
-        <section className={styles.themes}>
-          <div className={styles.allocation}>
-            <div className={styles.allocationTitle}>
-              <span className="eyebrow">INSIDE A KITE BASKET</span>
-              <Layers3 size={20} />
+
+        <section
+          className={styles.automateSection}
+          id="automate"
+          aria-labelledby="automate-title"
+          data-recurring-section
+        >
+          <div className={styles.container} data-recurring-stage>
+            <div className={styles.automateHeading}>
+              <p className={styles.eyebrow}>VAULTLESS AUTOMATED INVESTING</p>
+              <span className={styles.demoBadge}>DEVNET TEST-TOKEN DEMO</span>
             </div>
-            <h3>{basket?.name ?? "Kite-curated baskets"}</h3>
-            <p>Individual assets. One clear allocation.</p>
-            {basket ? (
-              <>
-                <div className={styles.allocationBar} aria-hidden="true">
-                  {basket.source.assets.map((item, index) => (
-                    <span
-                      key={item.asset.mint}
-                      style={{
-                        flex: item.weight,
-                        opacity: 1 - (index % 5) * 0.13,
-                      }}
-                    />
-                  ))}
-                </div>
-                <div className={styles.allocationRows}>
-                  {basket.source.assets.map((item) => (
-                    <div key={item.asset.mint}>
-                      <AssetAvatar asset={item.asset} small />
-                      <span>{item.asset.symbol}</span>
-                      <strong>{(item.weight / 100).toFixed(2)}%</strong>
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div className={styles.allocationEmpty}>
-                <Layers3 size={32} />
+            <div className={styles.automateGrid} data-scroll-lock="recurring">
+              <div className={`${styles.sectionCopy} ${styles.storyCopy}`}>
+                <h2 id="automate-title">
+                  Build a routine.
+                  <br />
+                  <em>Keep the control.</em>
+                </h2>
                 <p>
-                  {loading
-                    ? "Loading Kite’s curated allocations…"
-                    : "No complete basket is currently available. Explore the collection for constituent availability."}
+                  A systematic investment plan (SIP) puts dollar-cost averaging
+                  (DCA) on a schedule. Choose an amount and cadence, authorize a
+                  bounded plan, and let due test-token installments run.
+                </p>
+                <p className={styles.automateLead}>
+                  Your funds stay in your wallet until an installment is due. No
+                  upfront deposit into a Kite vault.
+                </p>
+                <ul className={styles.checkList}>
+                  <li>
+                    <Check size={16} />
+                    You set the amount, allocation and duration
+                  </li>
+                  <li>
+                    <Check size={16} />
+                    Daily, weekly, biweekly or every 30 days
+                  </li>
+                  <li>
+                    <Check size={16} />
+                    Bounded spending authority. Close your plan in Kite.
+                  </li>
+                </ul>
+                <Link href="/sip#new-plan" className={styles.limeButton}>
+                  Try the recurring demo <ArrowUpRight size={17} />
+                </Link>
+                <p className={styles.networkNote}>
+                  Wallet recurring uses devnet test KUSD and test stock outputs.
+                  Mainnet recurring investing is not yet available.
                 </p>
               </div>
-            )}
-            {basket && (
-              <div className={styles.allocationFoot}>
-                <Check size={15} /> Delivered as individual tokens to your
-                wallet
+              <div className={styles.storyTrack} data-scroll-track="recurring">
+                <LandingRecurring />
               </div>
-            )}
-          </div>
-          <div className={styles.themeCopy}>
-            <p className={styles.kicker}>02 / INVEST IN A POINT OF VIEW</p>
-            <h2>
-              Big ideas.
-              <br />
-              Thoughtful baskets.
-            </h2>
-            <p>
-              From the next wave of technology to everyday essentials. Look
-              inside a theme, understand its companies, and review the complete
-              allocation before investing.
-            </p>
-            <Link href="/baskets" className="btn">
-              Explore the collection <ArrowUpRight size={16} />
-            </Link>
-            <small>
-              Availability depends on each asset and the complete trading route.
-            </small>
+            </div>
           </div>
         </section>
-        <section className={styles.showcase} aria-labelledby="showcase-title">
-          <div className={styles.showcaseHeading}>
-            <div>
-              <p className={styles.kicker}>FIND YOUR POINT OF VIEW</p>
-              <h2 id="showcase-title">A theme for your next idea.</h2>
+
+        <section
+          className={`${styles.container} ${styles.howSection}`}
+          id="how-it-works"
+          aria-labelledby="how-title"
+        >
+          <div data-section-sequence="ownership">
+            <div className={styles.sectionHeading} data-motion-group>
+              <div>
+                <p className={styles.eyebrow}>THE OWNERSHIP IS YOURS</p>
+                <h2 id="how-title">
+                  A clearer path
+                  <br />
+                  from research to <em>investing.</em>
+                </h2>
+              </div>
+              <Link href="/app" className={styles.textLink}>
+                Take a look inside Kite <ArrowUpRight size={17} />
+              </Link>
             </div>
-            <Link href="/baskets" className="text-link">
-              All baskets <ArrowRight size={15} aria-hidden="true" />
-            </Link>
-          </div>
-          <div className={styles.marquee} aria-label="Available basket themes">
-            <div className={styles.marqueeTrack}>
-              {[0, 1].map((copy) => (
-                <div
-                  key={copy}
-                  className={styles.marqueeGroup}
-                  aria-hidden={copy === 1 ? true : undefined}
-                >
-                  {baskets.map((item) => (
-                    <Link
-                      key={item.id}
-                      href={`/basket/${item.id}`}
-                      prefetch={false}
-                      tabIndex={copy === 1 ? -1 : undefined}
-                      className={styles.themeTile}
-                    >
-                      <span className={styles.tileCategory}>
-                        {item.source.category}
-                        <ArrowUpRight size={16} aria-hidden="true" />
-                      </span>
-                      <h3>{item.name}</h3>
-                      <div className={styles.tileAssets}>
-                        {item.assets.slice(0, 4).map((asset) => (
-                          <AssetAvatar key={asset.mint} asset={asset} small />
-                        ))}
-                        <span>
-                          {item.assets.length
-                            ? `${item.assets.length} assets`
-                            : "View allocation"}
-                        </span>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
+            <div
+              className={styles.steps}
+              data-motion-group
+              data-sequence-owned
+              data-sequence-stage
+            >
+              {[
+                {
+                  icon: BookOpen,
+                  title: "Understand what you buy",
+                  text: "Research the company, check the issuer and compare the token with its underlying share.",
+                },
+                {
+                  icon: ShieldCheck,
+                  title: "Review. Then authorize.",
+                  text: "See funding, minimum outputs, fees and transaction count. Your wallet approves the purchase.",
+                },
+                {
+                  icon: Wallet2,
+                  title: "Keep your assets close",
+                  text: "Tokens settle to your wallet. Track balances, available market values and your locally recorded orders.",
+                },
+              ].map(({ icon: Icon, title, text }, index) => (
+                <article key={title}>
+                  <div>
+                    <Icon size={27} strokeWidth={1.4} />
+                    <span>0{index + 1}</span>
+                  </div>
+                  <h3>{title}</h3>
+                  <p>{text}</p>
+                </article>
               ))}
             </div>
           </div>
-          <p className={styles.showcaseNote}>
-            Themes describe an allocation. Your order review confirms live
-            availability, a single transaction or Jito bundle, and every fee.
-          </p>
-        </section>
-        <section className={styles.ownership} aria-labelledby="portfolio-title">
-          <div className={styles.portfolioCopy}>
-            <p className={styles.kicker}>03 / SEE THE WHOLE PICTURE</p>
-            <h2 id="portfolio-title">
-              Know what you hold.
-              <br />
-              Plan your next move.
-            </h2>
-            <p>
-              See your assets, their available market values and your recorded
-              orders in one place. Get a clearer view of your investments before
-              deciding what comes next.
-            </p>
-            <Link href="/portfolio" className="text-link">
-              Explore your portfolio <ArrowRight size={16} aria-hidden="true" />
-            </Link>
-          </div>
-          <div className={styles.portfolioOverview}>
-            <p className="eyebrow">PORTFOLIO AT A GLANCE</p>
-            <h3>Your investments, organized.</h3>
-            <dl className={styles.portfolioViews}>
+          <div className={styles.paperCallout} data-motion-panel>
+            <div>
+              <span className={styles.paperIcon}>
+                <Layers3 size={25} />
+              </span>
               <div>
-                <dt>
-                  <Layers3 size={20} aria-hidden="true" />
-                  Holdings
-                </dt>
-                <dd>Your assets and token balances</dd>
+                <h3>Your first investment can be a practice run.</h3>
+                <p>
+                  Start with $10,000 in virtual cash. Learn the workspace before
+                  using real funds.
+                </p>
               </div>
-              <div>
-                <dt>
-                  <ChartNoAxesCombined size={20} aria-hidden="true" />
-                  Market value
-                </dt>
-                <dd>Values based on available prices</dd>
-              </div>
-              <div>
-                <dt>
-                  <ListOrdered size={20} aria-hidden="true" />
-                  Activity
-                </dt>
-                <dd>Your orders recorded on this device</dd>
-              </div>
-            </dl>
-            <p className={styles.portfolioNote}>
-              Paper and wallet portfolios are shown separately.
-            </p>
-          </div>
-        </section>
-        <section className={styles.recurring} aria-labelledby="recurring-title">
-          <div className={styles.recurringPreview}>
-            <div className={styles.recurringPreviewHeader}>
-              <Repeat2 size={24} aria-hidden="true" />
-              <span>YOUR RECURRING PLAN</span>
-              <small>Devnet demo</small>
             </div>
-            <h3>A routine you control.</h3>
-            <dl className={styles.recurringTerms}>
-              <div>
-                <dt>Investment</dt>
-                <dd>Your chosen asset or basket</dd>
-              </div>
-              <div>
-                <dt>Amount</dt>
-                <dd>You set the amount per installment</dd>
-              </div>
-              <div>
-                <dt>Schedule</dt>
-                <dd>Daily, weekly, biweekly or fixed 30 days</dd>
-              </div>
-              <div>
-                <dt>Duration</dt>
-                <dd>A bounded plan, up to one year</dd>
-              </div>
-            </dl>
-            <ol
-              className={styles.recurringFlow}
-              aria-label="How recurring works"
-            >
-              <li>Choose</li>
-              <li>Authorize</li>
-              <li>Repeat</li>
-            </ol>
-            <p className={styles.recurringExplanation}>
-              After wallet approval, the devnet collector runs due test-token
-              installments within your plan’s limits.
-            </p>
-            <p className={styles.recurringPaper}>
-              Practice with $10,000 in virtual cash in paper mode. Paper
-              schedules run only while Kite is open.
-            </p>
+            <Link href="/app" className={styles.textLink}>
+              Explore paper mode <ArrowUpRight size={17} />
+            </Link>
           </div>
-          <div className={styles.recurringCopy}>
-            <p className={styles.kicker}>04 / MAKE IT A ROUTINE</p>
-            <h2 id="recurring-title">
-              Set your amount.
+        </section>
+        <LandingSources />
+        <section
+          className={`${styles.container} ${styles.faq}`}
+          aria-labelledby="faq-title"
+        >
+          <div data-motion-group="copy">
+            <p className={styles.eyebrow}>A FEW THINGS TO KNOW</p>
+            <h2 id="faq-title">
+              Clarity comes
               <br />
-              Keep your rhythm.
+              <em>before capital.</em>
             </h2>
             <p>
-              Choose an asset or basket, an amount and a schedule. Approve a
-              bounded wallet plan, then let due installments run automatically
-              with devnet test tokens.
-            </p>
-            <Link href="/sip#new-plan" className="btn">
-              Explore recurring <ArrowUpRight size={16} aria-hidden="true" />
-            </Link>
-            <p className={styles.recurringNote}>
-              Wallet recurring is a devnet demonstration. Mainnet recurring
-              investing is not yet available.
+              Understand the product, the networks and the risks before your
+              first investment.
             </p>
           </div>
+          <div
+            className={styles.questions}
+            data-motion-group
+            data-motion-layout
+          >
+            {questions.map(([question, answer]) => (
+              <details key={question}>
+                <summary>
+                  {question}
+                  <ChevronDown size={18} aria-hidden="true" />
+                </summary>
+                <p>{answer}</p>
+              </details>
+            ))}
+          </div>
         </section>
-        <section className={styles.cta}>
-          <span className={styles.kicker}>FOLLOW YOUR CURIOSITY</span>
-          <h2>Your next idea is waiting.</h2>
-          <p>
-            From your first piece of research to your next wallet-approved
-            purchase.
-          </p>
-          <Link href="/app" className="btn">
-            Start exploring <ArrowUpRight size={17} />
-          </Link>
-        </section>
-        <footer className={styles.footer}>
-          <Brand />
-          <p>
-            Kite is a self-custody interface for tokenized assets.
-            <br />
-            Issuer eligibility and trading restrictions apply.
-          </p>
-          <div className={styles.footerLinks}>
-            <nav className={styles.legalLinks} aria-label="Terms and privacy">
+      </main>
+      <footer className={styles.footer} aria-label="Kite">
+        <div className={styles.container}>
+          <div className={styles.footerCta}>
+            <div>
+              <h2>
+                A better-informed next move.
+                <br />
+                <em>Starts here.</em>
+              </h2>
+              <p>Research freely. Practice first. Invest from your wallet.</p>
+            </div>
+            <Link href="/app" className={styles.limeButton}>
+              Open Kite <ArrowUpRight size={18} aria-hidden="true" />
+            </Link>
+          </div>
+          <div className={styles.footerTop}>
+            <div>
+              <Brand />
+              <p>
+                Tokenized securities.
+                <br />
+                Your wallet. A considered approach.
+              </p>
+            </div>
+            <nav aria-label="Kite product">
+              <Link href="/markets">Markets</Link>
+              <Link href="/baskets">Baskets</Link>
+              <Link href="/sip">Recurring demo</Link>
+              <Link href="/portfolio">Portfolio</Link>
+            </nav>
+            <div className={styles.footerSocial}>
+              <SocialLinks />
+            </div>
+          </div>
+          <div className={styles.footerBottom}>
+            <p>
+              Kite is a self-custody interface. Issuer eligibility and trading
+              restrictions apply. Investments carry issuer, market, network and
+              execution risk.
+            </p>
+            <nav aria-label="Legal and data controls">
               <Link href="/terms">Terms</Link>
               <Link href="/privacy">Privacy</Link>
+              <Link href="/settings">Data controls</Link>
+              <PrivacyChoicesButton />
             </nav>
-            <SocialLinks />
           </div>
-        </footer>
-      </main>
-    </>
+        </div>
+      </footer>
+    </div>
   );
 }

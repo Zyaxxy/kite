@@ -46,7 +46,7 @@
     height: 110px;
   }
   .basket-card h3 {
-    font-size: 14px;
+    font-size: var(--text-body);
   }
   .hero-copy {
     max-width: 65%;
@@ -94,7 +94,7 @@
     max-width: 60%;
   }
   .hero-copy h2 {
-    font-size: 34px;
+    font-size: var(--text-page-mobile);
   }
   .detail-grid,
   .plan-layout {
@@ -121,7 +121,7 @@
 }
 @media (max-width: 760px) {
   h1 {
-    font-size: 34px;
+    font-size: var(--text-page-mobile);
   }
   .workspace {
     padding-left: 0;
@@ -192,7 +192,7 @@
     display: none;
   }
   .top-actions .btn {
-    font-size: 11px;
+    font-size: var(--text-caption);
     padding: 9px 12px;
     min-height: 36px;
   }
@@ -204,10 +204,10 @@
     margin-bottom: 24px;
   }
   .page-intro p:not(.eyebrow) {
-    font-size: 12px;
+    font-size: var(--text-small);
   }
   .page-intro h1 {
-    font-size: 35px;
+    font-size: var(--text-page-mobile);
   }
   .discovery-hero {
     min-height: 239px;
@@ -220,7 +220,7 @@
     max-width: 69%;
   }
   .hero-copy p:not(.eyebrow) {
-    font-size: 11px;
+    font-size: var(--text-caption);
     max-width: 225px;
   }
   .discovery-hero .orbit-art {
@@ -236,10 +236,10 @@
     gap: 27px;
   }
   .section-head h2 {
-    font-size: 22px;
+    font-size: var(--text-section);
   }
   .section-head .text-link {
-    font-size: 10px;
+    font-size: var(--text-micro);
   }
   .basket-grid {
     grid-template-columns: repeat(3, minmax(180px, 1fr));
@@ -263,7 +263,7 @@
     font-size: 15px;
   }
   .basket-card p {
-    font-size: 10px;
+    font-size: var(--text-micro);
   }
   .basket-catalog {
     grid-template-columns: minmax(0, 1fr);
@@ -277,7 +277,7 @@
     font-size: 19px;
   }
   .basket-catalog .basket-card p {
-    font-size: 12px;
+    font-size: var(--text-small);
   }
   .hide-mobile {
     display: none !important;
@@ -295,11 +295,11 @@
     gap: 2px;
   }
   .filter-tabs button {
-    font-size: 10px;
+    font-size: var(--text-micro);
     padding: 6px 10px;
   }
   .assets-table td {
-    font-size: 11px;
+    font-size: var(--text-caption);
     padding: 15px 8px;
   }
   .assets-table th {
@@ -315,7 +315,7 @@
     gap: 9px;
   }
   .asset-name strong {
-    font-size: 11px;
+    font-size: var(--text-caption);
   }
   .asset-label {
     max-width: 137px;
@@ -372,7 +372,7 @@
     left: 50%;
     width: max-content;
     max-width: calc(100vw - 30px);
-    font-size: 11px;
+    font-size: var(--text-caption);
   }
   .detail-title h1 {
     font-size: 28px;
@@ -387,7 +387,7 @@
     gap: 12px;
   }
   .stats-grid dd {
-    font-size: 14px;
+    font-size: var(--text-body);
   }
   .stats-grid dt {
     font-size: 9px;
@@ -408,7 +408,7 @@
   }
   .plan-stats {
     gap: 12px;
-    font-size: 11px;
+    font-size: var(--text-caption);
   }
   .landing {
     padding: 0 22px;

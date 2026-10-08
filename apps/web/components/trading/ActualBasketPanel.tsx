@@ -19,7 +19,7 @@ import {
 import { kiteClient } from "../kite/api-client";
 import { RouteHealthReport } from "../kite/RouteHealth";
 import { useRouteHealth } from "../kite/useRouteHealth";
-import { NativeSelect } from "../ui/native-select";
+import GlideSelect from "../ui/GlideSelect";
 import { MAINNET_SOL_MINT, MAINNET_USDT_MINT } from "@kite/sdk";
 import styles from "./swap-tokens.module.css";
 
@@ -197,16 +197,18 @@ export function ActualBasketPanel({ basket }: { basket: MarketBasket }) {
       </label>
       <label className="form-field">
         <span>Maximum slippage per asset</span>
-        <NativeSelect
+        <GlideSelect
+          ariaLabel="Maximum slippage per asset"
           value={slippage}
           disabled={disabled}
-          onChange={(e) => setSlippage(e.target.value)}
-        >
-          <option value="50">0.5%</option>
-          <option value="100">1%</option>
-          <option value="200">2%</option>
-          <option value="300">3%</option>
-        </NativeSelect>
+          onChange={setSlippage}
+          options={[
+            { value: "50", label: "0.5%" },
+            { value: "100", label: "1%" },
+            { value: "200", label: "2%" },
+            { value: "300", label: "3%" },
+          ]}
+        />
       </label>
       <RouteHealthReport input={routeInput} {...routeHealth} />
       {order && (

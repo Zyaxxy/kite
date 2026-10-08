@@ -25,7 +25,7 @@ import { MarketStatus } from "./Discover";
 import { AssetName, Change, Empty, money } from "./MarketUI";
 import portfolioStyles from "./Portfolio.module.css";
 import { PortfolioAllocation } from "./PortfolioAllocation";
-import { NativeSelect, NativeSelectOption } from "../ui/native-select";
+import GlideSelect from "../ui/GlideSelect";
 import { useTradingAuth } from "../trading/TradingAuth";
 import { RecurringInvestingPanel } from "../trading/RecurringInvestingPanel";
 import { DevnetPlansList } from "../trading/DevnetPlansList";
@@ -665,33 +665,22 @@ export function Plans() {
             <form className="stack" onSubmit={submit}>
               <label className="form-field">
                 Invest in
-                <NativeSelect
+                <GlideSelect
+                  ariaLabel="Invest in"
+                  name="paper-plan-target"
                   value={target}
-                  onChange={(e) => setTarget(e.target.value)}
+                  onChange={setTarget}
                   required
-                >
-                  <NativeSelectOption value="">
-                    Choose an asset or basket
-                  </NativeSelectOption>
-                  <optgroup label="Thematic baskets">
-                    {targets
-                      .filter((t) => t.type === "basket")
-                      .map((t) => (
-                        <NativeSelectOption key={t.value} value={t.value}>
-                          {t.name}
-                        </NativeSelectOption>
-                      ))}
-                  </optgroup>
-                  <optgroup label="Mainnet assets">
-                    {targets
-                      .filter((t) => t.type === "asset")
-                      .map((t) => (
-                        <NativeSelectOption key={t.value} value={t.value}>
-                          {t.name}
-                        </NativeSelectOption>
-                      ))}
-                  </optgroup>
-                </NativeSelect>
+                  menuWidth={280}
+                  options={[
+                    { value: "", label: "Choose an asset or basket" },
+                    ...targets.map((item) => ({
+                      value: item.value,
+                      label: item.name,
+                      group: item.type === "basket" ? "Thematic baskets" : "Mainnet assets",
+                    })),
+                  ]}
+                />
               </label>
               <label className="form-field">
                 Amount per installment (virtual USD)
@@ -707,25 +696,17 @@ export function Plans() {
               </label>
               <label className="form-field">
                 How often
-                <NativeSelect
+                <GlideSelect<PaperFrequency>
+                  ariaLabel="How often"
                   value={frequency}
-                  onChange={(e) =>
-                    setFrequency(e.target.value as PaperFrequency)
-                  }
-                >
-                  <NativeSelectOption value="daily">
-                    Every day
-                  </NativeSelectOption>
-                  <NativeSelectOption value="weekly">
-                    Every week
-                  </NativeSelectOption>
-                  <NativeSelectOption value="biweekly">
-                    Every two weeks
-                  </NativeSelectOption>
-                  <NativeSelectOption value="monthly">
-                    Every month
-                  </NativeSelectOption>
-                </NativeSelect>
+                  onChange={setFrequency}
+                  options={[
+                    { value: "daily", label: "Every day" },
+                    { value: "weekly", label: "Every week" },
+                    { value: "biweekly", label: "Every two weeks" },
+                    { value: "monthly", label: "Every month" },
+                  ]}
+                />
               </label>
               {error && (
                 <div className="notice error" role="alert">

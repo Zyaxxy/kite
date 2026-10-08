@@ -79,12 +79,12 @@
   display: flex;
   justify-content: space-between;
   gap: 6px;
-  font-size: 10px;
+  font-size: var(--text-micro);
   margin-top: 10px;
 }
 .pulse-breadth > p,
 .pulse-volume > p {
-  font-size: 10px;
+  font-size: var(--text-micro);
   line-height: 1.8;
   color: var(--muted);
   margin-top: 17px;
@@ -98,7 +98,7 @@
   font-variant-numeric: tabular-nums;
 }
 .pulse-volume > .flex-between {
-  font-size: 11px;
+  font-size: var(--text-caption);
   color: var(--muted);
 }
 .pulse-volume > .flex-between b {
@@ -152,14 +152,14 @@
 }
 .leader-asset > small {
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-micro);
 }
 .leader-asset > span:last-child {
   min-width: 0;
 }
 .leader-asset strong,
 .leader-price strong {
-  font-size: 12px;
+  font-size: var(--text-small);
   font-weight: 500;
   display: block;
 }
@@ -168,13 +168,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 10px;
+  font-size: var(--text-micro);
   color: var(--muted);
   margin-top: 3px;
 }
 .leader-price {
   text-align: right;
-  font-size: 10px;
+  font-size: var(--text-micro);
   font-variant-numeric: tabular-nums;
 }
 .leader-price strong {
@@ -185,7 +185,7 @@
   gap: 9px;
   align-items: center;
   justify-content: flex-end;
-  font-size: 11px;
+  font-size: var(--text-caption);
   color: var(--muted);
 }
 .leader-footer {
@@ -231,7 +231,7 @@
   border-bottom: 2px solid transparent;
   background: transparent;
   padding: 15px 0;
-  font-size: 12px;
+  font-size: var(--text-small);
   color: var(--muted);
 }
 .research-tabs button[aria-selected="true"] {
@@ -264,14 +264,14 @@
   font-variant-numeric: tabular-nums;
 }
 .research-chart-head small {
-  font-size: 10px;
+  font-size: var(--text-micro);
   color: var(--muted);
 }
 .research-chart-head > div > span {
-  font-size: 11px;
+  font-size: var(--text-caption);
 }
 .research-chart-date {
-  font-size: 11px;
+  font-size: var(--text-caption);
   text-align: right;
 }
 .research-chart-date small {
@@ -317,7 +317,7 @@
 }
 .research-chart-footer .filter-tabs button {
   padding: 7px 10px;
-  font-size: 10px;
+  font-size: var(--text-micro);
 }
 .research-split {
   display: grid;
@@ -340,7 +340,7 @@
 }
 .research-range strong {
   display: block;
-  font-size: 12px;
+  font-size: var(--text-small);
   font-weight: 500;
   margin-top: 3px;
 }
@@ -368,7 +368,7 @@
 }
 .research-copy {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-small);
   line-height: 1.85;
 }
 .research-metrics {
@@ -383,12 +383,12 @@
   min-width: 0;
 }
 .research-metrics dt {
-  font-size: 10px;
+  font-size: var(--text-micro);
   color: var(--muted);
 }
 .research-metrics dd {
   margin: 5px 0 0;
-  font-size: 13px;
+  font-size: var(--text-small);
   overflow-wrap: anywhere;
 }
 .research-metrics small {
@@ -410,7 +410,7 @@
 }
 .technical-grid span {
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-micro);
   display: block;
 }
 .technical-grid strong {
@@ -425,7 +425,7 @@
 .technical-note p,
 .research-footnote {
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-micro);
   line-height: 1.85;
   margin-top: 13px;
 }
@@ -436,7 +436,7 @@
   padding-top: 14px;
 }
 .financial-history h4 {
-  font-size: 12px;
+  font-size: var(--text-small);
   font-weight: 500;
 }
 .financial-bars {
@@ -451,7 +451,7 @@
   text-align: center;
 }
 .financial-bars span {
-  font-size: 10px;
+  font-size: var(--text-micro);
 }
 .financial-bar-track {
   height: 115px;
@@ -548,12 +548,12 @@
   font-size: 8px;
 }
 .event-list h4 {
-  font-size: 13px;
+  font-size: var(--text-small);
   font-weight: 400;
   margin-top: 5px;
 }
 .event-list p {
-  font-size: 10px;
+  font-size: var(--text-micro);
   color: var(--muted);
   margin-top: 4px;
   line-height: 1.7;
@@ -576,7 +576,7 @@
 }
 .research-loading p {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-small);
 }
 .stock-research [role="tabpanel"] > .notice {
   margin: 20px;
@@ -618,7 +618,7 @@
 }
 .quote-reference {
   margin-top: 16px;
-  font-size: 11px;
+  font-size: var(--text-caption);
   color: var(--muted);
 }
 .basket-filters {
@@ -731,7 +731,7 @@
     gap: 18px;
   }
   .research-range strong {
-    font-size: 11px;
+    font-size: var(--text-caption);
   }
   .research-range > .eyebrow {
     font-size: 8px;
@@ -741,7 +741,7 @@
     gap: 0 20px;
   }
   .research-metrics dd {
-    font-size: 12px;
+    font-size: var(--text-small);
   }
   .technical-grid {
     gap: 9px;

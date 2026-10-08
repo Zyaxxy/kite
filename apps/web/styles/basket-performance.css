@@ -13,7 +13,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: var(--text-caption);
   font-weight: 600;
   padding: 3px 8px;
   border-radius: 6px;
@@ -41,7 +41,7 @@
 }
 
 .basket-growth-pnl {
-  font-size: 11px;
+  font-size: var(--text-caption);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   display: inline-flex;
@@ -61,14 +61,14 @@
 
 .basket-growth-pnl small {
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-micro);
 }
 
 .basket-perf-action-btn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 10px;
+  font-size: var(--text-micro);
   font-weight: 500;
   padding: 3px 8px;
   border-radius: 6px;
@@ -116,7 +116,7 @@
 }
 
 .perf-status-badge {
-  font-size: 10px;
+  font-size: var(--text-micro);
   font-weight: 600;
   padding: 2px 7px;
   border-radius: 999px;
@@ -149,7 +149,7 @@
 }
 
 .perf-ticker {
-  font-size: 11px;
+  font-size: var(--text-caption);
   font-weight: 600;
   color: var(--muted);
   background: var(--raised);
@@ -170,7 +170,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: var(--text-caption);
   color: var(--muted);
 }
 
@@ -179,8 +179,12 @@
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Hero Return & PnL Card */
@@ -233,19 +237,19 @@
 }
 
 .perf-period-label {
-  font-size: 12px;
+  font-size: var(--text-small);
   color: var(--muted);
 }
 
 .perf-pnl-summary p {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--text-small);
   color: var(--ink);
   line-height: 1.5;
 }
 
 .perf-pnl-summary strong {
-  font-size: 14px;
+  font-size: var(--text-body);
 }
 
 .perf-pnl-summary .up {
@@ -258,7 +262,7 @@
 
 .perf-new-total {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-caption);
   margin-left: 4px;
 }
 
@@ -288,7 +292,7 @@
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 6px;
-  font-size: 11px;
+  font-size: var(--text-caption);
   font-weight: 500;
   padding: 4px 8px;
   color: var(--muted);
@@ -317,7 +321,7 @@
 .perf-amount-input-wrap input {
   background: transparent;
   border: none;
-  font-size: 12px;
+  font-size: var(--text-small);
   font-weight: 600;
   color: var(--ink);
   width: 100%;
@@ -327,7 +331,7 @@
 
 .perf-amount-input-wrap small {
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-micro);
 }
 
 /* Performance Chart */
@@ -358,7 +362,7 @@
   padding-top: 10px;
   border-top: 1px solid var(--line);
   margin-top: 6px;
-  font-size: 11px;
+  font-size: var(--text-caption);
   min-height: 28px;
 }
 
@@ -400,11 +404,11 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: 12px;
+  font-size: var(--text-small);
 }
 
 .node-label {
-  font-size: 10px;
+  font-size: var(--text-micro);
   color: var(--muted);
   text-transform: uppercase;
 }
@@ -440,7 +444,7 @@
 .perf-attribution-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--text-small);
   text-align: left;
 }
 
@@ -448,7 +452,7 @@
   padding: 10px 14px;
   background: var(--raised);
   border-bottom: 1px solid var(--line);
-  font-size: 10px;
+  font-size: var(--text-micro);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--muted);
@@ -502,7 +506,7 @@
   background: var(--raised);
   padding: 2px 6px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: var(--text-caption);
   color: var(--ink);
 }
 
@@ -513,7 +517,7 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 8px;
-  font-size: 11px;
+  font-size: var(--text-caption);
   color: var(--muted);
   padding-top: 4px;
   border-top: 1px solid var(--line);

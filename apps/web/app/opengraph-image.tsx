@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 export const alt =
-  "Kite — Your ideas. Onchain. Tokenized equities and thematic baskets on Solana.";
+  "Kite — Tokenized stocks. Your own wallet. Research, baskets and a vaultless SIP/DCA demo on Solana.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export default function OpenGraphImage() {
@@ -12,8 +12,8 @@ export default function OpenGraphImage() {
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
-        background: "#101311",
-        color: "#f4f6ef",
+        background: "#193c2b",
+        color: "#f6f5ef",
         padding: "70px",
         fontFamily: "sans-serif",
       }}
@@ -31,19 +31,29 @@ export default function OpenGraphImage() {
         />
         <span style={{ fontSize: 38 }}>Kite</span>
         <span style={{ fontSize: 18, marginLeft: "auto", color: "#d5f478" }}>
-          YOUR WORLD, ONCHAIN
+          TOKENIZED SECURITIES · SELF-CUSTODY
         </span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <div style={{ display: "flex", fontSize: 90, letterSpacing: -5 }}>
-          Your ideas. Onchain.
+        <div style={{ display: "flex", fontSize: 84, letterSpacing: -4 }}>
+          Tokenized stocks.
         </div>
-        <div style={{ display: "flex", fontSize: 30, color: "#b1bba9" }}>
-          Tokenized equities. Thematic baskets. Your own wallet.
+        <div
+          style={{
+            display: "flex",
+            fontSize: 84,
+            letterSpacing: -4,
+            color: "#d5f478",
+          }}
+        >
+          Your own wallet.
+        </div>
+        <div style={{ display: "flex", fontSize: 25, color: "#bdcabb" }}>
+          Research companies. Build baskets. Explore vaultless SIP/DCA.
         </div>
       </div>
-      <div style={{ display: "flex", fontSize: 22, color: "#d5f478" }}>
-        Explore with live prices. Start in paper mode.
+      <div style={{ display: "flex", fontSize: 19, color: "#bdcabb" }}>
+        Mainnet stock & basket purchases · Devnet recurring demonstration
       </div>
     </div>,
     size,

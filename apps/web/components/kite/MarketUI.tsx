@@ -34,7 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from "../ui/table";
-import { NativeSelect, NativeSelectOption } from "../ui/native-select";
+import GlideSelect from "../ui/GlideSelect";
 import { useRouteCoverage } from "./useRouteHealth";
 
 export const money = (value: number | null | undefined, digits = 2) =>
@@ -65,11 +65,18 @@ export function Change({ value }: { value: number | null | undefined }) {
 import { AssetAvatar } from "./AssetAvatar";
 export { AssetAvatar };
 
-export function AssetName({ asset }: { asset: MarketAsset }) {
+export function AssetName({
+  asset,
+  onClick,
+}: {
+  asset: MarketAsset;
+  onClick?: () => void;
+}) {
   return (
     <Link
       className="asset-name"
       href={`/stock/${encodeURIComponent(asset.mint)}`}
+      onClick={onClick}
     >
       <AssetAvatar asset={asset} />
       <span className="asset-label">
@@ -206,20 +213,22 @@ export function AssetTable({
             }}
           />
         </label>
-        <NativeSelect
+        <GlideSelect<AssetSort>
+          className="catalog-sort"
           disabled={filter === "backpack"}
-          aria-label="Sort assets"
+          ariaLabel="Sort assets"
           value={sort}
-          onChange={(event) => {
-            setSort(event.target.value as AssetSort);
+          options={[
+            { value: "volume", label: "Most traded" },
+            { value: "gainers", label: "Top gainers" },
+            { value: "losers", label: "Top losers" },
+            { value: "name", label: "Company A–Z" },
+          ]}
+          onChange={(next) => {
+            setSort(next);
             setLimit(pageSize);
           }}
-        >
-          <NativeSelectOption value="volume">Most traded</NativeSelectOption>
-          <NativeSelectOption value="gainers">Top gainers</NativeSelectOption>
-          <NativeSelectOption value="losers">Top losers</NativeSelectOption>
-          <NativeSelectOption value="name">Company A–Z</NativeSelectOption>
-        </NativeSelect>
+        />
       </div>
       <div
         className="catalog-filters filter-tabs"

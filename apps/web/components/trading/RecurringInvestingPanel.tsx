@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { fromTokenAmount, walletTransactionSignature } from "@kite/sdk";
 import { useTradingAuth } from "./TradingAuth";
-import { NativeSelect } from "../ui/native-select";
+import GlideSelect from "../ui/GlideSelect";
 import recurringStyles from "./recurring-controls.module.css";
 import {
   publishedRecurringOption,
@@ -625,39 +625,28 @@ export function RecurringInvestingPanel({
           <div className={recurringStyles.grid}>
             <label className="form-field">
               <span>Devnet stock or basket</span>
-              <NativeSelect
+              <GlideSelect
+                ariaLabel="Devnet stock or basket"
                 value={selectedToken}
-                onChange={(e) => setSelectedToken(e.target.value)}
-                disabled={loading || !config?.readyToPrepare}
-              >
-                {!selectedToken && (
-                  <option value="">Select a devnet asset</option>
-                )}
-                <optgroup label="Stocks">
-                  {config?.stocks.map((stock) => (
-                    <option
-                      key={stock.id}
-                      value={`stock:${stock.id}`}
-                      disabled={!stock.available}
-                    >
-                      {stock.name} ({stock.symbol})
-                      {!stock.available ? " · Not provisioned" : ""}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="Baskets">
-                  {config?.baskets.map((basket) => (
-                    <option
-                      key={basket.id}
-                      value={`basket:${basket.id}`}
-                      disabled={!basket.available}
-                    >
-                      {basket.name} ({basket.ticker})
-                      {!basket.available ? " · Unavailable" : ""}
-                    </option>
-                  ))}
-                </optgroup>
-              </NativeSelect>
+                onChange={setSelectedToken}
+                disabled={loading || Boolean(pending) || pendingUnreadable || !config?.readyToPrepare}
+                menuWidth={280}
+                options={[
+                  ...(!selectedToken ? [{ value: "", label: "Select a devnet asset" }] : []),
+                  ...(config?.stocks ?? []).map((stock) => ({
+                    value: `stock:${stock.id}`,
+                    label: `${stock.name} (${stock.symbol})${!stock.available ? " · Not provisioned" : ""}`,
+                    group: "Stocks",
+                    disabled: !stock.available,
+                  })),
+                  ...(config?.baskets ?? []).map((basket) => ({
+                    value: `basket:${basket.id}`,
+                    label: `${basket.name} (${basket.ticker})${!basket.available ? " · Unavailable" : ""}`,
+                    group: "Baskets",
+                    disabled: !basket.available,
+                  })),
+                ]}
+              />
             </label>
 
             <label className="form-field">
@@ -705,28 +694,29 @@ export function RecurringInvestingPanel({
             <div className="investing-field-row">
               <label className="form-field">
                 <span>Repeat</span>
-                <NativeSelect
+                <GlideSelect
+                  ariaLabel="Repeat"
                   value={period}
-                  onChange={(e) => {
-                    setPeriod(e.target.value);
+                  onChange={(value) => {
+                    setPeriod(value);
                     setPeriods((count) =>
                       String(
                         Math.min(
                           Number(count),
-                          Math.floor(31536000 / Number(e.target.value)),
+                          Math.floor(31536000 / Number(value)),
                         ),
                       ),
                     );
                   }}
-                  disabled={loading}
-                >
-                  <option value="60">Every 60 seconds · Devnet test</option>
-                  {Object.entries(RECURRING_CADENCES).map(([name, cadence]) => (
-                    <option key={name} value={cadence.seconds}>
-                      {cadence.label}
-                    </option>
-                  ))}
-                </NativeSelect>
+                  disabled={loading || Boolean(pending) || pendingUnreadable}
+                  options={[
+                    { value: "60", label: "Every 60 seconds · Devnet test" },
+                    ...Object.values(RECURRING_CADENCES).map((cadence) => ({
+                      value: String(cadence.seconds),
+                      label: cadence.label,
+                    })),
+                  ]}
+                />
               </label>
 
               <label className="form-field">

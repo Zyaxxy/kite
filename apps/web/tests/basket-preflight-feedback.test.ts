@@ -99,7 +99,7 @@ test("basket review waits for the active route check but unknown results can sti
         "@kite/sdk": sdk,
         "./SwapTokenSelector": { SwapTokenSelector: noOp },
         "./swap-tokens.module.css": { default: {} },
-        "../ui/native-select": { NativeSelect: noOp },
+        "../ui/GlideSelect": { default: noOp },
         "./useWalletPortfolio": {
           useWalletPortfolio: () => ({ refresh: noOp }),
         },

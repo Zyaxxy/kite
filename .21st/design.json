@@ -1,0 +1,153 @@
+{
+  "version": 1,
+  "project": {
+    "name": "kite-monorepo",
+    "productType": "Self-custody tokenized securities investing interface",
+    "stack": [
+      "Next.js App Router",
+      "React",
+      "TypeScript",
+      "CSS Modules",
+      "Tailwind",
+      "@kite/sdk"
+    ]
+  },
+  "sources": {
+    "tokens": [
+      "apps/web/styles/foundation.css",
+      "apps/web/components/kite/Landing.module.css"
+    ],
+    "components": [
+      "apps/web/components/kite/Brand.tsx",
+      "apps/web/components/kite/AssetAvatar.tsx",
+      "apps/web/components/kite/ThemeMode.tsx",
+      "apps/web/components/kite/MarketUI.tsx"
+    ],
+    "assets": [
+      "apps/web/public/fonts",
+      "apps/web/public/company-logos",
+      "apps/web/public/images/landing/dollar-abstract.webp",
+      "apps/web/public/images/landing/DollarAbstract.png"
+    ],
+    "instructions": ["PRODUCT.md", "AGENTS.md"]
+  },
+  "design": {
+    "colorMode": "light and dark",
+    "colors": {
+      "forest": "#193c2b",
+      "cream": "#f6f5ef",
+      "lime": "#d5f478",
+      "source": "Landing.module.css; inherited forest/cream/lime identity"
+    },
+    "typography": {
+      "body": "Local Manrope",
+      "displayAccent": "Georgia italic",
+      "financialNumbers": "tabular-nums"
+    },
+    "spacing": {
+      "desktopContainerPadding": "56px",
+      "mobileContainerPadding": "24px",
+      "maxWidth": "1320px"
+    },
+    "radius": { "editorialPanels": "4–5px" },
+    "shadows": {},
+    "motion": {
+      "entrances": "One 1.15s coordinated GSAP artwork/headline entrance, independent image parallax and allocation assembly; Kimia-inspired below-fold reading text fades upward once over 0.72s with a 0.065s stagger. No nested card/child entrances or chart drawing. Content is visible without JS and with reduced motion; focused actions are exposed immediately.",
+      "research": "Five persistent research panes on a finite GSAP-pinned chapter; pin the whole pair when it fits, otherwise a fitting workspace, with an inline oversized fallback",
+      "recurring": "Four scroll-driven stages; finite GSAP pinning with synchronous final-frame release, stable height, inline oversized fallback and pause/follow/direct controls",
+      "reducedMotion": "No pins, extended spacing, entrances, parallax or autoplay; static visible content, manual research tabs and explicit next-step controls"
+    },
+    "density": "Editorial landing page with focused financial data panels"
+  },
+  "components": {
+    "installed": [
+      "Brand",
+      "AssetAvatar",
+      "Change",
+      "ThemeToggle",
+      "SocialLinks"
+    ],
+    "preferredPrimitives": [
+      "Existing Kite components",
+      "Semantic details/summary",
+      "Lucide geometric icons"
+    ],
+    "patterns": [
+      "Source-backed research preview",
+      "SDK-resolved basket allocations",
+      "Bounded recurring plan illustration"
+    ]
+  },
+  "constraints": {
+    "must": [
+      "Mainnet spot and devnet recurring remain explicitly separate",
+      "Use actual observed market/research data and preserve unavailable states",
+      "Preserve forest/cream/lime identity and wallet ownership",
+      "Respect reduced motion and keyboard navigation"
+    ],
+    "avoid": [
+      "Invented returns, prices, charts, testimonials or creator stats",
+      "Vague onchain slogans",
+      "Unconditional atomicity claims",
+      "Calendar-month claims for fixed 30-day cadence"
+    ]
+  },
+  "decisions": [
+    {
+      "date": "2026-10-08",
+      "scope": "Single footer and complete scroll chapters",
+      "decision": "Combine the final CTA and landing footer into one forest ending with product/community links, risk disclosure and working privacy/data controls. Suppress only the global footer on the two landing routes, retaining consent state, banners, storage errors and other routes' footers. Pin a whole chapter or its fitting smaller stage, compact vertical spacing for short reading viewports without shrinking type or controls, remove independent timed widget-shell transforms and finish scroll timelines at 86% of the pin before a final hold and release. Preserve reduced-motion and genuinely oversized fallbacks."
+    },
+    {
+      "date": "2026-10-07",
+      "scope": "Market and source information architecture",
+      "decision": "Move the market snapshot from the hero into the research chapter's unpinned conclusion, aligned to its content grid. Replace the separate tools and catalog strips with one editorial source section after How Kite Works and before FAQ. Keep issuers and tools in distinct labeled groups; retain official Jupiter/Pyth marks, issuer eligibility caveats, conditional reference feeds, observation dates and unavailable states. No new dependency or fabricated data."
+    },
+    {
+      "date": "2026-10-07",
+      "scope": "Island CTA spacing",
+      "decision": "The header theme toggle fades and collapses during the island morph, returning at the top. Exclude it from the measured island width and match surface gaps to that geometry so Open Kite fits. Concealed theme controls are inert; mobile Appearance controls stay in the menu."
+    },
+    {
+      "date": "2026-10-07",
+      "scope": "Continuous island morph and finite scroll chapters",
+      "decision": "The user explicitly requests smooth nav morphing and chapter locking, superseding earlier discrete docking/native sticky. Morph one centered surface over 180px without scaling text or shifting the hero. Use finite GSAP pins for research, allocation, recurring and ownership sequences, synchronous final-frame release, measured fit and reduced-motion/oversized fallbacks. Place compact dated observed quotes inside the hero bottom and identify Jupiter/Pyth with official local logo assets, not endorsement claims."
+    },
+    {
+      "date": "2026-10-07",
+      "scope": "Floating navigation and market layout",
+      "decision": "Adapt the central dock observed in Griffin.mp4 using the existing nav controls: fix and horizontally center the link/action group after the original header leaves, preserve header height, retain desktop theme controls and provide a bounded keyboard-accessible mobile menu. Reserve 96px above fitting sticky stories. Replace the cramped ribbon with a distinct heading/link row, four equal desktop quote columns and a two-column tablet/phone grid, keeping observation dates, real prices and unavailable/stale states. No new dependency or third-party component was installed."
+    },
+    {
+      "date": "2026-10-07",
+      "scope": "Landing page",
+      "decision": "Adapt the user's Kimia and Griffin references into an editorial forest/cream landing page with original architectural imagery, serif accents, real product data and an interactive vaultless SIP/DCA explanation. Retain Kite's existing components; 21st component 29553 informed feature composition but its spotlight styling and extra dependencies were not imported."
+    },
+    {
+      "date": "2026-10-07",
+      "scope": "Landing page motion",
+      "decision": "Use GSAP 3.15.0 and @gsap/react 2.1.2 for an authored vaultless recurring scroll story, with scoped cleanup and responsive/reduced-motion fallbacks. 21st scroll-story search informed the progress/step treatment; additional retrieval was unavailable under the daily limit, so no third-party component code was installed. Preserve product truth and do not animate or synthesize financial values."
+    },
+    {
+      "date": "2026-10-07",
+      "scope": "Scroll story rebuild and user artwork",
+      "decision": "Use the user's DollarAbstract artwork for the hero; retain the Wall Street film poster as a reference only. Replace timed mobile playback and GSAP pin spacers with native sticky stages plus one normalized scroll controller each for research and recurring. Keep panes/captions mounted to prevent phase-dependent layout shifts. The latest contextual 21st search was blocked by workspace data-egress review; continue with Kite primitives without uploading context or installing component code."
+    },
+    {
+      "date": "2026-10-07",
+      "scope": "Landing initial rendering",
+      "decision": "Use the existing getServerMarkets waitUntil/Next after contract on both dynamic landing routes, matching the market API. Render observed cache or verified catalog identity without awaiting the entire price refresh, while preserving unavailable data, observation dates and existing shared-cache behavior."
+    }
+  ],
+  "evidence": [
+    {
+      "fact": "project.instructions",
+      "source": "AGENTS.md"
+    },
+    {
+      "fact": "project.instructions",
+      "source": "PRODUCT.md"
+    }
+  ],
+  "generatedAt": "2026-10-07T07:28:50.377Z"
+}

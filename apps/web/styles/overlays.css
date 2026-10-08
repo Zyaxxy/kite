@@ -15,7 +15,7 @@
   width: 100%;
   max-width: 600px;
   border: 1px solid #526046;
-  border-radius: 20px;
+  border-radius: var(--radius-panel);
   background: var(--surface);
   box-shadow: 0 25px 100px #0009;
   animation: enter 0.2s ease;
@@ -24,7 +24,7 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 19px 21px;
+  padding: var(--space-5) var(--space-6);
   border-bottom: 1px solid var(--line);
 }
 .modal-header input {
@@ -45,7 +45,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 13px;
-  border-radius: 11px;
+  border-radius: var(--radius-control);
 }
 .search-result:hover {
   background: var(--raised);
@@ -53,7 +53,7 @@
 .modal-footer {
   padding: 14px 22px;
   border-top: 1px solid var(--line);
-  font-size: 10px;
+  font-size: var(--text-micro);
   color: var(--muted);
 }
 .toast {
@@ -67,7 +67,7 @@
   color: var(--ink);
   padding: 14px 18px;
   border-radius: 12px;
-  font-size: 12px;
+  font-size: var(--text-small);
   display: flex;
   align-items: center;
   gap: 12px;

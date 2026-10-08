@@ -28,12 +28,13 @@
   margin: 18px 0;
 }
 .segmented button {
+  min-height: var(--control-height-compact);
   flex: 1;
   background: transparent;
   color: var(--muted);
   border-radius: 7px;
   padding: 8px;
-  font-size: 12px;
+  font-size: var(--text-small);
 }
 .segmented button.active {
   background: var(--raised);
@@ -65,10 +66,10 @@
   padding: 15px;
   text-align: left;
   border-bottom: 1px solid var(--line);
-  font-size: 12px;
+  font-size: var(--text-small);
 }
 .actual-portfolio .data-table th {
-  font-size: 10px;
+  font-size: var(--text-micro);
   color: var(--muted);
   font-weight: 400;
 }
@@ -110,7 +111,7 @@
   min-height: 260px;
 }
 .empty-state > p {
-  font-size: 12px;
+  font-size: var(--text-small);
   color: var(--muted);
   max-width: 470px;
   line-height: 1.8;
@@ -147,10 +148,10 @@
   text-align: left;
   padding: 18px;
   border-bottom: 1px solid var(--line);
-  font-size: 12px;
+  font-size: var(--text-small);
 }
 .table-wrap th {
-  font-size: 10px;
+  font-size: var(--text-micro);
   color: var(--muted);
   font-weight: 400;
 }
@@ -202,7 +203,7 @@
 }
 .bottom-nav .more-links a {
   flex-direction: row;
-  font-size: 12px;
+  font-size: var(--text-small);
   gap: 11px;
   padding: 11px 12px;
   align-items: center;

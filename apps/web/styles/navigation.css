@@ -4,7 +4,7 @@
 }
 .kite-workspace .workspace-main {
   max-width: 1440px;
-  padding: 24px 48px 0;
+  padding: var(--space-6) var(--space-12) 0;
   margin: 0 auto;
 }
 .workspace-header {
@@ -18,7 +18,7 @@
 .workspace-header-inner {
   max-width: 1440px;
   margin: 0 auto;
-  padding: 12px 28px;
+  padding: var(--space-3) var(--space-12);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -78,12 +78,12 @@
   align-items: center;
   justify-content: center;
   gap: 7px;
-  min-height: 30px;
-  padding: 4px 10px;
+  min-height: var(--control-height-compact);
+  padding: 8px 12px;
   border-radius: 24px;
   color: var(--muted);
   background: transparent;
-  font-size: 12px;
+  font-size: var(--text-small);
   font-weight: 500;
   letter-spacing: -0.01em;
   white-space: nowrap;
@@ -147,7 +147,7 @@
   font-family: var(--font-nav);
   background: transparent;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-caption);
 }
 .header-search:hover {
   color: var(--ink);
@@ -157,7 +157,7 @@
   padding: 3px 5px;
   border: 1px solid var(--line);
   border-radius: 4px;
-  font-size: 11px;
+  font-size: var(--text-caption);
 }
 .account-trigger {
   display: flex;
@@ -191,10 +191,10 @@
 }
 .account-trigger-copy strong {
   font-weight: 500;
-  font-size: 10px;
+  font-size: var(--text-micro);
 }
 .account-trigger-copy small {
-  font-size: 10px;
+  font-size: var(--text-micro);
   color: var(--muted);
 }
 .workspace-context {
@@ -202,11 +202,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 30px;
+  margin-bottom: var(--space-8);
   gap: 16px;
 }
 .workspace-context .breadcrumb {
-  font-size: 12px;
+  font-size: var(--text-small);
 }
 .workspace-context .header-mode {
   margin: 0;
@@ -244,7 +244,7 @@
   background: transparent;
   border-radius: 12px;
   color: var(--ink);
-  font-size: 13px;
+  font-size: var(--text-small);
   text-align: left;
   cursor: pointer;
 }
@@ -266,7 +266,7 @@
 .kite-menu-item small {
   display: block;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-caption);
   margin-top: 4px;
 }
 .kite-menu-separator {
@@ -279,7 +279,7 @@
 }
 .kite-menu-heading p {
   margin-top: 6px;
-  font-size: 14px;
+  font-size: var(--text-body);
 }
 .account-menu-heading {
   display: flex;
@@ -289,13 +289,13 @@
 }
 .account-menu-heading strong {
   display: block;
-  font-size: 14px;
+  font-size: var(--text-body);
   font-weight: 500;
 }
 .account-menu-heading small {
   display: block;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-caption);
   margin-top: 4px;
 }
 .account-signin {
@@ -309,7 +309,7 @@
 }
 .account-menu-error {
   padding: 8px 12px;
-  font-size: 12px;
+  font-size: var(--text-small);
 }
 .portfolio-activity {
   margin-top: 44px;
@@ -340,7 +340,7 @@
   border: 1px solid var(--line);
   border-radius: 30px;
   gap: 20px;
-  font-size: 13px;
+  font-size: var(--text-small);
 }
 .landing-open > span {
   display: grid;
@@ -353,7 +353,7 @@
 }
 @media (max-width: 1200px) {
   .workspace-header-inner {
-    padding: 10px 16px;
+    padding: 10px var(--space-6);
     gap: 12px;
   }
   .navigation-core {
@@ -367,7 +367,7 @@
     height: 24px;
   }
   .kite-workspace .workspace-main {
-    padding: 24px 28px 0;
+    padding: var(--space-6) var(--space-6) 0;
   }
   .navigation-pill {
     gap: 8px;
@@ -391,12 +391,34 @@
     gap: 16px;
   }
 }
+/* Keep every navigation and account control visible on narrow tablets. */
+@media (min-width: 761px) and (max-width: 960px) {
+  .kite-workspace .workspace-header-inner {
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+  .kite-workspace .navigation-core {
+    display: contents;
+  }
+  .kite-workspace .workspace-header-actions {
+    margin-left: auto;
+  }
+  .kite-workspace .navigation-pill {
+    order: 3;
+    width: 100%;
+  }
+  .kite-workspace .primary-navigation {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
 @media (max-width: 760px) {
   .kite-workspace .workspace-main {
-    padding: 20px 20px 0;
+    padding: var(--space-6) var(--space-5) 0;
   }
   .workspace-header-inner {
-    padding: 10px 14px;
+    padding: 10px var(--space-5);
   }
   .workspace-header .primary-navigation {
     display: none;
@@ -407,11 +429,11 @@
     padding: 0;
   }
   .workspace-context {
-    margin-bottom: 26px;
+    margin-bottom: var(--space-6);
   }
   .workspace-context .breadcrumb {
     display: flex;
-    font-size: 11px;
+    font-size: var(--text-caption);
   }
   .kite-workspace .kite-bottom-nav {
     display: grid;
@@ -420,7 +442,7 @@
   }
   .kite-bottom-nav a {
     min-height: 46px;
-    font-size: 10px;
+    font-size: var(--text-micro);
     gap: 5px;
   }
   .account-trigger {
@@ -453,7 +475,7 @@
     margin-top: 10px;
   }
   .landing-nav-header .primary-nav-link {
-    font-size: 12px;
+    font-size: var(--text-small);
     padding: 10px 12px;
   }
   .landing-nav-header .landing-open {
