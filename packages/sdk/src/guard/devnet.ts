@@ -78,7 +78,6 @@ export const GUARD_VERSION = 2;
 const CREATE = [77, 43, 141, 254, 212, 118, 41, 186];
 const COLLECT = [56, 182, 124, 215, 155, 140, 157, 102];
 const CLOSE = [45, 137, 184, 220, 162, 253, 161, 8];
-const PROTOCOL = [147, 149, 48, 158, 234, 222, 20, 181];
 const PLAN = [161, 231, 251, 119, 2, 12, 162, 2];
 const POOL = [247, 237, 227, 245, 215, 195, 222, 70];
 const AMM_CONFIG = [218, 244, 33, 104, 203, 203, 43, 111];
@@ -555,14 +554,6 @@ function legAccounts(
     ];
   });
 }
-export function buildGuardProtocolVersionInstruction(): TransactionInstruction {
-  return new TransactionInstruction({
-    programId: KITE_GUARD_PROGRAM_ID,
-    keys: [],
-    data: Buffer.from(PROTOCOL),
-  });
-}
-
 export async function buildGuardCreateInstructions(
   params: BuildGuardCreateParams,
 ): Promise<{ instructions: TransactionInstruction[]; plan: DevnetGuardPlan }> {

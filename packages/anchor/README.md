@@ -1,6 +1,6 @@
 # Kite Guard v2 — devnet recurring execution
 
-The Guard collects an owner-approved installment through the official Solana Subscriptions program and executes every approved stock or basket leg through the official Raydium **devnet** CPMM program. Its plan PDA signs these CPIs; the caller only signs transaction fees. The deployed legacy counter-only program must be upgraded separately before the v2 API can become ready. This change does not deploy programs, provision liquidity, or run a cron worker.
+The current Guard collects an owner-approved installment of test KUSD through the official Solana Subscriptions program and mints devnet test-stock outputs. Its plan PDA signs these CPIs; the collector only signs transaction fees. This flow requires no Raydium pools. Preparation simulates the requested transaction directly against the deployed binary. Source changes and local builds do not upgrade devnet.
 
 See [the protocol documentation](../../docs/kite-guard-protocol.md) for the application workflow and deployment requirements.
 
@@ -21,6 +21,8 @@ pnpm --filter @kite/anchor test
 
 ## Runtime coverage and limits
 
+The older CPMM fixtures below target a historical ABI and do not verify the current test-token minting flow.
+
 The LiteSVM suite executes the compiled Guard and the actual pinned Subscriptions and Raydium SBF binaries. Test owners and fee payers are newly generated local keypairs. Mints, reserves, pools, and some existing plans are explicit local fixtures; they do not assert that public devnet liquidity has been provisioned.
 
 Coverage includes:
@@ -30,6 +32,6 @@ Coverage includes:
 - A second-leg slippage failure that rolls back the collection, first delivery, all pool/vault/oracle changes, delegation state, and Guard counters byte for byte.
 - Actual delegation revocation, donation recovery, and account closure.
 - Owner cancellation when empty staging and owner accounts are frozen; creation and execution still require mints without freeze authorities. A frozen nonempty token balance is subject to the SPL Token program's transfer restrictions.
-- Capability probing and rejection of funding/output freeze authorities or creator-fee pools before collection.
+- Rejection of funding/output freeze authorities or creator-fee pools before collection.
 
 The local runtime harness uses v0 transactions for its stock and two-asset cases. SDK tests separately verify V1 serialization and account limits for the public basket catalog. Neither test establishes successful submission against a newly upgraded public devnet Guard or provisioned pools.

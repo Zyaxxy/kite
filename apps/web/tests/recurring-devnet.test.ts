@@ -500,7 +500,7 @@ async function fixturePlan() {
 }
 function backend({
   plan,
-  protocolFailure = false,
+  simulationFailure = false,
   delegation,
   stateClosed = false,
   tokenManifest = sdk.createUnprovisionedDevnetManifest(),
@@ -582,9 +582,9 @@ function backend({
           lastValidBlockHeight: 1000,
         }),
         recurringDevnetRpc: rpc,
-        simulateRecurring: async (_transaction, expected) => {
-          if (expected && protocolFailure)
-            throw new Error("Unsupported deployed protocol v1");
+        simulateRecurring: async (transaction) => {
+          calls.push({ method: "simulateRecurring", transaction });
+          if (simulationFailure) throw new Error("Devnet simulation failed");
         },
         authorizeRecurringTransaction: async (value) => ({
           ...value,
@@ -735,13 +735,32 @@ test("owner can close a plan after its delegation was revoked, without a manifes
     });
     assert.equal(result.operation, "close");
     assert.equal(result.plan, plan.address);
-    const close = api.composed.at(-1).instructions.at(-2);
+    const instructions = api.composed.at(-1).instructions;
+    assert.equal(
+      instructions.length,
+      2,
+      "only ATA setup and the close instruction are composed",
+    );
+    const close = instructions.at(-1);
+    assert.equal(
+      api.calls.filter((call) => call.method === "simulateRecurring").length,
+      1,
+    );
     assert.equal(
       close.keys[3].pubkey.toBase58(),
       wallet,
       "closed permission has no separate rent recipient",
     );
   }
+  await assert.rejects(
+    () =>
+      backend({ plan, simulationFailure: true }).closeDevnetRecurringPlan({
+        plan: plan.address,
+        owner: wallet,
+        supportedTransactionVersions: [1],
+      }),
+    /Devnet simulation failed/,
+  );
   await assert.rejects(
     () =>
       backend({ plan }).closeDevnetRecurringPlan({

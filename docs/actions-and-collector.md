@@ -19,7 +19,7 @@ Manual verification after deployment: inspect GET and OPTIONS headers, then POST
 ## Devnet subscription behavior
 
 - Cadences are daily, weekly, every two weeks, or a fixed 30-day interval. Total permission duration is at most one year. The metadata explicitly distinguishes the 30-day schedule from calendar-month billing.
-- The same Guard and official Subscriptions instruction builder is used by the app, native mobile and Actions. Owner, funding authority generation, provisioned mint ownership/authority, exact allocation, signer count and devnet genesis are checked. A protocol-version simulation must pass before any transaction is returned.
+- The same Guard and official Subscriptions instruction builder is used by the app, native mobile and Actions. Owner, funding authority generation, provisioned mint ownership/authority, exact allocation, signer count and devnet genesis are checked. The actual requested transaction must pass simulation before it is returned for approval.
 - Creator IDs resolve immutable published records from the creator registry; request bodies cannot inject allocations, destinations, mints, instructions or delegates. A creator asset without a provisioned devnet test mint blocks the subscription.
 - V0 messages have at most 64 accounts and 1,232 serialized bytes, with no lookup tables. Larger setups are rejected with a useful error. Setup is never split into independently signable delegation and guard transactions. Standard app requests can advertise V1 and use it only if activated on the selected devnet RPC.
 - Actions are the only API namespace with wildcard CORS. Metadata, POST responses, errors and OPTIONS advertise the devnet CAIP-2 ID. No browser credentials or privileged executor token are used by Actions.
@@ -52,5 +52,7 @@ Creator subscriber statistics are checked against confirmed plan, delegation, au
 TypeScript tests cover bearer authorization, isolation, leases, deadlines, exact-message recovery, real Ed25519 signatures, cluster separation, V0 negotiation, packet/account bounds, and Action request validation. No chain deployment, private-key broadcast, or funded transaction was performed as part of implementation.
 
 Before rollout, configure the executor secret in the deployment and cron provider, inspect Actions at the public HTTPS origin, and verify the deployed Guard protocol with a funded devnet test wallet. Larger basket setup can exceed the V0 packet limit; wallets must advertise V1 explicitly to use the larger format. Recurring mainnet execution remains disabled.
+
+Preparation simulates the complete requested create, collect or close transaction directly. It does not append a separate capability probe or require return data. An unsupported real instruction still fails simulation and blocks approval. Current devnet test-stock minting requires no AMM pool liquidity.
 
 References: [Solana Actions specification](https://solana.com/docs/tools/actions), [official Actions SDK](https://www.npmjs.com/package/@solana/actions), [Dialect registration](https://dial.to/register), [Blinks Inspector](https://www.blinks.xyz/).

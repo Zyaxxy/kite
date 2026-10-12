@@ -16,7 +16,6 @@ import {
   buildGuardCloseInstructions,
   buildGuardCollectInstructions,
   buildGuardCreateInstructions,
-  buildGuardProtocolVersionInstruction,
   composeV1Transaction,
   composeDevnetV0Transaction,
   decodeGuardPlan,
@@ -224,7 +223,7 @@ export async function getDevnetRecurringConfig() {
     status: reasons.length ? "blocked" : "requires-wallet-verification",
     readyToPrepare: reasons.length === 0,
     contractVerification:
-      "The connected wallet must pass a protocol simulation before any transaction is returned for approval.",
+      "The connected wallet's requested transaction must pass simulation before it is returned for approval.",
     reasons,
     fundingToken: catalog?.fundingToken ?? null,
     fundingSymbol: "KUSD",
@@ -262,29 +261,22 @@ async function prepareOrder(
   transactionVersion: 0 | 1 = 1,
 ) {
   const lifetime = await recurringLatestBlockhash();
-  const reviewedInstructions = [
-    ...instructions,
-    buildGuardProtocolVersionInstruction(),
-  ];
   const built =
     transactionVersion === 0
       ? composeDevnetV0Transaction({
           payer,
           ...lifetime,
-          instructions: reviewedInstructions,
+          instructions,
         })
       : await composeV1Transaction({
           payer,
           ...lifetime,
-          instructions: reviewedInstructions,
+          instructions,
           allowV1: true,
           computeUnitLimit: 1_400_000,
           priorityFeeLamports: 0,
         });
-  await simulateRecurring(built.transaction, {
-    programId: GUARD_PROGRAM,
-    value: 2,
-  });
+  await simulateRecurring(built.transaction);
   return authorizeRecurringTransaction({
     transaction: built.transaction,
     signer: payer,

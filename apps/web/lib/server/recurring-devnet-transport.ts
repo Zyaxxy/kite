@@ -8,6 +8,7 @@ import {
 import { PublicKey } from "@solana/web3.js";
 import {
   DEVNET_GENESIS_HASH,
+  describeRecurringSimulationFailure,
   inspectWalletTransaction,
   walletTransactionSignature,
 } from "@kite/sdk";
@@ -16,7 +17,6 @@ import { getDevnetRpcUrl, recurringRpcTimeout } from "./devnet-connection";
 
 const TX_V1_FEATURE = "txv1aq4pp281K9um3tnPgkfX8UqtFT6wcVW3hNezGLL";
 const FEATURE_PROGRAM = "Feature111111111111111111111111111111111111";
-export const RECURRING_PROTOCOL_VERSION = 2;
 
 /** Recurring never inherits the mainnet trading RPC or the browser wallet connection. */
 export async function recurringDevnetRpc<T>(
@@ -102,15 +102,12 @@ export async function recurringLatestBlockhash() {
   ).value;
 }
 
-export async function simulateRecurring(
-  transaction: string,
-  expectedReturn?: { programId: string; value: number },
-) {
+export async function simulateRecurring(transaction: string) {
   const { value } = await recurringDevnetRpc<{
     value: {
       err: unknown;
+      logs?: string[] | null;
       unitsConsumed?: number;
-      returnData?: { programId: string; data: [string, string] };
     };
   }>("simulateTransaction", [
     transaction,
@@ -124,31 +121,9 @@ export async function simulateRecurring(
   if (value.err !== null) {
     console.error(
       "Devnet simulation failed:",
-      JSON.stringify(
-        { err: value.err, logs: (value as { logs?: string[] }).logs },
-        null,
-        2,
-      ),
+      JSON.stringify({ err: value.err, logs: value.logs }, null, 2),
     );
-    throw new Error(
-      "The devnet transaction failed simulation. Check test-token balances, pool liquidity, account rent, and the deployed recurring contract version.",
-    );
-  }
-  if (expectedReturn) {
-    const returned = value.returnData;
-    const data =
-      returned?.data[1] === "base64"
-        ? Buffer.from(returned.data[0], "base64")
-        : null;
-    if (
-      returned?.programId !== expectedReturn.programId ||
-      data?.length !== 1 ||
-      data[0] !== expectedReturn.value
-    ) {
-      throw new Error(
-        "The deployed recurring contract does not implement protocol v2. Upgrade the devnet contract before creating or collecting a plan.",
-      );
-    }
+    throw new Error(describeRecurringSimulationFailure(value.err, value.logs));
   }
   return value;
 }

@@ -4,6 +4,73 @@ const TOKEN_PROGRAMS = new Set([
   "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
   "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
 ]);
+const GUARD = "8Fm9HENPAFnyo6L8cHJFx62HHsZ6ez6CPUDuzgKAzrjs";
+
+/** Devnet recurring uses test-token minting. Never suggest AMM liquidity fixes. */
+export function describeRecurringSimulationFailure(
+  error: unknown,
+  logs?: unknown,
+): string {
+  const data =
+    error && typeof error === "object"
+      ? (error as Record<string, unknown>)
+      : {};
+  const instruction = Array.isArray(data.InstructionError)
+    ? data.InstructionError
+    : [];
+  const reason = instruction[1];
+  const custom =
+    reason && typeof reason === "object"
+      ? (reason as Record<string, unknown>).Custom
+      : undefined;
+  const lines = Array.isArray(logs)
+    ? logs
+        .slice(0, 2000)
+        .filter((line): line is string => typeof line === "string")
+    : [];
+  let topLevel = 0;
+  lines.forEach((line, index) => {
+    if (/^Program [1-9A-HJ-NP-Za-km-z]+ invoke \[1\]$/.test(line))
+      topLevel = index;
+  });
+  const failed = lines
+    .slice(topLevel)
+    .find((line) => /^Program [1-9A-HJ-NP-Za-km-z]+ failed:/.test(line));
+  const match = failed?.match(
+    /^Program ([1-9A-HJ-NP-Za-km-z]+) failed: custom program error: (0x[0-9a-f]+|[0-9]+)$/i,
+  );
+  const failedProgram =
+    match && Number(match[2]) === custom ? match[1] : undefined;
+  if (failedProgram === GUARD && custom === 101) {
+    return "The deployed devnet recurring contract does not support a required instruction (Guard error 101). Upgrade the devnet Guard to the app's current protocol before retrying. Adding SOL or KUSD will not fix this contract mismatch.";
+  }
+  if (
+    error === "InsufficientFundsForFee" ||
+    "InsufficientFundsForRent" in data ||
+    reason === "InsufficientFundsForRent" ||
+    (failedProgram === SYSTEM && custom === 1)
+  ) {
+    return "Not enough devnet SOL for transaction fees or account rent. Add devnet SOL to the fee-payer wallet, then review again.";
+  }
+  if (
+    reason === "InsufficientFunds" ||
+    (failedProgram && TOKEN_PROGRAMS.has(failedProgram) && custom === 1)
+  ) {
+    return "The devnet recurring transaction reported insufficient test tokens. Check the wallet's test KUSD balance and delegated allowance, then review again.";
+  }
+  if (error === "BlockhashNotFound") {
+    return "The devnet transaction's blockhash expired or is unavailable. Refresh the review to prepare a new transaction.";
+  }
+  const index =
+    Number.isSafeInteger(instruction[0]) && instruction[0] >= 0
+      ? instruction[0] + 1
+      : null;
+  const code =
+    Number.isSafeInteger(custom) && Number(custom) >= 0
+      ? `, program error ${custom}`
+      : "";
+  return `The devnet recurring transaction failed simulation${index === null ? "" : ` at instruction ${index}${code}`}. Check the server simulation logs for the failing instruction before retrying.`;
+}
 
 /** Safe user-facing reasons, never raw RPC/provider logs or unscoped custom codes. */
 export function describeSimulationFailure(

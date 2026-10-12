@@ -167,13 +167,6 @@ test('SDK creation initializes the real subscription authority and grant, then a
   assert.equal(balance(f.svm, f.source), 900_000_000n);
 });
 
-test('protocol capability probe returns version 2 without any accounts', async () => {
-  const f = await fixture();
-  const result = send(f.svm, [sdk.buildGuardProtocolVersionInstruction()], f.feePayer);
-  expectSuccess(result);
-  assert.ok(result.logs().some(log => log.includes(`Program return: ${GUARD} Ag==`)), result.logs().join('\n'));
-});
-
 test('funding/output freeze authorities and creator-fee routes are rejected before collection', async () => {
   for (const variant of ['funding', 'output', 'creator-fee']) {
     const f = await fixture();

@@ -14,8 +14,31 @@ import {
   authorizeRecurringTransaction,
   executeRecurringTransaction,
   recurringTransactionVersion,
+  simulateRecurring,
   verifyRecurringTransaction,
 } from "../lib/server/recurring-devnet-transport";
+
+test("recurring simulation accepts success without return data and still rejects real instruction failures", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousError = console.error;
+  let err: unknown = null;
+  globalThis.fetch = async () => Response.json({ result: { value: { err } } });
+  console.error = () => {};
+  try {
+    assert.equal(
+      (await simulateRecurring("unsigned-test-transaction")).err,
+      null,
+    );
+    err = { InstructionError: [2, "InvalidAccountData"] };
+    await assert.rejects(
+      () => simulateRecurring("unsigned-test-transaction"),
+      /instruction 3/,
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+    console.error = previousError;
+  }
+});
 
 test("devnet client is independent of mainnet settings and the RPC deadline is bounded", async () => {
   const previous = {
