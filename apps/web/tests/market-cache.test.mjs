@@ -50,6 +50,7 @@ function snapshot(asset = {}, extra = {}) {
     assets,
     baskets: sdk.resolveReviewedMarketBaskets(assets),
     network: "mainnet-beta",
+    issuerCatalogVersion: sdk.ISSUER_CATALOG_VERSION,
     asOf: new Date(initialTime).toISOString(),
     status: "partial",
     warnings: [],
@@ -67,7 +68,7 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-function cache({ getCatalog = async () => snapshot(), getMarkets } = {}) {
+function cache({ getCatalog = async () => snapshot(), getMarkets, storedCatalog = null, storedSnapshot = null, storage = null } = {}) {
   let now = initialTime;
   const calls = { catalog: 0, prices: [] };
   const exports = {};
@@ -83,19 +84,19 @@ function cache({ getCatalog = async () => snapshot(), getMarkets } = {}) {
     require: (name) => {
       if (name === "./redis") {
         return {
-          isRedisConfigured: () => false,
-          getRedisMarketSnapshot: async () => null,
+          isRedisConfigured: () => storage === "redis",
+          getRedisMarketSnapshot: async () => storedSnapshot,
           setRedisMarketSnapshot: async () => undefined,
-          getRedisCatalog: async () => null,
+          getRedisCatalog: async () => storedCatalog,
           setRedisCatalog: async () => undefined,
         };
       }
       if (name === "./disk-cache") {
         return {
-          isDiskCacheConfigured: () => false,
-          getDiskMarketSnapshot: async () => null,
+          isDiskCacheConfigured: () => storage === "disk",
+          getDiskMarketSnapshot: async () => storedSnapshot,
           setDiskMarketSnapshot: async () => undefined,
-          getDiskCatalog: async () => null,
+          getDiskCatalog: async () => storedCatalog,
           setDiskCatalog: async () => undefined,
         };
       }
@@ -103,6 +104,8 @@ function cache({ getCatalog = async () => snapshot(), getMarkets } = {}) {
       return {
         resolveReviewedMarketBaskets: sdk.resolveReviewedMarketBaskets,
         resolveAllMarketBaskets: sdk.resolveAllMarketBaskets,
+        hasCompleteIssuerCatalogs: sdk.hasCompleteIssuerCatalogs,
+        ISSUER_CATALOG_VERSION: sdk.ISSUER_CATALOG_VERSION,
         getMainnetCatalog: () => {
           calls.catalog++;
           return getCatalog();
@@ -435,4 +438,76 @@ test("an empty unavailable catalog skips pricing and is retried after the short 
   assert.equal(recovered.assets[0].priceUsd, 127);
   assert.equal(service.calls.catalog, 2);
   assert.equal(service.calls.prices.length, 1);
+});
+
+for (const storage of ["redis", "disk"]) {
+  test(`${storage} cached catalogs and snapshots resolve current basket definitions`, async () => {
+    const staleDefinitions = snapshot({ priceUsd: 120 }, {
+      baskets: [{ id: "retired-cache-only-basket", assets: [], available: true }],
+    });
+    const service = cache({ storedCatalog: staleDefinitions, storedSnapshot: staleDefinitions, storage });
+    for (const value of [await service.getServerMarketCatalog(), await service.getServerMarkets()]) {
+      assert.equal(value.baskets.some((b) => b.id === "retired-cache-only-basket"), false);
+      assert.ok(value.baskets.some((b) => b.id === "sol-digital-leaders"));
+      assert.equal(value.asOf, staleDefinitions.asOf);
+    }
+    assert.equal(service.calls.catalog, 0);
+    assert.equal(service.calls.prices.length, 0);
+  });
+
+  test(`${storage} expired issuer metadata is refreshed without resetting its age`, async () => {
+    const expired = snapshot({}, { asOf: "2026-09-12T12:00:00Z" });
+    const service = cache({ storedCatalog: expired, storage });
+    const value = await service.getServerMarketCatalog();
+    assert.equal(service.calls.catalog, 1);
+    assert.equal(value.asOf, new Date(initialTime).toISOString());
+  });
+
+  test(`${storage} catalogs from the incomplete pagination loader are ignored even when marked live`, async () => {
+    const poisoned = snapshot({}, { status: "live", issuerCatalogVersion: undefined });
+    const service = cache({ storedCatalog: poisoned, storage });
+    const value = await service.getServerMarketCatalog();
+    assert.equal(service.calls.catalog, 1);
+    assert.equal(value.issuerCatalogVersion, sdk.ISSUER_CATALOG_VERSION);
+  });
+
+  test(`${storage} stale display data starts a refresh immediately using the issuer catalog`, async () => {
+    const prices = deferred();
+    const expired = snapshot({ priceUsd: 120 }, {
+      asOf: "2026-09-12T12:00:00Z",
+      sources: ["xStocks issuer catalog"],
+    });
+    const identity = snapshot();
+    const service = cache({ storedSnapshot: expired, storage, getCatalog: async () => identity, getMarkets: () => prices.promise });
+    const background = [];
+    const value = await withoutProviderWait(service.getServerMarkets({ waitUntil: (task) => background.push(task) }));
+    assert.equal(value.refreshing, true);
+    assert.equal(value.asOf, expired.asOf);
+    assert.equal(value.assets[0].priceUsd, 120);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(service.calls.catalog, 1);
+    assert.deepEqual(service.calls.prices[0].catalog.sources, identity.sources);
+    prices.resolve(snapshot({ priceUsd: 125 }));
+    await Promise.all(background);
+    assert.equal((await service.getServerMarkets()).assets[0].priceUsd, 125);
+  });
+}
+
+test("a partial issuer catalog retries after a short backoff while complete identity lasts an hour", async () => {
+  let requests = 0;
+  const service = cache({
+    getCatalog: async () => ++requests === 1
+      ? snapshot({}, { sources: ["PreStocks issuer catalog"] })
+      : snapshot(),
+  });
+  await service.getServerMarketCatalog();
+  service.advance(4_999);
+  await service.getServerMarketCatalog();
+  assert.equal(service.calls.catalog, 1);
+  service.advance(1);
+  await service.getServerMarketCatalog();
+  assert.equal(service.calls.catalog, 2);
+  service.advance(30_000);
+  await service.getServerMarketCatalog();
+  assert.equal(service.calls.catalog, 2);
 });

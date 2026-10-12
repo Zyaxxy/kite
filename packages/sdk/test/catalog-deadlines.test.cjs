@@ -96,3 +96,63 @@ test("catalog pagination remains bounded when provider batches exceed twenty sec
     catalog.warnings.some((warning) => warning.startsWith("xStocks catalog")),
   );
 });
+
+// Mock global fetch to exercise the production concurrent loader, including
+// successful first pages followed by required-page failures.
+function productionFixture(context, respond) {
+  context.mock.method(globalThis, "fetch", async (input) => {
+    const url = new URL(String(input));
+    if (url.hostname !== "api.xstocks.fi") {
+      if (url.pathname === "/api/metrics") return Response.json({ metrics: [] });
+      if (url.pathname === "/products") return new Response("");
+      return Response.json([]);
+    }
+    return respond(Number(url.searchParams.get("page")));
+  });
+}
+
+const pagePayload = (page, hasNextPage) => ({
+  nodes: [{
+    symbol: `P${page}x`, name: `Page ${page}`,
+    deployments: [{ network: "Solana", address: "1".repeat(30) + "ABCDEFGHJ"[page] + "1" }],
+  }],
+  page: { hasNextPage },
+});
+
+test("a failed required concurrent page never becomes a live cached issuer catalog", async (context) => {
+  productionFixture(context, (page) => page === 1
+    ? new Response("Unavailable", { status: 503 })
+    : Response.json(pagePayload(page, true)));
+  const catalog = await getMainnetCatalog();
+  assert.equal(catalog.sources.includes("xStocks issuer catalog"), false);
+  assert.equal(catalog.assets.some((a) => a.issuer === "xstocks"), false);
+});
+
+test("a deep page failure also discards the incomplete prefix", async (context) => {
+  productionFixture(context, (page) => page === 3
+    ? new Response("Unavailable", { status: 503 })
+    : Response.json(pagePayload(page, true)));
+  const catalog = await getMainnetCatalog();
+  assert.equal(catalog.sources.includes("xStocks issuer catalog"), false);
+  assert.equal(catalog.assets.some((a) => a.issuer === "xstocks"), false);
+});
+
+test("missing pagination metadata is rejected instead of declaring the first page complete", async (context) => {
+  productionFixture(context, (page) => {
+    const payload = pagePayload(page, true);
+    delete payload.page;
+    return Response.json(payload);
+  });
+  const catalog = await getMainnetCatalog();
+  assert.equal(catalog.sources.includes("xStocks issuer catalog"), false);
+});
+
+test("an explicit last page completes the catalog even if speculative later pages fail", async (context) => {
+  productionFixture(context, (page) => page === 2
+    ? new Response("Past the end", { status: 404 })
+    : Response.json(pagePayload(page, page === 0)));
+  const catalog = await getMainnetCatalog();
+  assert.ok(catalog.sources.includes("xStocks issuer catalog"));
+  assert.equal(catalog.assets.filter((a) => a.issuer === "xstocks").length, 2);
+  assert.equal(catalog.issuerCatalogVersion, 1);
+});

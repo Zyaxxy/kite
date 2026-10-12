@@ -216,9 +216,9 @@ function builder({
       : sdk,
     "./markets": {
       getServerMarketCatalog: async () => ({
-        assets: mints.map(outputToken),
+        assets: mints.map((mint) => ({ ...outputToken(mint), issuer: "xstocks" })),
         baskets: [],
-        sources: [],
+        sources: ["xStocks issuer catalog"],
       }),
     },
     "./mint-precision": {

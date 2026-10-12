@@ -8,6 +8,8 @@ import { type BasketLiquidityAudit } from "./basket/liquidity-audit";
 
 /** Mainnet issuer catalogs and observed onchain market prices. Unknown values stay null. */
 export const MAINNET_USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+/** Persisted issuer data must come from the loader that verifies every page. */
+export const ISSUER_CATALOG_VERSION = 1;
 
 export interface MarketAsset {
   mint: string;
@@ -79,6 +81,7 @@ export interface MarketSnapshot {
   warnings: string[];
   /** More observed data is being fetched; existing timestamps are unchanged. */
   refreshing?: boolean;
+  issuerCatalogVersion?: number;
 }
 
 export interface MarketOptions {
@@ -305,55 +308,34 @@ async function loadXstockCatalog(
     }
   };
 
-  const batchSize = options.fetcher ? 1 : 4;
-
+  const batchSize = options.fetcher ? 1 : 3;
+  let complete = false;
   for (let page = 0; page < 50; page += batchSize) {
-    try {
-      if (batchSize === 1) {
-        const response = await pageRequest(page);
-        processPageNodes(list(response.nodes));
-        if (row(response.page).hasNextPage !== true) break;
-      } else {
-        const pageNumbers: number[] = [];
-        for (let i = 0; i < batchSize; i++) pageNumbers.push(page + i);
-        const settled = await Promise.allSettled(
-          pageNumbers.map((p) => pageRequest(p)),
-        );
-        let reachedEnd = false;
-        for (let i = 0; i < settled.length; i++) {
-          const item = settled[i];
-          if (item.status === "rejected") {
-            if (page === 0 && i === 0) throw item.reason;
-            reachedEnd = true;
-            break;
-          }
-          const response = item.value;
-          processPageNodes(list(response.nodes));
-          if (
-            row(response.page).hasNextPage !== true ||
-            !Array.isArray(response.nodes) ||
-            response.nodes.length === 0
-          ) {
-            reachedEnd = true;
-            break;
-          }
-        }
-        if (reachedEnd) break;
+    const pages = Array.from(
+      { length: Math.min(batchSize, 50 - page) },
+      (_, index) => page + index,
+    );
+    const results = await Promise.allSettled(pages.map(pageRequest));
+    for (const result of results) {
+      // A failed required page is not the end of the issuer catalog. Never
+      // cache the discovered prefix as a complete set of issuer identities.
+      if (result.status === "rejected") throw result.reason;
+      const response = result.value;
+      const hasNextPage = row(response.page).hasNextPage;
+      if (
+        typeof hasNextPage !== "boolean" ||
+        (hasNextPage && list(response.nodes).length === 0)
+      )
+        throw new Error("xStocks catalog pagination could not be verified");
+      processPageNodes(list(response.nodes));
+      if (!hasNextPage) {
+        complete = true;
+        break;
       }
-    } catch (err) {
-      // If caller or catalog deadline was aborted, propagate if no assets were discovered or under test harness
-      if (options.signal?.aborted && (options.fetcher || assets.size === 0)) {
-        throw err;
-      }
-      // If the initial page fails, the catalog is truly unavailable
-      if (page === 0 || assets.size === 0) {
-        throw err;
-      }
-      // If a subsequent deep page times out or fails (e.g. rate limit, 503),
-      // preserve the assets already successfully discovered instead of failing closed to 0
-      break;
     }
+    if (complete) break;
   }
+  if (!complete) throw new Error("xStocks catalog exceeded the pagination limit");
 
   if (assets.size === 0) {
     throw new Error("xStocks catalog returned no valid assets");
@@ -937,6 +919,7 @@ export async function getMainnetCatalog(
     baskets: resolveMarketBaskets(assets, { includeAll: true }),
     asOf: new Date().toISOString(),
     network: "mainnet-beta",
+    issuerCatalogVersion: ISSUER_CATALOG_VERSION,
     sources,
     status:
       assets.length === 0 &&
@@ -1146,6 +1129,7 @@ export async function getMainnetMarkets(
       baskets: resolveMarketBaskets(assets, { includeAll: true }),
       asOf: new Date().toISOString(),
       network: "mainnet-beta",
+      issuerCatalogVersion: catalog.issuerCatalogVersion,
       sources: [...sources],
       status:
         assets.length === 0 && !catalog.backpackSecurities?.length

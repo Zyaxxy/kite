@@ -6,6 +6,8 @@ import ts from "typescript";
 import { Keypair } from "@solana/web3.js";
 import {
   resolveAllMarketBaskets,
+  hasCompleteIssuerCatalogs,
+  ISSUER_CATALOG_VERSION,
   type MarketAsset,
   type MarketSnapshot,
 } from "@kite/sdk";
@@ -40,6 +42,7 @@ function previousReleaseSnapshot(): MarketSnapshot {
   );
   return {
     network: "mainnet-beta",
+    issuerCatalogVersion: ISSUER_CATALOG_VERSION,
     assets,
     asOf: observedAt,
     status: "partial",
@@ -103,6 +106,8 @@ function cachedService(store: "redis" | "disk", stored: MarketSnapshot) {
         name === "@kite/sdk"
           ? {
               resolveAllMarketBaskets,
+              hasCompleteIssuerCatalogs,
+              ISSUER_CATALOG_VERSION,
               getMainnetCatalog: async () => {
                 providerCalls++;
                 throw new Error("Unexpected catalog reload");

@@ -26,10 +26,12 @@ test("customAllocations validation in prepareAllocationOrder", async () => {
   }).outputText;
 
   const mockMarket = {
+    status: "partial",
+    sources: ["xStocks issuer catalog"],
     assets: [
-      { mint: inputMint, symbol: "USDC", verified: true, tradingHalted: false },
-      { mint: mintA, symbol: "A", verified: true, tradingHalted: false },
-      { mint: mintB, symbol: "B", verified: true, tradingHalted: false },
+      { mint: inputMint, symbol: "USDC", issuer: "xstocks", verified: true, tradingHalted: false },
+      { mint: mintA, symbol: "A", issuer: "xstocks", verified: true, tradingHalted: false },
+      { mint: mintB, symbol: "B", issuer: "xstocks", verified: true, tradingHalted: false },
     ],
     baskets: [],
   };

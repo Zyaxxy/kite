@@ -22,7 +22,7 @@ import {
   composeBasketV1Chunks,
   isTransactionCapacityError,
   BUNDLE_ATOMICITY_WARNING,
-  hasCompleteIssuerCatalogs,
+  hasIssuerCatalogsForAssets,
   toTokenAmount,
   fromTokenAmount,
   classifyJupiterRouteError,
@@ -287,19 +287,6 @@ async function prepareAllocationOrder(
     input.supportedTransactionVersions,
   );
   const market = await getServerMarketCatalog();
-  if (
-    market.backpackSecurities?.some(
-      (security) =>
-        security.discoveryOnly &&
-        (security.candidateSolanaMints ?? [security.solanaMint]).some(
-          (mint) =>
-            mint !== null && (mint === inputMint || mint === outputToken?.mint),
-        ),
-    )
-  )
-    throw new Error(
-      "This Backpack security is discovery-only until Solana transfers can be verified.",
-    );
   const published = outputToken
     ? null
     : await resolvePublishedCreatorBasket(input.basketId);
@@ -367,17 +354,47 @@ async function prepareAllocationOrder(
       assets: resolvedAssets,
     };
   } else {
+    // Persisted baskets can belong to an older deployment. Resolve current
+    // allocation definitions against the issuer assets used for this order.
     basket = resolveAllMarketBaskets(market.assets).find(
       (b) => b.id === input.basketId,
     );
   }
 
+  if (!basket)
+    throw new Error(
+      "This basket is no longer in the current catalog. Refresh the basket list and choose an available basket.",
+    );
+  const selectedMints = new Set([
+    inputMint,
+    ...basket.assets.map((a) => a.asset.mint),
+  ]);
   if (
-    (!outputToken &&
-      !customAllocations &&
-      !hasCompleteIssuerCatalogs(market)) ||
-    !basket ||
-    basket.missingSymbols.length ||
+    market.backpackSecurities?.some(
+      (security) =>
+        security.discoveryOnly &&
+        (security.candidateSolanaMints ?? [security.solanaMint]).some(
+          (mint) => mint !== null && selectedMints.has(mint),
+        ),
+    )
+  )
+    throw new Error(
+      "This Backpack security is discovery-only until Solana transfers can be verified.",
+    );
+  if (
+    !hasIssuerCatalogsForAssets(
+      market,
+      market.assets.filter((asset) => selectedMints.has(asset.mint)),
+    )
+  )
+    throw new Error(
+      "Issuer trading status for a selected asset is temporarily unavailable. Retry once its catalog recovers.",
+    );
+  if (basket.missingSymbols.length)
+    throw new Error(
+      `The basket is missing issuer-listed assets: ${basket.missingSymbols.join(", ")}. No partial basket will be purchased.`,
+    );
+  if (
     !basket.assets.length ||
     basket.assets.some(
       (a) => (!outputToken && !a.asset.verified) || a.asset.tradingHalted,

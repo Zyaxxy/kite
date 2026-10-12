@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Keypair, SystemProgram, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
 import { authorizeTrade, verifyTradeAuthorization } from '../lib/server/trade-authorization.ts';
-import { toTokenAmount, fromTokenAmount, canApproveTrade, classifyTradeExecution, hasCompleteIssuerCatalogs } from '../../../packages/sdk/dist/trading.js';
+import { toTokenAmount, fromTokenAmount, canApproveTrade, classifyTradeExecution, hasCompleteIssuerCatalogs, hasIssuerCatalogsForAssets } from '../../../packages/sdk/dist/trading.js';
 
 test('amount conversion preserves exact token units and rejects invalid precision', () => {
   assert.equal(toTokenAmount('9007199254.740993', 6), '9007199254740993');
@@ -52,6 +52,17 @@ test('missing issuer catalogs cannot be presented as a complete empty portfolio'
   assert.equal(hasCompleteIssuerCatalogs({ status: 'unavailable', sources: [] }), false);
   // Price outages can remain partial without losing the ability to identify every issuer holding.
   assert.equal(hasCompleteIssuerCatalogs({ status: 'partial', sources: ['xStocks issuer catalog', 'PreStocks issuer catalog'] }), true);
+});
+
+test('order issuer requirements follow selected assets rather than the full market universe', () => {
+  const snapshot = { status: 'partial', sources: ['xStocks issuer catalog'] };
+  assert.equal(hasIssuerCatalogsForAssets(snapshot, [{ issuer: 'xstocks' }]), true);
+  assert.equal(hasIssuerCatalogsForAssets(snapshot, [{ issuer: 'prestocks' }]), false);
+  assert.equal(hasIssuerCatalogsForAssets(snapshot, [{ issuer: 'xstocks' }, { issuer: 'prestocks' }]), false);
+  assert.equal(hasIssuerCatalogsForAssets({ ...snapshot, status: 'unavailable' }, [{ issuer: 'xstocks' }]), false);
+  assert.equal(hasIssuerCatalogsForAssets(snapshot, [{ issuer: 'other' }]), false);
+  assert.equal(hasIssuerCatalogsForAssets({ status: 'partial', sources: ['Backpack securities catalog'] }, [{ issuer: 'backpack' }]), false);
+  assert.equal(hasIssuerCatalogsForAssets({ status: 'partial', sources: ['Backpack securities catalog', 'Backpack Solana mappings'] }, [{ issuer: 'backpack' }]), true);
 });
 
 test('missing confirmation is unknown rather than a false success or failure', () => {

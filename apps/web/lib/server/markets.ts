@@ -2,6 +2,8 @@ import {
   getMainnetCatalog,
   getMainnetMarkets,
   resolveAllMarketBaskets,
+  hasCompleteIssuerCatalogs,
+  ISSUER_CATALOG_VERSION,
   type MarketSnapshot,
 } from "@kite/sdk";
 import {
@@ -31,10 +33,18 @@ let referencesExpireAt = 0;
 const fallbackQuotes = new Map<string, number>();
 
 /** Prices are observations; curated allocation definitions belong to this release. */
-function withCurrentBasketDefinitions(
-  snapshot: MarketSnapshot,
-): MarketSnapshot {
-  return { ...snapshot, baskets: resolveAllMarketBaskets(snapshot.assets) };
+function withCurrentBasketDefinitions(value: MarketSnapshot): MarketSnapshot {
+  return { ...value, baskets: resolveAllMarketBaskets(value.assets) };
+}
+
+function catalogLifetime(value: MarketSnapshot): number {
+  return hasCompleteIssuerCatalogs(value) ? CATALOG_TTL : 5_000;
+}
+
+function remainingLifetime(value: MarketSnapshot, lifetime: number): number {
+  const observedAt = Date.parse(value.asOf);
+  if (!Number.isFinite(observedAt)) return 0;
+  return Math.max(0, lifetime - Math.max(0, Date.now() - observedAt));
 }
 
 /** Identity and issuer trading status never wait for the whole price universe. */
@@ -48,13 +58,18 @@ export async function getServerMarketCatalog(): Promise<MarketSnapshot> {
         const fromRedis = await getRedisCatalog();
         if (
           fromRedis &&
+          fromRedis.issuerCatalogVersion === ISSUER_CATALOG_VERSION &&
           fromRedis.assets.length &&
           fromRedis.status !== "unavailable" &&
-          fromRedis.assets.some((a) => a.issuer === "xstocks")
+          fromRedis.assets.some((a) => a.issuer === "xstocks") &&
+          remainingLifetime(fromRedis, catalogLifetime(fromRedis)) > 0
         ) {
-          const value = withCurrentBasketDefinitions(fromRedis);
-          catalog = { value, expiresAt: Date.now() + CATALOG_TTL };
-          return value;
+          catalog = {
+            value: withCurrentBasketDefinitions(fromRedis),
+            expiresAt:
+              Date.now() + remainingLifetime(fromRedis, catalogLifetime(fromRedis)),
+          };
+          return catalog.value;
         }
       } catch {
         // Non-blocking fallback
@@ -67,13 +82,18 @@ export async function getServerMarketCatalog(): Promise<MarketSnapshot> {
         const fromDisk = await getDiskCatalog();
         if (
           fromDisk &&
+          fromDisk.issuerCatalogVersion === ISSUER_CATALOG_VERSION &&
           fromDisk.assets.length &&
           fromDisk.status !== "unavailable" &&
-          fromDisk.assets.some((a) => a.issuer === "xstocks")
+          fromDisk.assets.some((a) => a.issuer === "xstocks") &&
+          remainingLifetime(fromDisk, catalogLifetime(fromDisk)) > 0
         ) {
-          const value = withCurrentBasketDefinitions(fromDisk);
-          catalog = { value, expiresAt: Date.now() + CATALOG_TTL };
-          return value;
+          catalog = {
+            value: withCurrentBasketDefinitions(fromDisk),
+            expiresAt:
+              Date.now() + remainingLifetime(fromDisk, catalogLifetime(fromDisk)),
+          };
+          return catalog.value;
         }
       } catch {
         // Non-blocking fallback
@@ -83,8 +103,7 @@ export async function getServerMarketCatalog(): Promise<MarketSnapshot> {
     const value = withCurrentBasketDefinitions(await getMainnetCatalog());
     catalog = {
       value,
-      expiresAt:
-        Date.now() + (value.status === "unavailable" ? 5_000 : CATALOG_TTL),
+      expiresAt: Date.now() + catalogLifetime(value),
     };
     if (
       value.assets.length &&
@@ -245,11 +264,7 @@ export async function getServerMarkets(
         fromRedis.status !== "unavailable" &&
         fromRedis.assets.some((a) => a.issuer === "xstocks")
       ) {
-        const age = Math.max(
-          0,
-          Date.now() - new Date(fromRedis.asOf).getTime(),
-        );
-        const remainingTtl = age < PRICE_TTL ? PRICE_TTL - age : 5_000;
+        const remainingTtl = remainingLifetime(fromRedis, PRICE_TTL);
         cached = {
           value: withCurrentBasketDefinitions(fromRedis),
           expiresAt: Date.now() + remainingTtl,
@@ -270,8 +285,7 @@ export async function getServerMarkets(
         fromDisk.status !== "unavailable" &&
         fromDisk.assets.some((a) => a.issuer === "xstocks")
       ) {
-        const age = Math.max(0, Date.now() - new Date(fromDisk.asOf).getTime());
-        const remainingTtl = age < PRICE_TTL ? PRICE_TTL - age : 5_000;
+        const remainingTtl = remainingLifetime(fromDisk, PRICE_TTL);
         cached = {
           value: withCurrentBasketDefinitions(fromDisk),
           expiresAt: Date.now() + remainingTtl,
@@ -288,12 +302,20 @@ export async function getServerMarkets(
     return { ...cached.value, refreshing: Boolean(pending) };
   }
 
-  const identity = cached ? cached.value : await getServerMarketCatalog();
+  // A display snapshot is not an issuer-status catalog. Refresh through the
+  // catalog cache so an expired or partial issuer result can actually recover.
+  if (cached) {
+    const task = refresh();
+    if (!options.waitUntil) return { ...(await task), refreshing: false };
+    options.waitUntil(task.catch(() => undefined));
+    return { ...cached.value, refreshing: true };
+  }
+  const identity = await getServerMarketCatalog();
   if (identity && !identity.assets.length)
     return { ...identity, refreshing: false };
   const task = refresh(identity);
   if (!options.waitUntil) return { ...(await task), refreshing: false };
   options.waitUntil(task.catch(() => undefined));
   // Cold reads can render verified names immediately, before any Jupiter batch.
-  return { ...(cached?.value ?? identity!), refreshing: true };
+  return { ...identity, refreshing: true };
 }
