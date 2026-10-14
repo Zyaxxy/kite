@@ -1,10 +1,10 @@
-import type { Metadata } from "next";
+import { pageMetadata } from "../../lib/metadata";
 import { LegalPage } from "../../components/kite/LegalPage";
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "Terms & conditions",
   description:
     "Terms for exploring tokenized assets, paper trading and wallet-approved swaps in Kite.",
-};
+});
 export default function TermsPage() {
   return (
     <LegalPage

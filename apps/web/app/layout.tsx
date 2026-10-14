@@ -5,23 +5,29 @@ import { Providers } from "./providers";
 import { ThemeProvider } from "../components/kite/ThemeMode";
 import { PrivacyChoices } from "../components/kite/PrivacyChoices";
 import { siteUrl } from "../lib/site";
+import { socialPreview } from "../lib/metadata";
 import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: siteUrl(),
   title: {
-    default: "Kite — Tokenized stocks. Your own wallet.",
-    template: "%s | Kite",
+    default: "Kite",
+    template: "Kite | %s",
   },
   description:
     "Research tokenized stocks, build a basket and invest from your own wallet on Solana. Mainnet spot purchases, a vaultless devnet SIP/DCA demo and paper practice.",
   openGraph: {
     type: "website",
     siteName: "Kite",
-    title: "Kite — Tokenized stocks. Your own wallet.",
+    title: "Kite",
     description:
       "Research companies. Invest in stock baskets. Keep custody in your wallet. Explore mainnet purchases and Kite’s vaultless recurring test-token demo.",
+    images: [socialPreview],
   },
-  twitter: { card: "summary_large_image" },
+  twitter: {
+    card: "summary_large_image",
+    title: "Kite",
+    images: [socialPreview],
+  },
 };
 export default function RootLayout({
   children,

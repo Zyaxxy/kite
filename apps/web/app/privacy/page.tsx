@@ -1,11 +1,11 @@
-import type { Metadata } from "next";
+import { pageMetadata } from "../../lib/metadata";
 import { LegalPage } from "../../components/kite/LegalPage";
 import { operatorName } from "../../lib/site";
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "Privacy policy",
   description:
     "How Kite handles local paper accounts, wallet information and optional analytics.",
-};
+});
 export default function PrivacyPage() {
   return (
     <LegalPage

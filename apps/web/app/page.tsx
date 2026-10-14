@@ -1,6 +1,9 @@
 import { Landing } from "../components/kite/Landing";
 import { after } from "next/server";
 import { getServerMarkets } from "@/lib/server/markets";
+import { landingMetadata } from "../lib/metadata";
+
+export const metadata = landingMetadata;
 
 // Market and Redis observations use no-store reads. Keep this route dynamic
 // even when the process-local snapshot cache satisfies a build-time request.
