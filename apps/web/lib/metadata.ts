@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 
 export const socialPreview = {
-  url: "/images/social/kite-preview-logo-fixed.png",
-  width: 1728,
-  height: 910,
-  alt: "Kite | Research & automate Stocks and Baskets Investing, with Apple, NVIDIA, Microsoft and Tesla logos in an abstract basket.",
+  url: "/images/social/kite-stocks-baskets-v2.jpg",
+  width: 1200,
+  height: 630,
+  type: "image/jpeg",
+  alt: "Kite | Research & automate Stocks & Baskets Investing, with Apple, NVIDIA, Microsoft and Tesla logos in an abstract basket.",
 };
 
 export function pageMetadata({
@@ -34,7 +35,7 @@ export function pageMetadata({
 }
 
 export const landingMetadata = pageMetadata({
-  title: "Research & automate Stocks and Baskets Investing",
+  title: "Research & automate Stocks & Baskets Investing",
   description:
     "Research tokenized stocks, build a basket and invest from your own wallet on Solana. Mainnet spot purchases, a vaultless devnet SIP/DCA demo and paper practice.",
 });

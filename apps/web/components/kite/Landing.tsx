@@ -113,10 +113,13 @@ export function Landing({
             <div className={styles.heroCopy}>
               <h1 id="landing-title">
                 <span className={styles.heroLine}>
-                  <span data-hero-line>The world’s stocks.</span>
+                  <span data-hero-line>Research &amp; automate</span>
                 </span>
                 <span className={styles.heroLine}>
-                  <em data-hero-line>Your own wallet.</em>
+                  <span data-hero-line>Stocks &amp; Baskets</span>
+                </span>
+                <span className={styles.heroLine}>
+                  <em data-hero-line>Investing</em>
                 </span>
               </h1>
               <p className={styles.intro} data-hero-intro>

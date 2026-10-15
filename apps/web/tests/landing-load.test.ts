@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import test from "node:test";
 import ts from "typescript";
+import { landingMetadata } from "../lib/metadata";
 
 for (const path of ["../app/page.tsx", "../app/landing/page.tsx"]) {
   function route(failed = false) {
@@ -31,6 +32,7 @@ for (const path of ["../app/page.tsx", "../app/landing/page.tsx"]) {
           return { jsx: (type: unknown, props: unknown) => ({ type, props }) };
         if (name.endsWith("components/kite/Landing"))
           return { Landing: "Landing" };
+        if (name.endsWith("lib/metadata")) return { landingMetadata };
         if (name === "next/server")
           return {
             after: (callback: () => Promise<unknown>) =>

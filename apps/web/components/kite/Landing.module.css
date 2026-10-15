@@ -265,7 +265,7 @@
   text-align: left;
 }
 .hero h1 {
-  font-size: clamp(54px, 5.2vw, 74px);
+  font-size: clamp(44px, 4.6vw, 64px);
   font-weight: 500;
   line-height: 1.1;
   letter-spacing: -0.04em;
